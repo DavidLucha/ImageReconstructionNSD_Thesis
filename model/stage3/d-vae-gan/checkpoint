@@ -1,2 +1,0 @@
-model_checkpoint_path: "d-vae-gan.model"
-all_model_checkpoint_paths: "..\\..\\stage3\\d-vae-gan\\d-vae-gan.model"
