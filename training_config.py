@@ -1,8 +1,8 @@
 
 
 """____________________Config for Dual-VAE/GAN training___________________________"""
-decoder_weights = ['gan_20210127-012348', 90]       # latent dim = 128
-pretrained_gan = 'gan_20210413-102934'  # 'gan_cogenc_20210131-183016'
+decoder_weights = ['gan_20210127-012348', 90] # This should change in stage 2 vs 3
+pretrained_net = 'gan_20210413-102934'  # TODO: Change this
 load_epoch = 335
 evaluate = False
 
@@ -46,18 +46,31 @@ std = [0.5, 0.5, 0.5]
 
 """____________________Data Config___________________________"""
 
-LOGS_PATH = '/logs/'
+LOGS_PATH = 'logs/'
+# TRAIN_IMG_PATH = "D:/Honours/Object Decoding Dataset/images_passwd/images/training/"
+# SAVE_PATH = "D:/Honours/Object Decoding Dataset/7387130/Subject Training Pickles/"
+data_root = 'D:/Lucha_Data/datasets/'
+# save_training_results = ''
 
-TRAIN_IMG_PATH = "D:/Honours/Object Decoding Dataset/images_passwd/images/training/"
-SAVE_PATH = "D:/Honours/Object Decoding Dataset/7387130/Subject Training Pickles/"
+# TODO: Move images to new directory
+# GOD Data
+# For Stage 1
+god_s1_train_imgs = 'GOD/images/train/'
+god_s1_valid_imgs = 'GOD/images/valid/'
+# For Stage 2 and 3
+god_train_data = 'GOD/GOD_allsub_training.pickle'
+god_valid_data = 'GOD/GOD_allsub_valid.pickle'
 
-god_train_data = ''
-god_valid_data = ''
+# NSD Data
+# Change this for NSD tests
+nsd_mode = '1.8mm/'  # 3mm | 5S_Small etc.
 
-nsd_train_data = ''
-nsd_valid_data = ''
-
-data_root = 'data/'
-save_training_results = ''
+# TODO: We will have to change imgs path depending on test/how we run sample size comparison
+# For Stage 1
+nsd_s1_train_imgs = 'NSD/images/train/'  # add + nsd_mode
+nsd_s1_valid_imgs = 'NSD/images/valid/'
+# For Stage 2 and 3
+nsd_train_data = 'NSD/' + nsd_mode + 'NSD_allsub_training.pickle'
+nsd_valid_data = 'NSD/' + nsd_mode + 'NSD_allsub_training.pickle'
 
 

@@ -44,21 +44,19 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', default=training_config.n_epochs, help='number of epochs', type=int)
     parser.add_argument('--image_size', default=training_config.image_size, help='size to which image should '
                                                                                      'be scaled', type=int)
-    parser.add_argument('--num_workers', '-nw', default=training_config.num_workers, help='number of workers for dataloader',
-                        type=int)
-
+    parser.add_argument('--num_workers', '-nw', default=training_config.num_workers,
+                        help='number of workers for dataloader',type=int)
     # Pretrained network components
-    parser.add_argument('--pretrained_gan', '-pretrain', default=training_config.pretrained_gan, help='pretrained gan', type=str)
-    parser.add_argument('-load_epoch', '-pretrain_epoch', default=training_config.load_epoch, help='epoch of the pretrained model',
-                        type=int)
-    parser.add_argument('--decoder', '-dec', default=training_config.decoder_weights,
-                        help='pretrained decoder', type=str)
-    parser.add_argument('--dataset', default='GOD', help='GOD, NSD, NSD_3mm, NSD_5S_Small, NSD_8S,Small,'
-                                                         'NSD_5S_Large, NSD_8S_Large', type=str) # Change to NSD/GOD
+    parser.add_argument('--pretrained_net', '-pretrain', default=training_config.pretrained_net,
+                        help='pretrained network', type=str)
+    parser.add_argument('-load_epoch', '-pretrain_epoch', default=training_config.load_epoch,
+                        help='epoch of the pretrained model', type=int)
+    parser.add_argument('--dataset', default='GOD', help='GOD, NSD', type=str)
     parser.add_argument('--subset', default='1.8mm', help='1.8mm, 3mm, 5S_Small, 8S_Small,'
-                                                         '5S_Large, 8S_Large', type=str) # Change to NSD/GOD
-    parser.add_argument('--recon_level', default=training_config.recon_level, help='reconstruction level in the descriminator',
-                        type=int) # NOT REALLY SURE WHAT RECON LEVEL DOES TBH - see VAE GAN implementation
+                                                          '5S_Large, 8S_Large', type=str)
+    parser.add_argument('--recon_level', default=training_config.recon_level,
+                        help='reconstruction level in the discriminator',
+                        type=int)  # NOT REALLY SURE WHAT RECON LEVEL DOES TBH - see VAE GAN implementation
 
     # Likely not needed - loss calcs for different network types
     parser.add_argument('--mode', default='vae-gan', help='vae, vae-gan, beta-vae, dcgan')
@@ -87,7 +85,8 @@ if __name__ == "__main__":
         # parser.add_argument('--decay_equilibrium', default=training_config.decay_equilibrium, type=float,
                             help='equilibrium decay for the generator/discriminator game')   
         # parser.add_argument('--beta', default=training_config.beta, type=float, help='beta factor for beta-vee') 
-                            
+        # parser.add_argument('--decoder', '-dec', default=training_config.decoder_weights,
+        #                         help='pretrained decoder', type=str)                   
                                         
         # MIGHT BE WORTH LOOKING INTO EARLY STOPPING BELOW # 
         # parser.add_argument('--patience', '-p', default=training_config.patience, help='number of epochs with unchanged lr '
@@ -99,38 +98,17 @@ if __name__ == "__main__":
     """
     PATHS
     """
-    # Paths to pickle file withs fMRI/image pairing data
-    USER_ROOT = 'D:/'
-    # DATA_PATH = os.path.join(args.input, training_config.data_root)
-    SAVE_PATH = os.path.join(USER_ROOT, training_config.save_training_results)
-    TRAIN_DATA_PATH = os.path.join(USER_ROOT, training_config.data_root, training_config.train_data)
-    VALID_DATA_PATH = os.path.join(USER_ROOT, training_config.data_root, training_config.valid_data)
-
-    # Load training data for GOD and NSD
-    GOD_TRAIN_DATA = os.path.join(USER_ROOT, training_config.data_root, training_config.god_train_data)
-    GOD_VALID_DATA = os.path.join(USER_ROOT, training_config.data_root, training_config.god_valid_data)
-
-    NSD_TRAIN_DATA = os.path.join(USER_ROOT, training_config.data_root, training_config.nsd_train_data)
-    NSD_VALID_DATA = os.path.join(USER_ROOT, training_config.data_root, training_config.nsd_valid_data)
-
-    # Create directory to save weights
-    if not os.path.exists(SAVE_PATH):
-        os.makedirs(SAVE_PATH)
-
-    """
-    # Change sub-directories for GOD variations
-    if args.dataset == 'NSD' and args.subset == '1.8mm':
-        # Placeholder
-    elif args.dataset == 'NSD' and args.subset == '3mm':
-    elif args.dataset == 'NSD' and args.subset == '5S_Small':
-    elif args.dataset == 'NSD' and args.subset == '8S_Small':
-    elif args.dataset == 'NSD' and args.subset == '5S_Large':
-    elif args.dataset == 'NSD' and args.subset == '8S_Large':
-    """
-
     # Get current working directory
     CWD = os.getcwd()
-    print(CWD)
+    OUTPUT_PATH = os.path.join(CWD, 'output/')
+
+    # Load training data for GOD and NSD, default is NSD
+    TRAIN_DATA_PATH = os.path.join(training_config.data_root, training_config.nsd_s1_train_imgs)
+    VALID_DATA_PATH = os.path.join(training_config.data_root, training_config.nsd_s1_valid_imgs)
+
+    if args.dataset == 'GOD':
+        TRAIN_DATA_PATH = os.path.join(training_config.data_root, training_config.god_s1_train_imgs)
+        VALID_DATA_PATH = os.path.join(training_config.data_root, training_config.god_s1_valid_imgs)
 
     """
     LOGGING SETUP
@@ -139,7 +117,7 @@ if __name__ == "__main__":
     timestep = time.strftime("%Y%m%d-%H%M%S")
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
     logger = logging.getLogger()
-    file_handler = logging.FileHandler(os.path.join(training_config.LOGS_PATH, 's1_training_' + timestep))
+    file_handler = logging.FileHandler(os.path.join(CWD, training_config.LOGS_PATH, 's1_training_' + timestep))
     handler_formatting = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(handler_formatting)
     # logger = logging.getLogger()
@@ -147,9 +125,7 @@ if __name__ == "__main__":
     logger.addHandler(file_handler)
 
     # Check available gpu
-    device = torch.device(training_config.device if torch.cuda.is_available() else 'cpu')
-    # device2 = training_config.device2
-    # device3 = training_config.device3
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logger.info("Used device: %s" % device)
 
     logging.info('set up random seeds')
@@ -160,38 +136,35 @@ if __name__ == "__main__":
         - requires the timestep variable etc.
     """
     # Create directory for results
-    saving_dir = os.path.join(SAVE_PATH, 'gan', 'gan_{}'.format(timestep))
+    stage_num = 'stage_1'
+    SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, stage_num, 'dvaegan_{}'.format(timestep))
+    if not os.path.exists(SAVE_PATH):
+        os.makedirs(SAVE_PATH)
 
-    if not os.path.exists(saving_dir):
-        os.makedirs(saving_dir)
+    SAVE_SUB_PATH = os.path.join(SAVE_PATH, 'trained_dvaegan_{}.pth'.format(timestep))
+    if not os.path.exists(SAVE_SUB_PATH):
+        os.makedirs(SAVE_SUB_PATH)
 
     # Set pretrained model directory
-    PRETRAINED_MODEL_PATH = ""
-    pretrained_model_dir = os.path.join(SAVE_PATH, 'gan', PRETRAINED_MODEL_PATH + '.pth')
-    saving_name = os.path.join(saving_dir, 'gan_{}.pth'.format(timestep))  # CHANGE THIS
-
-    # Path to the model from the 1st stage
-    DECODER_WEIGHTS = os.path.join(USER_ROOT, training_config.save_training_results, 'wae_gan', args.decoder[0],
-                                   args.decoder[0] +
-                                   '_' + str(args.decoder[1]) + '.pth')
+    PRETRAINED_PARENT_PATH = "models/pretrain/"
+    PRETRAINED_MODEL = os.path.join(CWD, PRETRAINED_PARENT_PATH, args.pretrained_net + '.pth')
+    if not os.path.exists(PRETRAINED_MODEL):
+        os.makedirs(PRETRAINED_MODEL)
 
     # Save arguments
-    with open(os.path.join(saving_dir, 'config.txt'), 'w') as f:
+    with open(os.path.join(SAVE_PATH, 'config.txt'), 'w') as f:
         json.dump(args.__dict__, f, indent=2)
 
     """
     DATASET LOADING
     """
-    # Load training data which were concatenated for 5 subjects
-    with open(TRAIN_DATA_PATH, "rb") as input_file:
-        train_data = pickle.load(input_file) # Confused as to why we immediately overwrite this next
+    # Load image-only training data
+    train_data = TRAIN_DATA_PATH
+    valid_data = VALID_DATA_PATH
 
+    # TODO: Sort out data loaders for image only loaders
     if args.dataset == 'GOD':
         image_crop = training_config.image_crop
-        # All coco images
-        train_data = COCO_TRAIN_DATA
-        valid_data = COCO_VALID_DATA
-        # test_data = COCO_TEST_DATA
 
         # Load data
         training_data = CocoDataloader(train_data, pickle=False,
@@ -210,10 +183,6 @@ if __name__ == "__main__":
 
     elif args.dataset == 'NSD':
         image_crop = training_config.image_crop
-        # All coco images
-        train_data = COCO_TRAIN_DATA
-        valid_data = COCO_VALID_DATA
-        # test_data = COCO_TEST_DATA
 
         # Load data
         training_data = CocoDataloader(train_data, pickle=False,
@@ -233,35 +202,28 @@ if __name__ == "__main__":
     else:
         logging.info('Wrong dataset')
 
-
     # This writer function is for torch.tensorboard - might be worth
-    writer = SummaryWriter(saving_dir + '/runs_' + timestep)
-    writer_encoder = SummaryWriter(saving_dir + '/runs_' + timestep + '/encoder')
-    writer_decoder = SummaryWriter(saving_dir + '/runs_' + timestep + '/decoder')
-    writer_discriminator = SummaryWriter(saving_dir + '/runs_' + timestep + '/discriminator')
-
-
-    # use pretrained WAE decoder
-    # trained_model = WaeGan(device=device, z_size=training_config.latent_dim).to(device)
-    # trained_model.load_state_dict(torch.load(DECODER_WEIGHTS, map_location=device))
-    # model = VaeGan(device=device, z_size=training_config.latent_dim, recon_level=args.recon_level,
-    #                decoder=trained_model.decoder).to(device)
+    writer = SummaryWriter(SAVE_PATH + '/runs_' + timestep)
+    writer_encoder = SummaryWriter(SAVE_PATH + '/runs_' + timestep + '/encoder')
+    writer_decoder = SummaryWriter(SAVE_PATH + '/runs_' + timestep + '/decoder')
+    writer_discriminator = SummaryWriter(SAVE_PATH + '/runs_' + timestep + '/discriminator')
 
     model = VaeGan(device=device, z_size=training_config.latent_dim, recon_level=args.recon_level).to(device)
 
-    if args.pretrained_gan is not None and os.path.exists(pretrained_model_dir.replace(".pth", ".csv")):
+    if args.pretrained_net is not None and os.path.exists(PRETRAINED_MODEL.replace(".pth", ".csv")):
+        # TODO: Ask Maria why in stage 2 and 3, there is a pretrained GAN option. What's the difference between the DECODER weights and pretrained gan?
         logging.info('Load pretrained model')
-        model_dir = pretrained_model_dir.replace(".pth", '_{}.pth'.format(args.load_epoch))
+        model_dir = PRETRAINED_MODEL.replace(".pth", '_{}.pth'.format(args.load_epoch))
         model.load_state_dict(torch.load(model_dir))
         model.eval()
-        results = pd.read_csv(pretrained_model_dir.replace(".pth", ".csv"))
+        results = pd.read_csv(PRETRAINED_MODEL.replace(".pth", ".csv"))
         results = {col_name: list(results[col_name].values) for col_name in results.columns}
         stp = 1 + len(results['epochs'])
 
         """
         NOT CONVICED THIS IS NEEDED
         if training_config.evaluate:
-            images_dir = os.path.join(saving_dir, 'images')
+            images_dir = os.path.join(SAVE_PATH, 'images')
             if not os.path.exists(images_dir):
                 os.makedirs(images_dir)
             pcc, ssim, mse, is_mean = evaluate(model, dataloader_valid, norm=True, mean=training_config.mean, std=training_config.std,
@@ -485,7 +447,7 @@ if __name__ == "__main__":
 
             if not idx_epoch % 2:
                 # Save train examples
-                images_dir = os.path.join(saving_dir, 'images', 'train')
+                images_dir = os.path.join(SAVE_PATH, 'images', 'train')
                 if not os.path.exists(images_dir):
                     os.makedirs(images_dir)
 
@@ -541,7 +503,7 @@ if __name__ == "__main__":
                             result_metrics_train[key] = metric(x_tilde, x)
 
                 # Save validation examples
-                images_dir = os.path.join(saving_dir, 'images', 'valid')
+                images_dir = os.path.join(SAVE_PATH, 'images', 'valid')
                 if not os.path.exists(images_dir):
                     os.makedirs(images_dir)
                     os.makedirs(os.path.join(images_dir, 'random'))
@@ -615,7 +577,7 @@ if __name__ == "__main__":
                 break
 
             if not idx_epoch % 5 and not DEBUG:
-                torch.save(model.state_dict(), saving_name.replace('.pth', '_' + str(idx_epoch) + '.pth'))
+                torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
                 logging.info('Saving model')
 
                 # Record losses & scores
@@ -636,7 +598,7 @@ if __name__ == "__main__":
                     results[key].append(metric_value)
 
             results_to_save = pd.DataFrame(results)
-            results_to_save.to_csv(saving_name.replace(".pth", ".csv"), index=False)
+            results_to_save.to_csv(SAVE_SUB_PATH.replace(".pth", "_results.csv"), index=False)
 
         except KeyboardInterrupt as e:
              logging.info(e, 'Saving plots')
@@ -650,7 +612,7 @@ if __name__ == "__main__":
             plt.xlabel("iterations")
             plt.ylabel("Loss")
             plt.legend()
-            plots_dir = os.path.join(saving_dir, 'plots')
+            plots_dir = os.path.join(SAVE_PATH, 'plots')
             if not os.path.exists(plots_dir):
                 os.makedirs(plots_dir)
             plot_dir = os.path.join(plots_dir, 'GD_loss')
@@ -663,7 +625,7 @@ if __name__ == "__main__":
             plt.xlabel("iterations")
             plt.ylabel("Loss")
             plt.legend()
-            plots_dir = os.path.join(saving_dir, 'plots')
+            plots_dir = os.path.join(SAVE_PATH, 'plots')
             if not os.path.exists(plots_dir):
                 os.makedirs(plots_dir)
             plot_dir = os.path.join(plots_dir, 'ER_loss')
