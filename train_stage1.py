@@ -18,223 +18,236 @@ from torch.utils.data import DataLoader, ConcatDataset
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import ExponentialLR
 
-import training_config as train_cfg
-import data_config as data_cfg # WILL CHANGE THIS ONCE DATA IS SET UP
-from models.vae_gan import VaeGan, WaeGan
-from data_preprocessing.data_loader import CocoDataloader, GreyToColor
-from train.train_utils import evaluate, PearsonCorrelation, StructuralSimilarity
+import training_config
+from model_1 import VaeGan
+from utils_1 import CocoDataloader, GreyToColor, evaluate, PearsonCorrelation, StructuralSimilarity, objective_assessment
 
 numpy.random.seed(8)
 torch.manual_seed(8)
 torch.cuda.manual_seed(8)
 
-DEBUG = False
+"""
+Note:
+'coco' to 'GOD'
+'mnist' to 'NSD'
+"""
 
 if __name__ == "__main__":
 
-
+    """
+    ARGS PARSER
+    """
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input', '-i', help="user path where the datasets are located", type=str)
-    parser.add_argument('--output', '-o', help='user path where to save', type=str)
-    parser.add_argument('--logs', '-l', help='path where to save logs', type=str)
-    parser.add_argument('--batch_size', '-b', default=train_cfg.batch_size, help='batch size for dataloader', type=int)
-    parser.add_argument('--learning_rate', '-lr', default=train_cfg.learning_rate, help='learning rate', type=float)
-    parser.add_argument('--epochs', '-e', default=train_cfg.n_epochs, help='number of epochs', type=int)
-    parser.add_argument('--image_crop', '-im_crop', default=train_cfg.image_crop, help='size to which image should '
-                                                                                     'be cropped', type=int)
-    parser.add_argument('--image_size', '-im_size', default=train_cfg.image_size, help='size to which image should '
-                                                                                     'be scaled', type=int)
-    parser.add_argument('--device', '-d', default=train_cfg.device, help='what device to use', type=str)
-    parser.add_argument('--num_workers', '-nw', default=train_cfg.num_workers, help='number of workers for dataloader',
-                        type=int)
-    parser.add_argument('--step_size', '-step', default=train_cfg.step_size, help='number of epochs after which '
-                                                                                'to decrease learning rate', type=int)
-    parser.add_argument('--patience', '-p', default=train_cfg.patience, help='number of epochs with unchanged lr '
-                                                                           'for early stopping', type=int)
-    parser.add_argument('--weight_decay', '--wd', default=train_cfg.weight_decay, help='weight decay used by optimizer',
-                        type=float)
-    parser.add_argument('--latent_dim', '-lat_dim', default=train_cfg.latent_dim, help='dimension of the latent space',
-                        type=int)
-    parser.add_argument('--message', '-m', default='default message', help='experiment description', type=str)
-    parser.add_argument('--pretrained_gan', '-pretrain', default=train_cfg.pretrained_gan, help='pretrained gan', type=str)
-    parser.add_argument('-load_epoch', '-pretrain_epoch', default=train_cfg.load_epoch, help='epoch of the pretrained model',
-                        type=int)
-    parser.add_argument('--recon_level', default=train_cfg.recon_level, help='reconstruction level in the descriminator',
-                        type=int)
-    parser.add_argument('--lambda_mse', default=train_cfg.lambda_mse, type=float, help='weight for style error')
-    parser.add_argument('--decay_mse', default=train_cfg.decay_mse, type=float, help='mse weight decrease')
-    parser.add_argument('--decay_lr', default=train_cfg.decay_lr, type=float, help='learning rate decay for lr scheduler')
-    parser.add_argument('--margin', default=train_cfg.margin, type=float, help='margin for generator/discriminator game')
-    parser.add_argument('--equilibrium', default=train_cfg.equilibrium, type=float,
-                        help='equilibrium for the generator/discriminator game')
-    parser.add_argument('--decay_margin', default=train_cfg.decay_margin, type=float,
-                        help='margin decay for the generator/discriminator game')
-    parser.add_argument('--decay_equilibrium', default=train_cfg.decay_equilibrium, type=float,
-                        help='equilibrium decay for the generator/discriminator game')
-    parser.add_argument('--beta', default=train_cfg.beta, type=float, help='beta factor for beta-vee')
-    parser.add_argument('--mode', default='vae-gan', help='vae, vae-gan, beta-vae, dcgan')
-    parser.add_argument('--decoder', '-dec', default=train_cfg.decoder_weights,
-                        help='pretrained decoder', type=str)
-    parser.add_argument('--dataset', default='coco', help='coco, mnist')
+    parser.add_argument('--input', help="user path where the datasets are located", type=str)
 
+    parser.add_argument('--batch_size', default=training_config.batch_size, help='batch size for dataloader', type=int)
+    parser.add_argument('--epochs', default=training_config.n_epochs, help='number of epochs', type=int)
+    parser.add_argument('--image_size', default=training_config.image_size, help='size to which image should '
+                                                                                     'be scaled', type=int)
+    parser.add_argument('--num_workers', '-nw', default=training_config.num_workers, help='number of workers for dataloader',
+                        type=int)
+
+    # Pretrained network components
+    parser.add_argument('--pretrained_gan', '-pretrain', default=training_config.pretrained_gan, help='pretrained gan', type=str)
+    parser.add_argument('-load_epoch', '-pretrain_epoch', default=training_config.load_epoch, help='epoch of the pretrained model',
+                        type=int)
+    parser.add_argument('--decoder', '-dec', default=training_config.decoder_weights,
+                        help='pretrained decoder', type=str)
+    parser.add_argument('--dataset', default='GOD', help='GOD, NSD, NSD_3mm, NSD_5S_Small, NSD_8S,Small,'
+                                                         'NSD_5S_Large, NSD_8S_Large', type=str) # Change to NSD/GOD
+    parser.add_argument('--subset', default='1.8mm', help='1.8mm, 3mm, 5S_Small, 8S_Small,'
+                                                         '5S_Large, 8S_Large', type=str) # Change to NSD/GOD
+    parser.add_argument('--recon_level', default=training_config.recon_level, help='reconstruction level in the descriminator',
+                        type=int) # NOT REALLY SURE WHAT RECON LEVEL DOES TBH - see VAE GAN implementation
+
+    # Likely not needed - loss calcs for different network types
+    parser.add_argument('--mode', default='vae-gan', help='vae, vae-gan, beta-vae, dcgan')
+    # Come back to these
+
+    """
+    Unused Parser Arguments:
+        # parser.add_argument('--output', '-o', help='user path where to save', type=str)
+        # parser.add_argument('--logs', '-l', help='path where to save logs', type=str)
+        # parser.add_argument('--device', '-d', default=training_config.device, help='what device to use', type=str)
+        # parser.add_argument('--weight_decay', '--wd', default=training_config.weight_decay, help='weight decay used by optimizer',
+                        type=float)
+        # parser.add_argument('--message', '-m', default='default message', help='experiment description', type=str)                
+        # parser.add_argument('--image_crop', default=training_config.image_crop, help='size to which image should '
+                                                                                     'be cropped', type=int)
+        # parser.add_argument('--decay_lr', default=training_config.decay_lr, type=float, help='learning rate decay for lr scheduler')                 
+        # parser.add_argument('--latent_dim', '-lat_dim', default=training_config.latent_dim, help='dimension of the latent space',
+                        type=int)                
+        # parser.add_argument('--lambda_mse', default=training_config.lambda_mse, type=float, help='weight for style error')               
+        # parser.add_argument('--decay_mse', default=training_config.decay_mse, type=float, help='mse weight decrease')                
+        # parser.add_argument('--margin', default=training_config.margin, type=float, help='margin for generator/discriminator game')
+        # parser.add_argument('--equilibrium', default=training_config.equilibrium, type=float,
+                            help='equilibrium for the generator/discriminator game')
+        # parser.add_argument('--decay_margin', default=training_config.decay_margin, type=float,
+                            help='margin decay for the generator/discriminator game')
+        # parser.add_argument('--decay_equilibrium', default=training_config.decay_equilibrium, type=float,
+                            help='equilibrium decay for the generator/discriminator game')   
+        # parser.add_argument('--beta', default=training_config.beta, type=float, help='beta factor for beta-vee') 
+                            
+                                        
+        # MIGHT BE WORTH LOOKING INTO EARLY STOPPING BELOW # 
+        # parser.add_argument('--patience', '-p', default=training_config.patience, help='number of epochs with unchanged lr '
+                                                                           'for early stopping', type=int)
+    """
 
     args = parser.parse_args()
 
-    # Path to pickle file with bold5000 data
-    USER_ROOT = args.output
-    DATA_PATH = os.path.join(args.input, data_cfg.data_root)
-    SAVE_PATH = os.path.join(USER_ROOT, data_cfg.save_training_results)
-    TRAIN_DATA_PATH = os.path.join(USER_ROOT, data_cfg.data_root, data_cfg.train_data)
-    VALID_DATA_PATH = os.path.join(USER_ROOT, data_cfg.data_root, data_cfg.valid_data)
+    """
+    PATHS
+    """
+    # Paths to pickle file withs fMRI/image pairing data
+    USER_ROOT = 'D:/'
+    # DATA_PATH = os.path.join(args.input, training_config.data_root)
+    SAVE_PATH = os.path.join(USER_ROOT, training_config.save_training_results)
+    TRAIN_DATA_PATH = os.path.join(USER_ROOT, training_config.data_root, training_config.train_data)
+    VALID_DATA_PATH = os.path.join(USER_ROOT, training_config.data_root, training_config.valid_data)
 
-    COCO_TEST_DATA = os.path.join(USER_ROOT, data_cfg.data_root, data_cfg.coco_test_data)
-    COCO_TRAIN_DATA = os.path.join(USER_ROOT, data_cfg.data_root, data_cfg.coco_train_data)
-    COCO_VALID_DATA = os.path.join(USER_ROOT, data_cfg.data_root, data_cfg.coco_valid_data)
+    # Load training data for GOD and NSD
+    GOD_TRAIN_DATA = os.path.join(USER_ROOT, training_config.data_root, training_config.god_train_data)
+    GOD_VALID_DATA = os.path.join(USER_ROOT, training_config.data_root, training_config.god_valid_data)
 
-    # Only RGB
-    # COCO_TEST_DATA = os.path.join(USER_ROOT, data_cfg.data_root, data_cfg.external_data_pickle)
-    # COCO_TRAIN_DATA = os.path.join(USER_ROOT, data_cfg.data_root, data_cfg.coco_train_pickle)
-    # COCO_VALID_DATA = os.path.join(USER_ROOT, data_cfg.data_root, data_cfg.coco_valid_pickle)
-
-    # Path to the model from the 1st stage
-    DECODER_WEIGHTS = os.path.join(USER_ROOT, data_cfg.save_training_results, 'wae_gan', args.decoder[0], args.decoder[0] +
-                                   '_' + str(args.decoder[1]) + '.pth')
+    NSD_TRAIN_DATA = os.path.join(USER_ROOT, training_config.data_root, training_config.nsd_train_data)
+    NSD_VALID_DATA = os.path.join(USER_ROOT, training_config.data_root, training_config.nsd_valid_data)
 
     # Create directory to save weights
     if not os.path.exists(SAVE_PATH):
         os.makedirs(SAVE_PATH)
 
+    """
+    # Change sub-directories for GOD variations
+    if args.dataset == 'NSD' and args.subset == '1.8mm':
+        # Placeholder
+    elif args.dataset == 'NSD' and args.subset == '3mm':
+    elif args.dataset == 'NSD' and args.subset == '5S_Small':
+    elif args.dataset == 'NSD' and args.subset == '8S_Small':
+    elif args.dataset == 'NSD' and args.subset == '5S_Large':
+    elif args.dataset == 'NSD' and args.subset == '8S_Large':
+    """
+
+    # Get current working directory
+    CWD = os.getcwd()
+    print(CWD)
+
+    """
+    LOGGING SETUP
+    """
     # Info logging
     timestep = time.strftime("%Y%m%d-%H%M%S")
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
     logger = logging.getLogger()
-    file_handler = logging.FileHandler(os.path.join(args.logs, 'train_gan_' + timestep))
-    logger = logging.getLogger()
+    file_handler = logging.FileHandler(os.path.join(training_config.LOGS_PATH, 's1_training_' + timestep))
+    handler_formatting = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(handler_formatting)
+    # logger = logging.getLogger()
     file_handler.setLevel(logging.INFO)
     logger.addHandler(file_handler)
 
     # Check available gpu
-    device = torch.device(args.device if torch.cuda.is_available() else 'cpu')
-    device2 = train_cfg.device2
-    device3 = train_cfg.device3
+    device = torch.device(training_config.device if torch.cuda.is_available() else 'cpu')
+    # device2 = training_config.device2
+    # device3 = training_config.device3
     logger.info("Used device: %s" % device)
 
     logging.info('set up random seeds')
-    torch.manual_seed(12345)
+    torch.manual_seed(2022)
 
+    """
+    MORE DIRECTORY STUFF
+        - requires the timestep variable etc.
+    """
     # Create directory for results
-    if DEBUG:
-        saving_dir = os.path.join(SAVE_PATH, 'debug', 'debug_gan_{}'.format(timestep))
-    else:
-        saving_dir = os.path.join(SAVE_PATH, 'gan', 'gan_{}'.format(timestep))
+    saving_dir = os.path.join(SAVE_PATH, 'gan', 'gan_{}'.format(timestep))
+
     if not os.path.exists(saving_dir):
         os.makedirs(saving_dir)
-    if args.pretrained_gan is not None:
-        pretrained_model_dir = os.path.join(SAVE_PATH, 'gan', args.pretrained_gan, args.pretrained_gan + '.pth')
-    saving_name = os.path.join(saving_dir, 'gan_{}.pth'.format(timestep))
+
+    # Set pretrained model directory
+    PRETRAINED_MODEL_PATH = ""
+    pretrained_model_dir = os.path.join(SAVE_PATH, 'gan', PRETRAINED_MODEL_PATH + '.pth')
+    saving_name = os.path.join(saving_dir, 'gan_{}.pth'.format(timestep))  # CHANGE THIS
+
+    # Path to the model from the 1st stage
+    DECODER_WEIGHTS = os.path.join(USER_ROOT, training_config.save_training_results, 'wae_gan', args.decoder[0],
+                                   args.decoder[0] +
+                                   '_' + str(args.decoder[1]) + '.pth')
 
     # Save arguments
     with open(os.path.join(saving_dir, 'config.txt'), 'w') as f:
         json.dump(args.__dict__, f, indent=2)
 
-    # Load data which were concatenated for 4 subjects and split into training and validation sets
+    """
+    DATASET LOADING
+    """
+    # Load training data which were concatenated for 5 subjects
     with open(TRAIN_DATA_PATH, "rb") as input_file:
-        train_data = pickle.load(input_file)
-    with open(VALID_DATA_PATH, "rb") as input_file:
-        valid_data = pickle.load(input_file)
+        train_data = pickle.load(input_file) # Confused as to why we immediately overwrite this next
 
-    # Only RGB
-    # with open(COCO_TRAIN_DATA, "rb") as input_file:
-    #     train_data = pickle.load(input_file)
-    # with open(COCO_VALID_DATA, "rb") as input_file:
-    #     valid_data = pickle.load(input_file)
-    # with open(COCO_TEST_DATA, "rb") as input_file:
-    #     test_data = pickle.load(input_file)
-
-    if args.dataset == 'coco':
+    if args.dataset == 'GOD':
+        image_crop = training_config.image_crop
         # All coco images
         train_data = COCO_TRAIN_DATA
         valid_data = COCO_VALID_DATA
-        test_data = COCO_TEST_DATA
+        # test_data = COCO_TEST_DATA
 
         # Load data
         training_data = CocoDataloader(train_data, pickle=False,
-                                         transform=transforms.Compose([transforms.CenterCrop((args.image_crop,
-                                                                                              args.image_crop)),
-                                                                       transforms.Resize((args.image_size,
-                                                                                          args.image_size)),
+                                         transform=transforms.Compose([transforms.CenterCrop((image_crop,
+                                                                                              image_crop)),
+                                                                       transforms.Resize((training_config.image_size,
+                                                                                          training_config.image_size)),
                                                                        transforms.RandomHorizontalFlip(),
                                                                        transforms.ToTensor(),
-                                                                       GreyToColor(args.image_size),
-                                                                       transforms.Normalize(train_cfg.mean,
-                                                                                            train_cfg.std)
+                                                                       GreyToColor(training_config.image_size), # converts greyscale to 3 channels
+                                                                       transforms.Normalize(training_config.mean,
+                                                                                            training_config.std)
                                                                        ]))
-        validation_data = CocoDataloader(valid_data, pickle=False,
-                                         transform=transforms.Compose([transforms.CenterCrop((args.image_crop,
-                                                                                              args.image_crop)),
-                                                                       transforms.Resize((args.image_size,
-                                                                                          args.image_size)),
-                                                                       transforms.ToTensor(),
-                                                                       GreyToColor(args.image_size),
-                                                                       transforms.Normalize(train_cfg.mean,
-                                                                                            train_cfg.std)
-                                                                       ]))
-        test_data = CocoDataloader(test_data, pickle=False,
-                                         transform=transforms.Compose([transforms.CenterCrop((args.image_crop,
-                                                                                              args.image_crop)),
-                                                                       transforms.Resize((args.image_size,
-                                                                                          args.image_size)),
+
+        dataloader_train = DataLoader(training_data, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+
+    elif args.dataset == 'NSD':
+        image_crop = training_config.image_crop
+        # All coco images
+        train_data = COCO_TRAIN_DATA
+        valid_data = COCO_VALID_DATA
+        # test_data = COCO_TEST_DATA
+
+        # Load data
+        training_data = CocoDataloader(train_data, pickle=False,
+                                         transform=transforms.Compose([transforms.CenterCrop((image_crop,
+                                                                                              image_crop)),
+                                                                       transforms.Resize((training_config.image_size,
+                                                                                          training_config.image_size)),
                                                                        transforms.RandomHorizontalFlip(),
                                                                        transforms.ToTensor(),
-                                                                       GreyToColor(args.image_size),
-                                                                       transforms.Normalize(train_cfg.mean,
-                                                                                            train_cfg.std)
+                                                                       GreyToColor(training_config.image_size), # converts greyscale to 3 channels
+                                                                       transforms.Normalize(training_config.mean,
+                                                                                            training_config.std)
                                                                        ]))
-        train_test_data = ConcatDataset([training_data, test_data])
 
-        dataloader_train = DataLoader(train_test_data, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-        dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
-
-    elif args.dataset == 'mnist':
-
-        DATA_PATH_MNIST = os.path.join(USER_ROOT, data_cfg.data_root, 'mnist')
-        dataloader_train = torch.utils.data.DataLoader(
-            torchvision.datasets.MNIST(DATA_PATH_MNIST, train=True, download=True,
-                                       transform=torchvision.transforms.Compose([
-                                           torchvision.transforms.Resize(size=args.image_size),
-                                           torchvision.transforms.Grayscale(num_output_channels=3),
-                                           torchvision.transforms.ToTensor(),
-                                           torchvision.transforms.Normalize(train_cfg.mean,
-                                                                            train_cfg.std)
-                                       ])),
-            batch_size=args.batch_size, shuffle=True, drop_last=True)
-
-        dataloader_valid = torch.utils.data.DataLoader(
-            torchvision.datasets.MNIST(DATA_PATH_MNIST, train=False, download=True,
-                                       transform=torchvision.transforms.Compose([
-                                           torchvision.transforms.Resize(size=args.image_size),
-                                           torchvision.transforms.Grayscale(num_output_channels=3),
-                                           torchvision.transforms.ToTensor(),
-                                           torchvision.transforms.Normalize(train_cfg.mean,
-                                                                            train_cfg.mean)
-                                       ])),
-            batch_size=args.batch_size, shuffle=False, drop_last=True)
+        dataloader_train = DataLoader(training_data, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
 
     else:
-        logging.ingo('Wrong dataset')
+        logging.info('Wrong dataset')
 
+
+    # This writer function is for torch.tensorboard - might be worth
     writer = SummaryWriter(saving_dir + '/runs_' + timestep)
     writer_encoder = SummaryWriter(saving_dir + '/runs_' + timestep + '/encoder')
     writer_decoder = SummaryWriter(saving_dir + '/runs_' + timestep + '/decoder')
     writer_discriminator = SummaryWriter(saving_dir + '/runs_' + timestep + '/discriminator')
 
+
     # use pretrained WAE decoder
-    # trained_model = WaeGan(device=device, z_size=args.latent_dim).to(device)
+    # trained_model = WaeGan(device=device, z_size=training_config.latent_dim).to(device)
     # trained_model.load_state_dict(torch.load(DECODER_WEIGHTS, map_location=device))
-    # model = VaeGan(device=device, z_size=args.latent_dim, recon_level=args.recon_level,
+    # model = VaeGan(device=device, z_size=training_config.latent_dim, recon_level=args.recon_level,
     #                decoder=trained_model.decoder).to(device)
 
-    model = VaeGan(device=device, z_size=args.latent_dim, recon_level=args.recon_level).to(device)
+    model = VaeGan(device=device, z_size=training_config.latent_dim, recon_level=args.recon_level).to(device)
 
     if args.pretrained_gan is not None and os.path.exists(pretrained_model_dir.replace(".pth", ".csv")):
         logging.info('Load pretrained model')
@@ -244,17 +257,21 @@ if __name__ == "__main__":
         results = pd.read_csv(pretrained_model_dir.replace(".pth", ".csv"))
         results = {col_name: list(results[col_name].values) for col_name in results.columns}
         stp = 1 + len(results['epochs'])
-        if train_cfg.evaluate:
+
+        """
+        NOT CONVICED THIS IS NEEDED
+        if training_config.evaluate:
             images_dir = os.path.join(saving_dir, 'images')
             if not os.path.exists(images_dir):
                 os.makedirs(images_dir)
-            pcc, ssim, mse, is_mean = evaluate(model, dataloader_valid, norm=True, mean=train_cfg.mean, std=train_cfg.std,
+            pcc, ssim, mse, is_mean = evaluate(model, dataloader_valid, norm=True, mean=training_config.mean, std=training_config.std,
                                                path=images_dir)
             print("Mean PCC:", pcc)
             print("Mean SSIM:", ssim)
             print("Mean MSE:", mse)
             print("IS mean", is_mean)
             exit(0)
+            """
     else:
         logging.info('Initialize')
         stp = 1
@@ -267,36 +284,40 @@ if __name__ == "__main__":
         loss_reconstruction=[]
     )
 
-    margin = args.margin
-    equilibrium = args.equilibrium
-    lambda_mse = args.lambda_mse
+    # Variables for equilibrium to improve GAN stability
+    margin = training_config.margin
+    equilibrium = training_config.equilibrium
+    lambda_mse = training_config.lambda_mse
+    decay_mse = training_config.decay_mse
 
     # An optimizer for each of the sub-networks, so we can selectively backprop
-    optimizer_encoder = torch.optim.RMSprop(params=model.encoder.parameters(), lr=args.learning_rate, alpha=0.9,
-                                            eps=1e-8, weight_decay=0, momentum=0, centered=False)
-    lr_encoder = ExponentialLR(optimizer_encoder, gamma=args.decay_lr)
-    optimizer_decoder = torch.optim.RMSprop(params=model.decoder.parameters(), lr=args.learning_rate, alpha=0.9,
-                                            eps=1e-8, weight_decay=0, momentum=0, centered=False)
-    lr_decoder = ExponentialLR(optimizer_decoder, gamma=args.decay_lr)
-    optimizer_discriminator = torch.optim.RMSprop(params=model.discriminator.parameters(), lr=args.learning_rate,
-                                                  alpha=0.9, eps=1e-8, weight_decay=0, momentum=0, centered=False)
-    lr_discriminator = ExponentialLR(optimizer_discriminator, gamma=args.decay_lr)
+    optimizer_encoder = torch.optim.RMSprop(params=model.encoder.parameters(), lr=training_config.learning_rate_s1, alpha=0.9,
+                                            eps=1e-8, weight_decay=training_config.weight_decay, momentum=0, centered=False)
+    lr_encoder = ExponentialLR(optimizer_encoder, gamma=training_config.decay_lr)
+    optimizer_decoder = torch.optim.RMSprop(params=model.decoder.parameters(), lr=training_config.learning_rate_s1, alpha=0.9,
+                                            eps=1e-8, weight_decay=training_config.weight_decay, momentum=0, centered=False)
+    lr_decoder = ExponentialLR(optimizer_decoder, gamma=training_config.decay_lr)
+    optimizer_discriminator = torch.optim.RMSprop(params=model.discriminator.parameters(), lr=training_config.learning_rate_s1,
+                                                  alpha=0.9, eps=1e-8, weight_decay=training_config.weight_decay, momentum=0, centered=False)
+    lr_discriminator = ExponentialLR(optimizer_discriminator, gamma=training_config.decay_lr)
 
     # Metrics
     pearson_correlation = PearsonCorrelation()
-    structural_similarity = StructuralSimilarity(mean=train_cfg.mean, std=train_cfg.std)
+    structural_similarity = StructuralSimilarity(mean=training_config.mean, std=training_config.std)
     mse_loss = nn.MSELoss()
 
     result_metrics_train = {}
     result_metrics_valid = {}
     metrics_train = {'train_PCC': pearson_correlation, 'train_SSIM': structural_similarity, 'train_MSE': mse_loss}
-    metrics_valid = {'valid_PCC': pearson_correlation, 'valid_SSIM': structural_similarity, 'valid_MSE': mse_loss}
+    # metrics_valid = {'valid_PCC': pearson_correlation, 'valid_SSIM': structural_similarity, 'valid_MSE': mse_loss}
 
+    """
     if metrics_valid is not None:
         for key in metrics_valid.keys():
             results.update({key: []})
         for key, value in metrics_valid.items():
             result_metrics_valid.update({key: 0.0})
+    """
 
     if metrics_train is not None:
         for key in metrics_train.keys():
@@ -317,11 +338,11 @@ if __name__ == "__main__":
 
                 model.train()
 
-                if args.dataset == 'coco':
+                if args.dataset == 'GOD':
                     batch_size = len(data_batch)
                     x = Variable(data_batch, requires_grad=False).float().to(device)
 
-                elif args.dataset == 'mnist':
+                elif args.dataset == 'NSD':
                     batch_size = len(data_batch[0])
                     x = Variable(data_batch[0], requires_grad=False).float().to(device)
                 else:
@@ -357,19 +378,19 @@ if __name__ == "__main__":
 
                 # Beta-VAE/GAN loss
                 if args.mode == 'beta-vae':
-                    beta = args.beta
+                    beta = training_config.beta
                     kld_weight = 1 / batch_size
                     loss_encoder = torch.sum(kld) * beta * kld_weight + torch.sum(mse)
                     loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
                         bce_dis_sampled)
-                    loss_decoder = torch.sum(args.lambda_mse * mse) - (1.0 - args.lambda_mse) * loss_discriminator
+                    loss_decoder = torch.sum(training_config.lambda_mse * mse) - (1.0 - training_config.lambda_mse) * loss_discriminator
 
                 # VAE/GAN loss
                 if args.mode == 'vae-gan':
                     loss_encoder = torch.sum(kld) + torch.sum(mse)
                     loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
                         bce_dis_sampled)
-                    loss_decoder = torch.sum(args.lambda_mse * mse) - (1.0 - args.lambda_mse) * loss_discriminator
+                    loss_decoder = torch.sum(training_config.lambda_mse * mse) - (1.0 - training_config.lambda_mse) * loss_discriminator
 
                 # DC/GAN loss
                 if args.mode == 'dcgan':
@@ -378,13 +399,13 @@ if __name__ == "__main__":
                         param.requires_grad = False
                     loss_encoder = torch.sum(kld) + torch.sum(nle)
                     loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_sampled)
-                    loss_decoder = torch.sum(args.lambda_mse * nle) - (1.0 - args.lambda_mse) * loss_discriminator
+                    loss_decoder = torch.sum(training_config.lambda_mse * nle) - (1.0 - training_config.lambda_mse) * loss_discriminator
 
                 # VAE loss
                 if args.mode == 'vae':
                     loss_encoder = torch.sum(kld) + torch.sum(nle)
                     loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_sampled)
-                    loss_decoder = torch.sum(args.lambda_mse * nle)
+                    loss_decoder = torch.sum(training_config.lambda_mse * nle)
                     train_dis = False
 
                 # Register mean values
@@ -448,12 +469,12 @@ if __name__ == "__main__":
             lr_encoder.step()
             lr_decoder.step()
             lr_discriminator.step()
-            margin *= args.decay_margin
-            equilibrium *= args.decay_equilibrium
+            margin *= training_config.decay_margin
+            equilibrium *= training_config.decay_equilibrium
 
             if margin > equilibrium:
                 equilibrium = margin
-            lambda_mse *= args.decay_mse
+            lambda_mse *= decay_mse
             if lambda_mse > 1:
                 lambda_mse = 1
 
@@ -488,11 +509,11 @@ if __name__ == "__main__":
 
             for batch_idx, data_batch in enumerate(dataloader_valid):
 
-                if args.dataset == 'coco':
+                if args.dataset == 'GOD':
                     batch_size = len(data_batch)
                     data_batch = Variable(data_batch, requires_grad=False).float().to(device)
 
-                elif args.dataset == 'mnist':
+                elif args.dataset == 'NSD':
                     batch_size = len(data_batch[0])
                     data_batch = Variable(data_batch[0], requires_grad=False).float().to(device)
                 else:

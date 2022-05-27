@@ -109,7 +109,7 @@ class fMRI(object):
     def load_fmri(self, phase, batch_size):
         vector_path = self.images_path+'{}/A/*.mat'.format(phase)
         images_path = self.images_path+'{}/B/*.JPEG'.format(phase)
-        files_vector = glob(vector_path)
+        files_vector = glob(vector_path) # Returns all file paths that match specific pattern
         files_img = glob(images_path)
         
         leng = len(files_img)

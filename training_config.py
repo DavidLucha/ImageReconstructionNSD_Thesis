@@ -1,12 +1,14 @@
-"""____________________Config for Dual-VAE/GAN training___________________________"""
 
+
+"""____________________Config for Dual-VAE/GAN training___________________________"""
+decoder_weights = ['gan_20210127-012348', 90]       # latent dim = 128
 pretrained_gan = 'gan_20210413-102934'  # 'gan_cogenc_20210131-183016'
 load_epoch = 335
 evaluate = False
 
-image_crop = 375
+image_crop = 375 # Not sure why this | will be different for COCO vs ImageNet
 image_size = 100
-latent_dim = 512
+latent_dim = 128 # was 512
 
 device = 'cuda:0'  # cuda or cpu
 device2 = 'cuda:3'
@@ -14,22 +16,24 @@ device3 = 'cuda:5'
 
 patience = 0   # for early stopping, 0 = deactivate early stopping
 data_split = 0.2
-batch_size = 100
-learning_rate = 0.0001 # NOT CORRECT: Changes per stage
-weight_decay = 1e-7
-n_epochs = 400
-num_workers = 4
+batch_size = 16 # according to Ren main
+learning_rate_s1 = 0.003 # Stage 1
+learning_rate = 0.0003 # Stage 2 & 3
+weight_decay = 0 # 1e-7
+n_epochs = 400 # Stage 1 & 2
+n_epochs_s3 = 200 # Stage 3
+num_workers = 8 # was 4
 step_size = 30  # for scheduler
 gamma = 0.1     # for scheduler
 recon_level = 3
-lambda_mse = 1e-6
+lambda_mse = 1e-6 # weight for style area - VAEGAN implementation
 decay_lr = 0.98
-decay_margin = 1
-decay_mse = 1
-decay_equilibrium = 1
-margin = 0.35
-equilibrium = 0.68
-beta = 1.0
+decay_margin = 1# margin decay for the generator/discriminator game
+decay_mse = 1 # mse weight decrease
+decay_equilibrium = 1 # equilibrium decay for the generator/discriminator game
+margin = 0.35 # margin for generator/discriminator game
+equilibrium = 0.68 # equilibrium for the generator/discriminator game
+beta = 1.0 # beta factor for beta-vae |  MIGHT NOT NEED
 
 kernel_size = 4
 stride = 2
@@ -39,3 +43,21 @@ dropout = 0.7
 save_images = 5
 mean = [0.5, 0.5, 0.5]
 std = [0.5, 0.5, 0.5]
+
+"""____________________Data Config___________________________"""
+
+LOGS_PATH = '/logs/'
+
+TRAIN_IMG_PATH = "D:/Honours/Object Decoding Dataset/images_passwd/images/training/"
+SAVE_PATH = "D:/Honours/Object Decoding Dataset/7387130/Subject Training Pickles/"
+
+god_train_data = ''
+god_valid_data = ''
+
+nsd_train_data = ''
+nsd_valid_data = ''
+
+data_root = 'data/'
+save_training_results = ''
+
+
