@@ -2,11 +2,13 @@
 Utils for data loaders
 Training utils and assessments
 """
+import argparse
 import os.path
 
 import os
 import math
 import torch
+import numpy
 import random
 import logging
 import torch.nn.functional as F
@@ -94,6 +96,33 @@ class CocoDataloader(object):
 
         return image
 
+
+class ImageNetDataloader(object):
+
+    def __init__(self, data_dir, transform=None, pickle=True):
+        """
+        The constructor to initialized paths to ImageNet images
+        :param data_dir: directory to ImageNet images
+        :param transform: image transformations
+        :param pickle: True if names are stored in pickle file (deprecated)
+        """
+        self.transform = transform
+        if not pickle:
+            self.image_names = [os.path.join(data_dir, img) for img in listdir(data_dir) if os.path.join(data_dir, img)]
+        else:
+            self.image_names = data_dir
+
+    def __len__(self):
+        return len(self.image_names)
+
+    def __getitem__(self, idx):
+
+        image = Image.open(self.image_names[idx])
+
+        if self.transform:
+            image = self.transform(image)
+
+        return image
 
 """
 Evaluation Utilities
@@ -502,4 +531,35 @@ def objective_assessment(model, dataloader, dataset=None, mode=None, top=5):
     objective_score = true_positives.float() / dataset_size
 
     return objective_score
+
+
+def parse_args(args):
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--x', default=3, type=int)
+    parser.add_argument('--y', default=5, type=int)
+    """
+    parser.add_argument('--input', help="user path where the datasets are located", type=str)
+
+    parser.add_argument('--batch_size', default=training_config.batch_size, help='batch size for dataloader', type=int)
+    parser.add_argument('--epochs', default=training_config.n_epochs, help='number of epochs', type=int)
+    parser.add_argument('--image_size', default=training_config.image_size, help='size to which image should '
+                                                                                     'be scaled', type=int)
+    parser.add_argument('--num_workers', '-nw', default=training_config.num_workers,
+                        help='number of workers for dataloader',type=int)
+    # Pretrained network components
+    parser.add_argument('--pretrained_net', '-pretrain', default=training_config.pretrained_net,
+                        help='pretrained network', type=str)
+    parser.add_argument('--load_epoch', '-pretrain_epoch', default=training_config.load_epoch,
+                        help='epoch of the pretrained model', type=int)
+    parser.add_argument('--dataset', default='GOD', help='GOD, NSD', type=str)
+    parser.add_argument('--subset', default='1.8mm', help='1.8mm, 3mm, 5S_Small, 8S_Small,'
+                                                          '5S_Large, 8S_Large', type=str)
+    parser.add_argument('--recon_level', default=training_config.recon_level,
+                        help='reconstruction level in the discriminator',
+                        type=int)  # NOT REALLY SURE WHAT RECON LEVEL DOES TBH - see VAE GAN implementation
+
+    """
+    return parser.parse_args(args)
+
+
 

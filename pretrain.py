@@ -299,8 +299,6 @@ if __name__ == "__main__":
                                                                                                   disc_class_predicted,
                                                                                                   disc_class_sampled,
                                                                                                   mus, log_variances)
-                # bce_dics_sampled - only for loss
-                # dis_original + dis_predicted used for equilibrium
 
                 # Selectively disable the decoder of the discriminator if they are unbalanced
                 train_dis = True

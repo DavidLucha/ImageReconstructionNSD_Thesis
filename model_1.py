@@ -308,6 +308,7 @@ class VaeGan(nn.Module):
 
         # kl-divergence
         kl = -0.5 * torch.sum(-variances.exp() - torch.pow(mus, 2) + variances + 1, 1)
+        # loss_KL = -0.5* torch.mean( 1.0 + logvar - mean.pow(2.0) - logvar.exp() )
 
         # mse between intermediate layers
         mse = torch.sum(0.5 * (disc_layer_original - disc_layer_predicted) ** 2, 1)

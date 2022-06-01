@@ -1,5 +1,3 @@
-
-
 """____________________Config for Dual-VAE/GAN training___________________________"""
 decoder_weights = ['gan_20210127-012348', 90] # This should change in stage 2 vs 3
 pretrained_net = 'gan_20210413-102934'  # TODO: Change this
@@ -52,7 +50,6 @@ LOGS_PATH = 'logs/'
 data_root = 'D:/Lucha_Data/datasets/'
 # save_training_results = ''
 
-# TODO: Move images to new directory
 # GOD Data
 # For Stage 1
 god_s1_train_imgs = 'GOD/images/train/'
