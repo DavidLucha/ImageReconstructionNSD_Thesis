@@ -15,6 +15,7 @@ import torch.nn.functional as F
 import matplotlib.image as mpimg
 import torchvision.models as models
 import matplotlib.pyplot as plt
+import torchvision.transforms as transforms
 
 # from tqdm import tqdm
 from torch import nn, no_grad
@@ -562,4 +563,19 @@ def parse_args(args):
     return parser.parse_args(args)
 
 
+def imgnet_dataloader(batch_size):
+    # Define transform
+    transform = transforms.Compose([
+        transforms.Resize(100),
+        transforms.CenterCrop(100),
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+    ])
+
+    # Define dataset
+    train_set = torchvision.datasets.CIFAR10(root='/data', train=True, download=True, transform=transform)
+
+    # Initialize DataLoader
+    data_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True)
+    return data_loader
 

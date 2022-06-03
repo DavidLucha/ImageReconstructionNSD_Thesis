@@ -306,7 +306,7 @@ if __name__ == "__main__":
                 train_dis = True
                 train_dec = True
 
-                # Train encoder except DCGAN mode
+                # Train encoder
                 train_enc = True
 
                 # VAE/GAN loss

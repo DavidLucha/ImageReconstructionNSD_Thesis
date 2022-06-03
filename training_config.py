@@ -14,11 +14,11 @@ device3 = 'cuda:5'
 
 patience = 0   # for early stopping, 0 = deactivate early stopping
 data_split = 0.2
-batch_size = 16 # according to Ren main
+batch_size = 16 # according to Ren main (16)
 learning_rate_s1 = 0.003 # Stage 1
 learning_rate = 0.0003 # Stage 2 & 3
 weight_decay = 0 # 1e-7
-n_epochs = 400 # Stage 1 & 2
+n_epochs = 20 # 400 for Stage 1 & 2
 n_epochs_s3 = 200 # Stage 3
 num_workers = 8 # was 4
 step_size = 30  # for scheduler
@@ -29,7 +29,7 @@ decay_lr = 0.98
 decay_margin = 1# margin decay for the generator/discriminator game
 decay_mse = 1 # mse weight decrease
 decay_equilibrium = 1 # equilibrium decay for the generator/discriminator game
-margin = 0.35 # margin for generator/discriminator game
+margin = 0.35 # margin for generator/discriminator game | 0.35 in new imp, 0.4 in orig
 equilibrium = 0.68 # equilibrium for the generator/discriminator game
 beta = 1.0 # beta factor for beta-vae |  MIGHT NOT NEED
 
@@ -51,6 +51,9 @@ data_root = 'D:/Lucha_Data/datasets/'
 # save_training_results = ''
 
 # GOD Data
+# For Pretrain
+# TODO: Download non-overlapping pretrain images
+god_pretrain_imgs = 'GOD/images/pretrain/'
 # For Stage 1
 god_s1_train_imgs = 'GOD/images/train/'
 god_s1_valid_imgs = 'GOD/images/valid/'

@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import torchvision.models as models
 from torch.autograd import Variable
 
-import configs.models_config as config
+import model_config as config
 
 
 class EncoderBlock(nn.Module):
@@ -270,8 +270,7 @@ class VaeGan(nn.Module):
 
     def forward(self, x, gen_size=10):
 
-        if x is not None:
-            x = Variable(x).to(self.device)
+        x = Variable(x).to(self.device)
 
         if self.training:
             mus, log_variances = self.encoder(x)
@@ -317,7 +316,20 @@ class VaeGan(nn.Module):
         bce_dis_original = -torch.log(disc_class_original + 1e-3)
         bce_dis_predicted = -torch.log(1 - disc_class_predicted + 1e-3)
         bce_dis_sampled = -torch.log(1 - disc_class_sampled + 1e-3)
+        '''
 
+
+        bce_gen_predicted = nn.BCEWithLogitsLoss(size_average=False)(labels_predicted,
+                                         Variable(torch.ones_like(labels_predicted.data).cuda(), requires_grad=False))
+        bce_gen_sampled = nn.BCEWithLogitsLoss(size_average=False)(labels_sampled,
+                                       Variable(torch.ones_like(labels_sampled.data).cuda(), requires_grad=False))
+        bce_dis_original = nn.BCEWithLogitsLoss(size_average=False)(labels_original,
+                                        Variable(torch.ones_like(labels_original.data).cuda(), requires_grad=False))
+        bce_dis_predicted = nn.BCEWithLogitsLoss(size_average=False)(labels_predicted,
+                                         Variable(torch.zeros_like(labels_predicted.data).cuda(), requires_grad=False))
+        bce_dis_sampled = nn.BCEWithLogitsLoss(size_average=False)(labels_sampled,
+                                       Variable(torch.zeros_like(labels_sampled.data).cuda(), requires_grad=False))
+        '''
         return nle, kl, mse, bce_dis_original, bce_dis_predicted, bce_dis_sampled
 
 

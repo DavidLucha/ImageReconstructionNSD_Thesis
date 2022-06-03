@@ -22,17 +22,13 @@ from torch.optim.lr_scheduler import ExponentialLR
 import training_config
 from model_1 import VaeGan
 from utils_1 import CocoDataloader, ImageNetDataloader, GreyToColor, evaluate, PearsonCorrelation, \
-    StructuralSimilarity, objective_assessment, parse_args
+    StructuralSimilarity, objective_assessment, parse_args, imgnet_dataloader
 
 numpy.random.seed(8)
 torch.manual_seed(8)
 torch.cuda.manual_seed(8)
 
-"""
-Note:
-'coco' to 'GOD'
-'mnist' to 'NSD'
-"""
+torch.autograd.set_detect_anomaly(True)
 
 if __name__ == "__main__":
 
@@ -52,14 +48,14 @@ if __name__ == "__main__":
     """
     # Get current working directory
     CWD = os.getcwd()
-    OUTPUT_PATH = os.path.join(CWD, 'output/')
+    OUTPUT_PATH = os.path.join(training_config.data_root, 'output/')
 
     # Load training data for GOD and NSD, default is NSD
     TRAIN_DATA_PATH = os.path.join(training_config.data_root, training_config.nsd_s1_train_imgs)
     VALID_DATA_PATH = os.path.join(training_config.data_root, training_config.nsd_s1_valid_imgs)
 
     if args.dataset == 'GOD':
-        TRAIN_DATA_PATH = os.path.join(training_config.data_root, training_config.god_s1_train_imgs)
+        TRAIN_DATA_PATH = os.path.join(training_config.data_root, training_config.god_pretrain_imgs)
         VALID_DATA_PATH = os.path.join(training_config.data_root, training_config.god_s1_valid_imgs)
 
     """
@@ -77,7 +73,10 @@ if __name__ == "__main__":
     logger.addHandler(file_handler)
 
     # Check available gpu
+    # import torch
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # print(device)
+    # conda install pytorch==1.4.0 torchvision==0.5.0 cudatoolkit=10.2 -c pytorch
     logger.info("Used device: %s" % device)
 
     logging.info('set up random seeds')
@@ -88,24 +87,20 @@ if __name__ == "__main__":
         - requires the timestep variable etc.
     """
     # Create directory for results
-    stage_num = 'stage_1'
-    SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, stage_num, 'dvaegan_{}'.format(timestep))
+    stage_num = 'pretrain'
+    SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, stage_num, 'vaegan_{}'.format(timestep))
     if not os.path.exists(SAVE_PATH):
         os.makedirs(SAVE_PATH)
 
-    SAVE_SUB_PATH = os.path.join(SAVE_PATH, 'trained_dvaegan_{}.pth'.format(timestep))
+    SAVE_SUB_PATH = os.path.join(SAVE_PATH, 'pretrained_vaegan_{}.pth'.format(timestep))
     if not os.path.exists(SAVE_SUB_PATH):
         os.makedirs(SAVE_SUB_PATH)
 
-    # Set pretrained model directory
-    PRETRAINED_PARENT_PATH = "models/pretrain/"
-    PRETRAINED_MODEL = os.path.join(CWD, PRETRAINED_PARENT_PATH, args.pretrained_net + '.pth')
-    if not os.path.exists(PRETRAINED_MODEL):
-        os.makedirs(PRETRAINED_MODEL)
-
     # Save arguments
-    with open(os.path.join(SAVE_PATH, 'config.txt'), 'w') as f:
-        json.dump(args.__dict__, f, indent=2)
+    # CURRENTLY NOT WORKING
+    # with open(os.path.join(SAVE_PATH, 'config.txt'), 'w') as f:
+    #     json.dump(args.__dict__, f, indent=2)
+
 
     """
     DATASET LOADING
@@ -114,7 +109,6 @@ if __name__ == "__main__":
     train_data = TRAIN_DATA_PATH
     valid_data = VALID_DATA_PATH
 
-    # TODO: Sort out data loaders for image only loaders
     if args.dataset == 'GOD':
         image_crop = training_config.image_crop
 
@@ -126,13 +120,29 @@ if __name__ == "__main__":
                                                                                             training_config.image_size)),
                                                                      # transforms.RandomHorizontalFlip(),
                                                                      transforms.ToTensor(),
+                                                                     GreyToColor(training_config.image_size),
                                                                      transforms.Normalize(training_config.mean,
                                                                                           training_config.std)
                                                                      ]))
 
-        dataloader_train = DataLoader(training_data, batch_size=64, # CHANGE BACK TO args.batch_size
-                                      shuffle=True, num_workers=0) # CHANGE BACK TO args.num_workers
+        validation_data = ImageNetDataloader(valid_data, pickle=False,
+                                       transform=transforms.Compose([transforms.Resize((training_config.image_size,
+                                                                                        training_config.image_size)),
+                                                                     transforms.CenterCrop((training_config.image_size,
+                                                                                            training_config.image_size)),
+                                                                     # transforms.RandomHorizontalFlip(),
+                                                                     transforms.ToTensor(),
+                                                                     transforms.Normalize(training_config.mean,
+                                                                                          training_config.std)
+                                                                     ]))
 
+        dataloader_train = DataLoader(training_data, batch_size=args.batch_size,
+                                      shuffle=True, num_workers=args.num_workers)
+        # dataloader_train = imgnet_dataloader(args.batch_size)
+        dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size,
+                                      shuffle=True, num_workers=args.num_workers)
+
+    # TODO: NSD Dataloader
     elif args.dataset == 'NSD':
         image_crop = training_config.image_crop
 
@@ -155,8 +165,8 @@ if __name__ == "__main__":
     else:
         logging.info('Wrong dataset')
 
-    """
-    # Test dataloader and show grid
+
+    """# Test dataloader and show grid
     def show_and_save(file_name, img):
         npimg = numpy.transpose(img.numpy(), (1, 2, 0))
         fig = plt.figure(dpi=200)
@@ -167,8 +177,7 @@ if __name__ == "__main__":
         
     real_batch = next(iter(dataloader_train))
     show_and_save("Test Dataloader", make_grid((real_batch * 0.5 + 0.5).cpu(), 8))
-    plt.show()
-    """
+    plt.show()"""
 
     # This writer function is for torch.tensorboard - might be worth
     writer = SummaryWriter(SAVE_PATH + '/runs_' + timestep)
@@ -177,34 +186,10 @@ if __name__ == "__main__":
     writer_discriminator = SummaryWriter(SAVE_PATH + '/runs_' + timestep + '/discriminator')
 
     model = VaeGan(device=device, z_size=training_config.latent_dim, recon_level=args.recon_level).to(device)
+    model.init_parameters()
 
-    if args.pretrained_net is not None and os.path.exists(PRETRAINED_MODEL.replace(".pth", ".csv")):  # ALL GOOD
-        # TODO: Ask Maria why in stage 2 and 3, there is a pretrained GAN option. What's the difference between the DECODER weights and pretrained gan?
-        logging.info('Load pretrained model')
-        model_dir = PRETRAINED_MODEL.replace(".pth", '_{}.pth'.format(args.load_epoch))
-        model.load_state_dict(torch.load(model_dir))
-        model.eval()
-        results = pd.read_csv(PRETRAINED_MODEL.replace(".pth", ".csv"))
-        results = {col_name: list(results[col_name].values) for col_name in results.columns}
-        stp = 1 + len(results['epochs'])  # Still not sure with the stp but only for results/epoch
-
-        """
-        NOT CONVICED THIS IS NEEDED
-        if training_config.evaluate:
-            images_dir = os.path.join(SAVE_PATH, 'images')
-            if not os.path.exists(images_dir):
-                os.makedirs(images_dir)
-            pcc, ssim, mse, is_mean = evaluate(model, dataloader_valid, norm=True, mean=training_config.mean, std=training_config.std,
-                                               path=images_dir)
-            print("Mean PCC:", pcc)
-            print("Mean SSIM:", ssim)
-            print("Mean MSE:", mse)
-            print("IS mean", is_mean)
-            exit(0)
-            """
-    else:
-        logging.info('Initialize')
-        stp = 1
+    logging.info('Initialize')
+    stp = 1
 
     results = dict(
         epochs=[],
@@ -299,13 +284,11 @@ if __name__ == "__main__":
                                                                                                   disc_class_predicted,
                                                                                                   disc_class_sampled,
                                                                                                   mus, log_variances)
+                # mse_v2, bcde
 
                 # Selectively disable the decoder of the discriminator if they are unbalanced
                 train_dis = True
                 train_dec = True
-
-                # Train encoder except DCGAN mode
-                train_enc = True
 
                 # VAE/GAN loss
                 loss_encoder = torch.sum(kld) + torch.sum(mse)
@@ -313,7 +296,7 @@ if __name__ == "__main__":
                     bce_dis_sampled)
                 loss_decoder = torch.sum(training_config.lambda_mse * mse) - (1.0 - training_config.lambda_mse) * loss_discriminator
 
-                # Register mean values
+                # Register mean values for logging
                 loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
                 loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
                 loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
@@ -333,15 +316,16 @@ if __name__ == "__main__":
                 # clean grads
                 model.zero_grad()
 
-                if train_enc:
-                    # encoder
-                    loss_encoder.backward(retain_graph=True)
-                    # someone likes to clamp the grad here
-                    # [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
-                    # update parameters
-                    optimizer_encoder.step()
-                    # clean others, so they are not afflicted by encoder loss
-                    model.zero_grad()
+
+                # encoder
+                loss_encoder.backward(retain_graph=True)
+                # someone likes to clamp the grad here
+                # [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
+                # update parameters
+                optimizer_encoder.step()
+                # clean others, so they are not afflicted by encoder loss
+                model.zero_grad()
+                # model.encoder.zero_grad()
 
                 # Decoder
                 if train_dec:
@@ -356,12 +340,29 @@ if __name__ == "__main__":
                     loss_discriminator.backward()
                     # [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
                     optimizer_discriminator.step()
+                """
+
+                # POTENTIAL SOLUTION FOR GRADIENT PROBLEM
+                loss_encoder.backward(retain_graph=True)
+                loss_decoder.backward(retain_graph=True)
+                loss_discriminator.backward()
+
+                optimizer_encoder.step()
+                # model.zero_grad()
+
+                if train_dec:
+                    optimizer_decoder.step()
+
+                if train_dis:
+                    optimizer_discriminator.step()"""
+
 
                 logging.info(
                     f'Epoch  {idx_epoch} {batch_idx + 1:3.0f} / {100 * (batch_idx + 1) / len(dataloader_train):2.3f}%, '
                     f'---- encoder loss: {loss_encoder_mean:.5f} ---- | '
                     f'---- decoder loss: {loss_decoder_mean:.5f} ---- | '
-                    f'---- discriminator loss: {loss_discriminator_mean:.5f}')
+                    f'---- discriminator loss: {loss_discriminator_mean:.5f} ---- | '
+                    f'---- network status (dec, dis): {train_dec}, {train_dis}')
 
                 writer.add_scalar('loss_reconstruction_batch', loss_nle_mean, step_index)
                 writer_encoder.add_scalar('loss_encoder_batch', loss_encoder_mean, step_index)
@@ -472,6 +473,7 @@ if __name__ == "__main__":
                 out = make_grid(out, nrow=8)
                 writer.add_image("reconstructed", out, step_index)
 
+                """
                 out = model(None, 100)
                 out = out.data.cpu()
                 out = (out + 1) / 2
@@ -484,6 +486,7 @@ if __name__ == "__main__":
                 ax.imshow(make_grid(out[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
                 output_dir = os.path.join(images_dir, 'random', 'epoch_' + str(idx_epoch) + '_output_' + 'rand')
                 plt.savefig(output_dir)
+                """
 
                 out = data_target.data.cpu()
                 out = (out + 1) / 2
@@ -519,11 +522,11 @@ if __name__ == "__main__":
                 # only for one batch due to memory issue
                 break
 
-            if not idx_epoch % 5 and not DEBUG:
+            if not idx_epoch % 5:
                 torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
                 logging.info('Saving model')
 
-                # Record losses & scores
+            # Record losses & scores
             results['epochs'].append(idx_epoch + stp)
             results['loss_encoder'].append(loss_encoder_mean)
             results['loss_decoder'].append(loss_decoder_mean)
@@ -533,6 +536,7 @@ if __name__ == "__main__":
             if metrics_valid is not None:
                 for key, value in result_metrics_valid.items():
                     metric_value = torch.tensor(value, dtype=torch.float64).item()
+                    # UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True)
                     results[key].append(metric_value)
 
             if metrics_train is not None:
@@ -575,5 +579,4 @@ if __name__ == "__main__":
             plt.savefig(plot_dir)
             logging.info("Plots are saved")
             plt.show()
-
     exit(0)
