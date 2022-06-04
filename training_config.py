@@ -1,7 +1,11 @@
 """____________________Config for Dual-VAE/GAN training___________________________"""
 decoder_weights = ['gan_20210127-012348', 90] # This should change in stage 2 vs 3
-pretrained_net = 'gan_20210413-102934'  # TODO: Change this
-load_epoch = 335
+pretrained_net = 'vaegan_20220604-201742'  # TODO: Change this
+stage_1_trained = ''
+stage_2_trained = ''
+stage_3_trained = '' # FINAL MODEL
+load_epoch = 15  # was 335
+# TODO: Make sure network is saving final epoch
 evaluate = False
 
 image_crop = 375 # Not sure why this | will be different for COCO vs ImageNet
@@ -14,11 +18,12 @@ device3 = 'cuda:5'
 
 patience = 0   # for early stopping, 0 = deactivate early stopping
 data_split = 0.2
-batch_size = 16 # according to Ren main (16)
+batch_size = 64  # pytorch vaegan =64 | according to Ren main (16)
 learning_rate_s1 = 0.003 # Stage 1
+# NOTE: Origin VAE/GAE implementation uses 3e-4 but is dependent on batch size (64)
 learning_rate = 0.0003 # Stage 2 & 3
 weight_decay = 0 # 1e-7
-n_epochs = 20 # 400 for Stage 1 & 2
+n_epochs = 100 # 400 for Stage 1 & 2 | ??? for pretraining (had at 20 but idk)
 n_epochs_s3 = 200 # Stage 3
 num_workers = 8 # was 4
 step_size = 30  # for scheduler
@@ -29,7 +34,7 @@ decay_lr = 0.98
 decay_margin = 1# margin decay for the generator/discriminator game
 decay_mse = 1 # mse weight decrease
 decay_equilibrium = 1 # equilibrium decay for the generator/discriminator game
-margin = 0.35 # margin for generator/discriminator game | 0.35 in new imp, 0.4 in orig
+margin = 0.4 # margin for generator/discriminator game | 0.35 in new imp, 0.4 in orig
 equilibrium = 0.68 # equilibrium for the generator/discriminator game
 beta = 1.0 # beta factor for beta-vae |  MIGHT NOT NEED
 
@@ -49,6 +54,7 @@ LOGS_PATH = 'logs/'
 # SAVE_PATH = "D:/Honours/Object Decoding Dataset/7387130/Subject Training Pickles/"
 data_root = 'D:/Lucha_Data/datasets/'
 # save_training_results = ''
+TRAINED_NET_ROOT = ''
 
 # GOD Data
 # For Pretrain

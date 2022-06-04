@@ -3,9 +3,11 @@ import numpy
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
-from torch.autograd import Variable
-
+import training_config
 import model_config as config
+
+from torch.autograd import Variable
+from utils_1 import NLLNormal
 
 
 class EncoderBlock(nn.Module):
@@ -295,12 +297,12 @@ class VaeGan(nn.Module):
                 x_tilde = self.decoder(z)
                 return x_tilde
 
+
     def __call__(self, *args, **kwargs):
         return super(VaeGan, self).__call__(*args, **kwargs)
 
     @staticmethod
-    def loss(x, x_tilde, disc_layer_original, disc_layer_predicted, disc_layer_sampled, disc_class_original,
-             disc_class_predicted, disc_class_sampled, mus, variances):
+    def loss(x, x_tilde, hid_dis_real, hid_dis_pred, hid_dis_sampled, fin_dis_real, fin_dis_pred, fin_dis_sampled, mus, variances):
 
         # reconstruction error, not used for the loss but useful to evaluate quality
         nle = 0.5 * (x.view(len(x), -1) - x_tilde.view(len(x_tilde), -1)) ** 2
@@ -310,12 +312,16 @@ class VaeGan(nn.Module):
         # loss_KL = -0.5* torch.mean( 1.0 + logvar - mean.pow(2.0) - logvar.exp() )
 
         # mse between intermediate layers
-        mse = torch.sum(0.5 * (disc_layer_original - disc_layer_predicted) ** 2, 1)
+        mse_1 = torch.sum(0.5 * (hid_dis_real - hid_dis_pred) ** 2, 1)
+        mse_2 = torch.sum(0.5 * (hid_dis_real - hid_dis_sampled) ** 2, 1)  # NEW
 
         # bce for decoder and discriminator for original and reconstructed
-        bce_dis_original = -torch.log(disc_class_original + 1e-3)
-        bce_dis_predicted = -torch.log(1 - disc_class_predicted + 1e-3)
-        bce_dis_sampled = -torch.log(1 - disc_class_sampled + 1e-3)
+        bce_dis_original = -torch.log(fin_dis_real)  #  + 1e-3
+        bce_dis_predicted = -torch.log(1 - fin_dis_pred)  #  + 1e-3
+        bce_dis_sampled = -torch.log(1 - fin_dis_sampled)  #  + 1e-3
+
+        bce_gen_sampled = -torch.log(fin_dis_sampled + 1e-3)  # NEW
+        bce_gen_recon = -torch.log(fin_dis_pred + 1e-3)  # NEW
         '''
 
 
@@ -330,7 +336,135 @@ class VaeGan(nn.Module):
         bce_dis_sampled = nn.BCEWithLogitsLoss(size_average=False)(labels_sampled,
                                        Variable(torch.zeros_like(labels_sampled.data).cuda(), requires_grad=False))
         '''
-        return nle, kl, mse, bce_dis_original, bce_dis_predicted, bce_dis_sampled
+        return nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
+               bce_gen_recon, bce_gen_sampled
+
+    @staticmethod
+    def ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, fin_dis_real, fin_dis_pred,
+                 hid_dis_cog=None, fin_dis_cog=None, stage=1, device='cuda'):
+        # set Ren params
+        d_scale_factor = 0.25
+        g_scale_factor = 1 - 0.75 / 2  # 0.625
+        BCE = nn.BCELoss().to(device)
+        # MSE = nn.MSELoss().to(device)
+
+        # NEED NLE, KL, BCE_DIS_ORIGINAL, BCE_DIS_PREDICTED
+        # reconstruction error, not used for the loss but useful to evaluate quality
+        nle = 0.5 * (x.view(len(x), -1) - x_tilde.view(len(x_tilde), -1)) ** 2
+
+        # kl-divergence
+        kl = -0.5 * torch.sum(-log_variances.exp() - torch.pow(mus, 2) + log_variances + 1, 1)
+
+        # bce for decoder and discriminator for original and reconstructed
+        bce_dis_original = -torch.log(fin_dis_real)  #  + 1e-3
+        bce_dis_predicted = -torch.log(1 - fin_dis_pred)  #  + 1e-3
+
+        """
+        What do we need for Ren:
+
+        z_mean, z_sigma (encoder output) = mus, log_variances | CHECK
+
+        # We have these, but might readjust how these come from the model
+        1_x_tilde, De_pro_tilde (hidden, final disc output for vis recon) = hid_dis_pred, fin_dis_pred
+        v_x_tilde, G_pro_logits (hidden, final disc output for cog recon) = hid_dis_cog, fin_dis_cog
+        1_x, D_pro_logits (hidden, final disc output for real image) = hid_dis_real, fin_dis_real
+
+        KL_Loss | CHECK
+
+        DISCRIMINATOR | Following could be used with:
+            nn.BCEWithLogitsLoss(size_average=False)(labels_predicted, Variable(torch.zeros_like(
+            labels_predicted.data).cuda(), requires_grad=False))
+        D_fake_loss (Cross entropy between 0 labels, and G_pro_logits[fin_dis_cog]) | dis_fake_cog_loss
+            nn.BCEWithLogitsLoss(size_average=False)(fin_dis_cog, Variable(torch.zeros_like(
+            fin_dis_cog.data).cuda(), requires_grad=False))
+        D_real_loss (CE between Label = .75, and D_pro_logits[fin_dis_real] | dis_real_loss
+        D_tilde_loss (CE between 0 and De_pro_tilde[fin_dis_pred] | dis_fake_pred_loss
+        D2_tilde_loss (CE between L=.75, and De_pro_tilde[fin_dis_pred] | dis_real_pred_loss ... dis2?
+
+        DECODER | Use same BCE with Logits Loss
+        G_fake_loss (CE between L=.375(1-G_scale) and G_pro_logits[fin_dis_cog] | dec_fake_cog_loss
+        G_tilde_loss (ce between L=.375 and De_pro_tilde[fin_dis_pred]) | dec_fake_pred_loss
+
+        FEATURE LOSS
+        LL_loss (NLL of 1_x_tilde[hid_dis_pred] and 1_x[hid_dis_real]) | feature_loss_pred
+        LL_loss_2 (NLL of v_x_tilde[hid_dis_cog] and 1_x_tilde[hid_dis_pred] | feature_loss_pred_cog
+        LL_loss_v (NLL of v_x_tilde[hid_dis_cog] and 1_x[hid_dis_real]) | feature_loss_cog
+        
+        REDEFINITIONS:
+        bce_dis_original, ->
+        bce_dis_predicted, 
+        bce_dis_sampled, 
+        bce_gen_recon, 
+        bce_gen_sampled
+
+        """
+
+        # TODO: Fix NLL Loss - Find alternative / Torch won't load
+        # Stage 1 Loss
+        if stage == 1:
+            dis_real_loss = BCE(fin_dis_real,
+                                Variable((torch.ones_like(fin_dis_real.data) - d_scale_factor).cuda()))
+            dis_fake_pred_loss = BCE(fin_dis_pred, Variable(torch.zeros_like(fin_dis_pred.data).cuda()))
+            dec_fake_pred_loss = BCE(fin_dis_pred,
+                                     Variable((torch.ones_like(fin_dis_pred.data) - g_scale_factor).cuda()))
+
+            # feature_loss_pred = torch.mean(torch.sum(NLLNormal(hid_dis_pred, hid_dis_real), [1, 2, 3]))
+            # feature_loss_pred = NLLNormal(hid_dis_pred, hid_dis_real)
+            feature_loss_pred = torch.mean(torch.sum(NLLNormal(hid_dis_pred, hid_dis_real)))
+
+            loss_encoder = kl / (training_config.latent_dim * training_config.batch_size) - feature_loss_pred / (
+                    4 * 4 * 64)  # 1024
+            # TODO: Change the above to changeable parameters based on model out size
+            loss_decoder = dec_fake_pred_loss - 1e-6 * feature_loss_pred
+            loss_discriminator = dis_fake_pred_loss + dis_real_loss
+
+            return nle, kl, bce_dis_original, bce_dis_predicted, loss_encoder, loss_decoder, loss_discriminator
+
+        # Stage 2 Loss
+        elif stage == 2:
+            dis_fake_cog_loss = nn.BCEWithLogitsLoss(size_average=False)(fin_dis_cog,
+                                                                         Variable(
+                                                                             torch.zeros_like(fin_dis_cog.data).cuda(),
+                                                                             requires_grad=False))
+            dis_real_pred_loss = nn.BCEWithLogitsLoss(size_average=False)(fin_dis_pred,
+                                                                         Variable((torch.ones_like(
+                                                                             fin_dis_pred.data) - d_scale_factor).cuda(),
+                                                                                  requires_grad=False))
+            # feature_loss_pred_cog = torch.mean(torch.sum(NLLNormal(hid_dis_cog, hid_dis_pred), [1, 2, 3]))
+            feature_loss_pred_cog = NLL(hid_dis_cog, hid_dis_pred)
+
+            encoder_loss_2 = kl_2 / (training_config.latent_dim * training_config.batch_size) - feature_loss_pred_cog / (
+                    4 * 4 * 64)
+            D2_loss = dis_fake_cog_loss + dis_real_pred_loss
+
+            return encoder_loss_2, D2_loss
+
+        # Stage 3 Loss
+        else:
+            dis_real_loss = nn.BCEWithLogitsLoss(size_average=False)(fin_dis_real,
+                                                                     Variable((torch.ones_like(
+                                                                         fin_dis_real.data) - d_scale_factor).cuda(),
+                                                                              requires_grad=False))
+            dis_fake_cog_loss = nn.BCEWithLogitsLoss(size_average=False)(fin_dis_cog,
+                                                                         Variable(
+                                                                             torch.zeros_like(fin_dis_cog.data).cuda(),
+                                                                             requires_grad=False))
+            dec_fake_cog_loss = nn.BCEWithLogitsLoss(size_average=False)(fin_dis_cog,
+                                                                         Variable((torch.ones_like(
+                                                                             fin_dis_cog.data) - g_scale_factor).cuda(),
+                                                                                  requires_grad=False))
+
+            # feature_loss_cog = torch.mean(torch.sum(NLLNormal(hid_dis_cog, hid_dis_real), [1, 2, 3]))
+            feature_loss_cog = NLL(hid_dis_cog, hid_dis_real)
+
+            G3_loss = dec_fake_cog_loss - 1e-6 * feature_loss_cog
+            D3_loss = dis_fake_cog_loss + dis_real_loss
+
+            return G3_loss, D3_loss
+
+        # Feature Loss
+        # TODO: Look into GuassianNLLL and NLLL loss
+        # TODO: Look into square function
 
 
 class VaeGanCognitive(nn.Module):
@@ -422,8 +556,8 @@ class VaeGanCognitive(nn.Module):
         return super(VaeGanCognitive, self).__call__(*args, **kwargs)
 
     @staticmethod
-    def loss(gt_x, x_tilde, disc_layer_original, disc_layer_predicted, disc_layer_sampled, disc_class_original,
-             disc_class_predicted, disc_class_sampled, mus, variances):
+    def loss(gt_x, x_tilde, hid_dis_real, hid_dis_pred, hid_dis_sampled, fin_dis_real,
+             fin_dis_pred, fin_dis_sampled, mus, variances):
 
         # reconstruction error, not used for the loss but useful to evaluate quality
         nle = 0.5 * (gt_x.view(len(gt_x), -1) - x_tilde.view(len(x_tilde), -1)) ** 2
@@ -435,11 +569,11 @@ class VaeGanCognitive(nn.Module):
         kld = -0.5 * torch.sum(-variances.exp() - torch.pow(mus, 2) + variances + 1, 1) * kld_weight
 
         # mse between intermediate layers
-        mse = torch.sum(0.5 * (disc_layer_original - disc_layer_predicted) ** 2, 1)
+        mse = torch.sum(0.5 * (hid_dis_real - hid_dis_pred) ** 2, 1)
 
         # bce for decoder and discriminator for original and reconstructed
-        bce_dis_original = -torch.log(disc_class_original + 1e-3)
-        bce_dis_predicted = -torch.log(1 - disc_class_predicted + 1e-3)
-        bce_dis_sampled = -torch.log(1 - disc_class_sampled + 1e-3)
+        bce_dis_original = -torch.log(fin_dis_real + 1e-3)
+        bce_dis_predicted = -torch.log(1 - fin_dis_pred + 1e-3)
+        bce_dis_sampled = -torch.log(1 - fin_dis_sampled + 1e-3)
 
         return nle, kld, mse, bce_dis_original, bce_dis_predicted, bce_dis_sampled

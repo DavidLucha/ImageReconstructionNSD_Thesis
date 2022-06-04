@@ -579,3 +579,16 @@ def imgnet_dataloader(batch_size):
     data_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True)
     return data_loader
 
+
+def NLLNormal(pred, target):
+
+    c = -0.5 * numpy.log(2 * numpy.pi)  # -0.5 * ~0.80 = -.40~
+    multiplier = 1.0 / (2.0 * 1 ** 2)  # 0.5 (1/2)
+    tmp = torch.square(pred - target)
+    tmp *= -multiplier
+    tmp += c
+    # sum, then mean
+    # tmp = torch.mean(tmp)
+
+    return tmp
+

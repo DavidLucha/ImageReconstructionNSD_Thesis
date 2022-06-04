@@ -22,13 +22,15 @@ from torch.optim.lr_scheduler import ExponentialLR
 import training_config
 from model_1 import VaeGan
 from utils_1 import CocoDataloader, ImageNetDataloader, GreyToColor, evaluate, PearsonCorrelation, \
-    StructuralSimilarity, objective_assessment, parse_args, imgnet_dataloader
+    StructuralSimilarity, objective_assessment, parse_args, imgnet_dataloader, NLLNormal
 
 numpy.random.seed(8)
 torch.manual_seed(8)
 torch.cuda.manual_seed(8)
 
 torch.autograd.set_detect_anomaly(True)
+
+stage = 1
 
 if __name__ == "__main__":
 
@@ -186,7 +188,7 @@ if __name__ == "__main__":
     writer_discriminator = SummaryWriter(SAVE_PATH + '/runs_' + timestep + '/discriminator')
 
     model = VaeGan(device=device, z_size=training_config.latent_dim, recon_level=args.recon_level).to(device)
-    model.init_parameters()
+    # model.init_parameters()
 
     logging.info('Initialize')
     stp = 1
@@ -204,17 +206,19 @@ if __name__ == "__main__":
     equilibrium = training_config.equilibrium
     lambda_mse = training_config.lambda_mse
     decay_mse = training_config.decay_mse
+    lr = 0.0003 # TODO: Remove for stages
 
     # An optimizer and schedulers for each of the sub-networks, so we can selectively backprop
-    optimizer_encoder = torch.optim.RMSprop(params=model.encoder.parameters(), lr=training_config.learning_rate_s1, alpha=0.9,
+    # TODO: Change LR to args for stages
+    optimizer_encoder = torch.optim.RMSprop(params=model.encoder.parameters(), lr=lr, alpha=0.9,
                                             eps=1e-8, weight_decay=training_config.weight_decay, momentum=0, centered=False)
     lr_encoder = ExponentialLR(optimizer_encoder, gamma=training_config.decay_lr)
 
-    optimizer_decoder = torch.optim.RMSprop(params=model.decoder.parameters(), lr=training_config.learning_rate_s1, alpha=0.9,
+    optimizer_decoder = torch.optim.RMSprop(params=model.decoder.parameters(), lr=lr, alpha=0.9,
                                             eps=1e-8, weight_decay=training_config.weight_decay, momentum=0, centered=False)
     lr_decoder = ExponentialLR(optimizer_decoder, gamma=training_config.decay_lr)
 
-    optimizer_discriminator = torch.optim.RMSprop(params=model.discriminator.parameters(), lr=training_config.learning_rate_s1,
+    optimizer_discriminator = torch.optim.RMSprop(params=model.discriminator.parameters(), lr=lr,
                                                   alpha=0.9, eps=1e-8, weight_decay=training_config.weight_decay, momentum=0, centered=False)
     lr_discriminator = ExponentialLR(optimizer_discriminator, gamma=training_config.decay_lr)
 
@@ -244,7 +248,6 @@ if __name__ == "__main__":
     batch_number = len(dataloader_train)
     step_index = 0
 
-    # TODO: Go through the actual training loop
     for idx_epoch in range(args.epochs):
 
         try:
@@ -267,34 +270,85 @@ if __name__ == "__main__":
                 x_tilde, disc_class, disc_layer, mus, log_variances = model(x)
 
                 # Split so we can get the different parts
-                disc_layer_original = disc_layer[:batch_size]
-                disc_layer_predicted = disc_layer[batch_size:-batch_size]
-                disc_layer_sampled = disc_layer[-batch_size:]
+                # disc_layer = hid_dis_
+                hid_dis_real = disc_layer[:batch_size]
+                hid_dis_pred = disc_layer[batch_size:-batch_size]
+                hid_dis_sampled = disc_layer[-batch_size:]
 
-                disc_class_original = disc_class[:batch_size]
-                disc_class_predicted = disc_class[batch_size:-batch_size]
-                disc_class_sampled = disc_class[-batch_size:]
+                # disc_class = fin_dis_
+                fin_dis_real = disc_class[:batch_size]
+                fin_dis_pred = disc_class[batch_size:-batch_size]
+                fin_dis_sampled = disc_class[-batch_size:]
 
                 # VAE/GAN
-                nle, kld, mse, bce_dis_original, bce_dis_predicted, bce_dis_sampled = VaeGan.loss(x, x_tilde,
-                                                                                                  disc_layer_original,
-                                                                                                  disc_layer_predicted,
-                                                                                                  disc_layer_sampled,
-                                                                                                  disc_class_original,
-                                                                                                  disc_class_predicted,
-                                                                                                  disc_class_sampled,
-                                                                                                  mus, log_variances)
-                # mse_v2, bcde
+                # TODO: Add a second kl for cog
+                nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
+                bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
+                                                             hid_dis_pred, hid_dis_sampled,
+                                                             fin_dis_real, fin_dis_pred,
+                                                             fin_dis_sampled, mus, log_variances)
 
                 # Selectively disable the decoder of the discriminator if they are unbalanced
                 train_dis = True
                 train_dec = True
 
+                loss_method = 'Orig' # 'Maria', 'Orig', 'Ren'
+                BCE = nn.BCELoss().to(device) # reduction='sum'
+                MSE = nn.MSELoss(reduction='sum').to(device)
+
+                # TODO: We need: KL Divergence, MSE (
+                # TODO: ENCODER (not yet) Decode (
+
                 # VAE/GAN loss
-                loss_encoder = torch.sum(kld) + torch.sum(mse)
-                loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
-                    bce_dis_sampled)
-                loss_decoder = torch.sum(training_config.lambda_mse * mse) - (1.0 - training_config.lambda_mse) * loss_discriminator
+                if loss_method == 'Maria':
+                    loss_encoder = torch.sum(kl) + torch.sum(mse_1)
+                    loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
+                        bce_dis_sampled)
+                    loss_decoder = torch.sum(training_config.lambda_mse * mse_1) - (1.0 - training_config.lambda_mse) * loss_discriminator
+
+                elif loss_method == 'Orig':
+                    # Loss from torch vaegan loss
+                    loss_encoder = torch.sum(mse_1) + torch.sum(mse_2) + torch.sum(kl)
+                    # mse_01 = MSE(hid_dis_real, hid_dis_pred)
+                    # mse_02 = MSE(hid_dis_real, hid_dis_sampled)
+                    # mse_tot = mse_01 + mse_02
+                    # print(loss_encoder, mse_tot)
+                    loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(bce_dis_sampled)
+                    # d_scale_factor = 0.25 # REMOVE
+                    # loss_disc_2a = BCE(fin_dis_pred, Variable(torch.zeros_like(fin_dis_pred.data).cuda() - d_scale_factor))
+                    # loss_disc_2b = BCE(fin_dis_real, Variable(torch.ones_like(fin_dis_real.data).cuda()))
+                    # loss_disc_2 = loss_disc_2a + loss_disc_2b
+                    # print(loss_discriminator, loss_disc_2)
+                    loss_decoder = torch.sum(bce_gen_sampled) + torch.sum(bce_gen_recon)
+                    loss_decoder = torch.sum(lambda_mse / 2 * mse_1) + torch.sum(lambda_mse / 2 * mse_2) + (
+                                1.0 - lambda_mse) * loss_decoder
+                elif loss_method == 'Ren':
+                    # Ren Loss Function
+                    # TODO: ADD EXTRA PARAMS (Only for COG)
+                    # loss_encoder, loss_decoder, loss_discriminator = VaeGan.ren_loss(disc_layer_original, disc_layer_predicted,
+                    #                                                         disc_class_original, disc_class_predicted,
+                    #                                                         kl, stage=stage)
+
+                    # set Ren params
+                    """hid_dis_pred = disc_layer_predicted
+                    fin_dis_pred = disc_class_predicted
+                    hid_dis_real = disc_layer_original
+                    fin_dis_real = disc_class_original"""
+                    d_scale_factor = 0.25
+                    g_scale_factor = 1 - 0.75 / 2
+
+                    BCE = nn.BCELoss().to(device)
+                    ones_label = Variable(torch.ones_like(fin_dis_real.data).cuda())
+
+                    dis_real_loss = BCE(fin_dis_real, Variable((torch.ones_like(fin_dis_real.data) - d_scale_factor).cuda()))
+                    dis_fake_pred_loss = BCE(fin_dis_pred, Variable(torch.zeros_like(fin_dis_pred.data).cuda()))
+                    dec_fake_pred_loss = BCE(fin_dis_pred, Variable((torch.ones_like(fin_dis_pred.data) - g_scale_factor).cuda()))
+                    # feature_loss_pred = torch.mean(torch.sum(NLLNormal(hid_dis_pred, hid_dis_real), [1, 2, 3]))
+                    feature_loss_pred = torch.mean(torch.sum(NLLNormal(hid_dis_pred, hid_dis_real)))  # Not sure about the sum
+
+                    loss_encoder = kl / (training_config.latent_dim * training_config.batch_size) - feature_loss_pred / (4 * 4 * 64)  # 1024
+                    loss_decoder = dec_fake_pred_loss - 1e-6 * feature_loss_pred
+                    loss_discriminator = dis_fake_pred_loss + dis_real_loss
 
                 # Register mean values for logging
                 loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
@@ -313,49 +367,54 @@ if __name__ == "__main__":
                     train_dec = True
 
                 # BACKPROP
-                # clean grads
-                model.zero_grad()
-
-
-                # encoder
-                loss_encoder.backward(retain_graph=True)
-                # someone likes to clamp the grad here
-                # [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
-                # update parameters
-                optimizer_encoder.step()
-                # clean others, so they are not afflicted by encoder loss
-                model.zero_grad()
-                # model.encoder.zero_grad()
-
-                # Decoder
-                if train_dec:
-                    loss_decoder.backward(retain_graph=True)
-                    # [p.grad.data.clamp_(-1, 1) for p in model.decoder.parameters()]
-                    optimizer_decoder.step()
-                    # clean the discriminator
-                    model.discriminator.zero_grad()
-
-                # Discriminator
-                if train_dis:
-                    loss_discriminator.backward()
-                    # [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
-                    optimizer_discriminator.step()
                 """
+                What does each need
+                    Maria
+                        Enc: KL and MSE (loss())
+                """
+                step_method = 'old'  # as in implementation, or 'new' with new pytorch solution
+                # clean grads
+                if step_method == 'old':
+                    model.zero_grad()
 
-                # POTENTIAL SOLUTION FOR GRADIENT PROBLEM
-                loss_encoder.backward(retain_graph=True)
-                loss_decoder.backward(retain_graph=True)
-                loss_discriminator.backward()
+                    # encoder
+                    loss_encoder.backward(retain_graph=True)
+                    # someone likes to clamp the grad here
+                    # [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
+                    # update parameters
+                    optimizer_encoder.step()
+                    # clean others, so they are not afflicted by encoder loss
+                    model.zero_grad()
+                    # model.encoder.zero_grad()
 
-                optimizer_encoder.step()
-                # model.zero_grad()
+                    # Decoder
+                    if train_dec:
+                        loss_decoder.backward(retain_graph=True)
+                        # [p.grad.data.clamp_(-1, 1) for p in model.decoder.parameters()]
+                        optimizer_decoder.step()
+                        # clean the discriminator
+                        model.discriminator.zero_grad()
 
-                if train_dec:
-                    optimizer_decoder.step()
+                    # Discriminator
+                    if train_dis:
+                        loss_discriminator.backward()
+                        # [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
+                        optimizer_discriminator.step()
 
-                if train_dis:
-                    optimizer_discriminator.step()"""
+                    elif step_method == 'new':
+                        # POTENTIAL SOLUTION FOR GRADIENT PROBLEM
+                        loss_encoder.backward(retain_graph=True)
+                        loss_decoder.backward(retain_graph=True)
+                        loss_discriminator.backward()
 
+                        optimizer_encoder.step()
+                        # model.zero_grad()
+
+                        if train_dec:
+                            optimizer_decoder.step()
+
+                        if train_dis:
+                            optimizer_discriminator.step()
 
                 logging.info(
                     f'Epoch  {idx_epoch} {batch_idx + 1:3.0f} / {100 * (batch_idx + 1) / len(dataloader_train):2.3f}%, '
