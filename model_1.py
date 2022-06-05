@@ -523,21 +523,11 @@ class VaeGanCognitive(nn.Module):
                             # Reconstruct gt by the teacher net
                             gt_x = self.decoder(z_teacher)
 
-                    elif self.mode == 'wae':
-
-                        mus, log_variances = self.encoder(x)
-                        x_tilde = self.decoder(mus)
-
-                        # Inter-modality knowledge distillation
-                        mu_teacher, logvar_teacher = self.teacher_net.encoder(gt_x)
-                        # Reconstruct gt by the teacher net
-                        gt_x = self.decoder(mu_teacher)
-
                     z_p = Variable(torch.randn(len(x), self.z_size).to(self.device), requires_grad=True)
                     x_p = self.decoder(z_p)
 
                     disc_layer = self.discriminator(gt_x, x_tilde, x_p, "REC")  # discriminator for reconstruction
-                    disc_class = self.discriminator(gt_x, x_tilde, x_p, "GAN")
+                    disc_class = self.discriminator(gt_x, x_tilde, x_p, "GAN")  # gt_x acts as real
 
                     return gt_x, x_tilde, disc_class, disc_layer, mus, log_variances
 
@@ -577,3 +567,73 @@ class VaeGanCognitive(nn.Module):
         bce_dis_sampled = -torch.log(1 - fin_dis_sampled + 1e-3)
 
         return nle, kld, mse, bce_dis_original, bce_dis_predicted, bce_dis_sampled
+
+    @staticmethod
+    def ren_loss(x_gt, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, fin_dis_real, fin_dis_pred,
+                 stage=2, device='cuda'):
+        # set Ren params
+        d_scale_factor = 0.25
+        g_scale_factor = 1 - 0.75 / 2  # 0.625
+        BCE = nn.BCELoss().to(device)
+        # MSE = nn.MSELoss().to(device)
+
+        # NEED NLE, KL, BCE_DIS_ORIGINAL, BCE_DIS_PREDICTED
+        # reconstruction error, not used for the loss but useful to evaluate quality
+        nle = 0.5 * (x_gt.view(len(x), -1) - x_tilde.view(len(x_tilde), -1)) ** 2
+
+        # kl-divergence
+        kl = -0.5 * torch.sum(-log_variances.exp() - torch.pow(mus, 2) + log_variances + 1, 1)
+
+        # Stage 2 Loss
+        if stage == 2:
+            """# dis_fake_cog_loss = nn.BCEWithLogitsLoss(size_average=False)(fin_dis_cog,
+            #                                                              Variable(
+            #                                                                  torch.zeros_like(fin_dis_cog.data).cuda(),
+            #                                                                  requires_grad=False))
+            # dis_real_pred_loss = nn.BCEWithLogitsLoss(size_average=False)(fin_dis_pred,
+            #                                                               Variable((torch.ones_like(
+            #                                                                   fin_dis_pred.data) - d_scale_factor).cuda(),
+            #                                                                        requires_grad=False))
+            # feature_loss_pred_cog = torch.mean(torch.sum(NLLNormal(hid_dis_cog, hid_dis_pred), [1, 2, 3]))"""
+            dis_fake_cog_loss = BCE(fin_dis_pred, Variable(torch.zeros_like(fin_dis_pred.data).cuda()))
+            dis_real_pred_loss = BCE(fin_dis_real, Variable((torch.ones_like(fin_dis_real.data) - d_scale_factor).cuda()))
+
+            feature_loss_vis_cog = torch.mean(torch.sum(NLLNormal(hid_dis_pred, hid_dis_real)))
+
+            loss_encoder = kl / (
+                        training_config.latent_dim * training_config.batch_size) - feature_loss_vis_cog / (
+                                     4 * 4 * 64)
+            loss_discriminator = dis_fake_cog_loss + dis_real_pred_loss
+
+            dec_fake_pred_loss = BCE(fin_dis_pred,
+                                     Variable((torch.ones_like(fin_dis_pred.data) - g_scale_factor).cuda()))
+            loss_decoder = dec_fake_pred_loss - 1e-6 * feature_loss_vis_cog
+
+            return nle, loss_encoder, loss_decoder, loss_discriminator
+
+        # Stage 3 Loss
+        else:
+            dis_real_loss = nn.BCEWithLogitsLoss(size_average=False)(fin_dis_real,
+                                                                     Variable((torch.ones_like(
+                                                                         fin_dis_real.data) - d_scale_factor).cuda(),
+                                                                              requires_grad=False))
+            dis_fake_cog_loss = nn.BCEWithLogitsLoss(size_average=False)(fin_dis_cog,
+                                                                         Variable(
+                                                                             torch.zeros_like(fin_dis_cog.data).cuda(),
+                                                                             requires_grad=False))
+            dec_fake_cog_loss = nn.BCEWithLogitsLoss(size_average=False)(fin_dis_cog,
+                                                                         Variable((torch.ones_like(
+                                                                             fin_dis_cog.data) - g_scale_factor).cuda(),
+                                                                                  requires_grad=False))
+
+            # feature_loss_cog = torch.mean(torch.sum(NLLNormal(hid_dis_cog, hid_dis_real), [1, 2, 3]))
+            feature_loss_cog = NLL(hid_dis_cog, hid_dis_real)
+
+            G3_loss = dec_fake_cog_loss - 1e-6 * feature_loss_cog
+            D3_loss = dis_fake_cog_loss + dis_real_loss
+
+            return G3_loss, D3_loss
+
+        # Feature Loss
+        # TODO: Look into GuassianNLLL and NLLL loss
+        # TODO: Look into square function

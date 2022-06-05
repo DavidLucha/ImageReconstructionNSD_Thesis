@@ -23,7 +23,7 @@ learning_rate_s1 = 0.003 # Stage 1
 # NOTE: Origin VAE/GAE implementation uses 3e-4 but is dependent on batch size (64)
 learning_rate = 0.0003 # Stage 2 & 3
 weight_decay = 0 # 1e-7
-n_epochs = 100 # 400 for Stage 1 & 2 | ??? for pretraining (had at 20 but idk)
+n_epochs = 21 # 400 for Stage 1 & 2 | ??? for pretraining (had at 20 but idk)
 n_epochs_s3 = 200 # Stage 3
 num_workers = 8 # was 4
 step_size = 30  # for scheduler
@@ -64,8 +64,9 @@ god_pretrain_imgs = 'GOD/images/pretrain/'
 god_s1_train_imgs = 'GOD/images/train/'
 god_s1_valid_imgs = 'GOD/images/valid/'
 # For Stage 2 and 3
-god_train_data = 'GOD/GOD_allsub_training.pickle'
-god_valid_data = 'GOD/GOD_allsub_valid.pickle'
+god_train_data = 'GOD/GOD_all_subjects_train.pickle'
+god_valid_data = 'GOD/GOD_all_subjects_valid_avg.pickle' # Average
+# god_valid_data = 'GOD/GOD_all_subjects_valid.pickle' # Not average (50img*35presentations)
 
 # NSD Data
 # Change this for NSD tests
@@ -76,7 +77,7 @@ nsd_mode = '1.8mm/'  # 3mm | 5S_Small etc.
 nsd_s1_train_imgs = 'NSD/images/train/'  # add + nsd_mode
 nsd_s1_valid_imgs = 'NSD/images/valid/'
 # For Stage 2 and 3
-nsd_train_data = 'NSD/' + nsd_mode + 'NSD_allsub_training.pickle'
-nsd_valid_data = 'NSD/' + nsd_mode + 'NSD_allsub_training.pickle'
+nsd_train_data = 'NSD/' + nsd_mode + 'NSD_all_subjects_train.pickle'
+nsd_valid_data = 'NSD/' + nsd_mode + 'NSD_all_subjects_train.pickle'
 
 

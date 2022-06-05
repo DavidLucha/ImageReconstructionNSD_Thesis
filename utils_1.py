@@ -22,6 +22,7 @@ from torch import nn, no_grad
 from torch.autograd import Variable
 from PIL import Image
 from os import listdir
+from scipy.ndimage import shift
 from torchvision.utils import make_grid, save_image
 import torchvision
 
@@ -31,7 +32,7 @@ Data loaders
 """
 
 
-class BoldRoiDataloader(object):
+class FmriDataloader(object):
     """
     Dataloader for ROI information in BOLD5000 dataset
     https://ndownloader.figshare.com/files/12965447
@@ -68,6 +69,39 @@ class BoldRoiDataloader(object):
             sample = self.transform(sample)
 
         return sample
+
+
+class RandomShift(object):
+    """
+    Randomly shifts image with max_shift
+    """
+
+    def __init__(self, max_shift=5):
+
+        self.max_shift = max_shift
+
+    def __call__(self, sample):
+
+        image, fmri = sample['image'], sample['fmri']
+        image_shifted = rand_shift(image, self.max_shift)
+
+        transformed_sample = {'fmri': fmri, 'image': image_shifted}
+
+        return transformed_sample
+
+
+def rand_shift(img, max_shift=0):
+    """
+    Shifts images randomly
+    @param img: np.array [size x size x channels]
+        Image to be shifted
+    @param max_shift: shift value
+
+    @return: image shifted along x and y directions
+    """
+    x_shift, y_shift = numpy.random.randint(-max_shift, max_shift + 1, size=2)
+    img_shifted = shift(img, [x_shift, y_shift, 0], prefilter=False, order=0, mode='nearest')
+    return img_shifted
 
 
 class CocoDataloader(object):

@@ -327,7 +327,8 @@ if __name__ == "__main__":
                 loss_decoder_mean_old = loss_decoder.data.cpu().numpy()  # / batch_size
                 loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
 
-                if torch.mean(bce_dis_original).item() < equilibrium - margin or torch.mean(
+                # Initially try training without equilibrium
+                """if torch.mean(bce_dis_original).item() < equilibrium - margin or torch.mean(
                         bce_dis_predicted).item() < equilibrium - margin:
                     train_dis = False
                 if torch.mean(bce_dis_original).item() > equilibrium + margin or torch.mean(
@@ -335,57 +336,25 @@ if __name__ == "__main__":
                     train_dec = False
                 if train_dec is False and train_dis is False:
                     train_dis = True
-                    train_dec = True
+                    train_dec = True"""
 
                 # BACKPROP
-                """
-                What does each need
-                    Maria
-                        Enc: KL and MSE (loss())
-                """
-                step_method = 'new'  # as in implementation, or 'new' with new pytorch solution
-                # clean grads
-                if step_method == 'old':
-                    model.zero_grad()
+                # Backpropagation below ensures same results as if running optimizers in isolation
+                # And works in PyTorch==1.10 (allows for other important functions)
+                loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
+                optimizer_encoder.step()
 
-                    # encoder
-                    loss_encoder.backward(retain_graph=True)
-                    # someone likes to clamp the grad here
-                    # [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
-                    # update parameters
-                    optimizer_encoder.step()
-                    # clean others, so they are not afflicted by encoder loss
-                    model.zero_grad()
-                    # model.encoder.zero_grad()
+                if train_dec:
+                    model.decoder.zero_grad()
+                    loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
+                    optimizer_decoder.step()
 
-                    # Decoder
-                    if train_dec:
-                        loss_decoder.backward(retain_graph=True)
-                        # [p.grad.data.clamp_(-1, 1) for p in model.decoder.parameters()]
-                        optimizer_decoder.step()
-                        # clean the discriminator
-                        model.discriminator.zero_grad()
+                if train_dis:
+                    model.discriminator.zero_grad()
+                    loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
+                    optimizer_discriminator.step()
 
-                    # Discriminator
-                    if train_dis:
-                        loss_discriminator.backward()
-                        # [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
-                        optimizer_discriminator.step()
-
-                    elif step_method == 'new':
-                        # POTENTIAL SOLUTION FOR GRADIENT PROBLEM
-                        loss_encoder.backward(retain_graph=True)
-                        loss_decoder.backward(retain_graph=True)
-                        loss_discriminator.backward()
-
-                        optimizer_encoder.step()
-                        # model.zero_grad()
-
-                        if train_dec:
-                            optimizer_decoder.step()
-
-                        if train_dis:
-                            optimizer_discriminator.step()
+                model.zero_grad()
 
                 logging.info(
                     f'Epoch  {idx_epoch} {batch_idx + 1:3.0f} / {100 * (batch_idx + 1) / len(dataloader_train):2.3f}%, '
@@ -552,7 +521,7 @@ if __name__ == "__main__":
                 # only for one batch due to memory issue
                 break
 
-            if not idx_epoch % 5:
+            if not idx_epoch % 20:
                 torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
                 logging.info('Saving model')
 

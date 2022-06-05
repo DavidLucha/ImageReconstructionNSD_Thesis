@@ -280,81 +280,62 @@ if __name__ == "__main__":
                 fin_dis_pred = disc_class[batch_size:-batch_size]
                 fin_dis_sampled = disc_class[-batch_size:]
 
-                # VAE/GAN
-                # TODO: Add a second kl for cog
-                nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
-                bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
-                                                             hid_dis_pred, hid_dis_sampled,
-                                                             fin_dis_real, fin_dis_pred,
-                                                             fin_dis_sampled, mus, log_variances)
-
                 # Selectively disable the decoder of the discriminator if they are unbalanced
                 train_dis = True
                 train_dec = True
 
                 loss_method = 'Orig' # 'Maria', 'Orig', 'Ren'
-                BCE = nn.BCELoss().to(device) # reduction='sum'
-                MSE = nn.MSELoss(reduction='sum').to(device)
-
-                # TODO: We need: KL Divergence, MSE (
-                # TODO: ENCODER (not yet) Decode (
 
                 # VAE/GAN loss
                 if loss_method == 'Maria':
+                    nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
+                    bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
+                                                                 hid_dis_pred, hid_dis_sampled,
+                                                                 fin_dis_real, fin_dis_pred,
+                                                                 fin_dis_sampled, mus, log_variances)
+
                     loss_encoder = torch.sum(kl) + torch.sum(mse_1)
                     loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
                         bce_dis_sampled)
                     loss_decoder = torch.sum(training_config.lambda_mse * mse_1) - (1.0 - training_config.lambda_mse) * loss_discriminator
 
-                elif loss_method == 'Orig':
+                    # Register mean values for logging
+                    loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
+                    loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
+                    loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
+                    loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
+
+                if loss_method == 'Orig':
+                    nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
+                    bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
+                                                                 hid_dis_pred, hid_dis_sampled,
+                                                                 fin_dis_real, fin_dis_pred,
+                                                                 fin_dis_sampled, mus, log_variances)
+
                     # Loss from torch vaegan loss
                     loss_encoder = torch.sum(mse_1) + torch.sum(mse_2) + torch.sum(kl)
-                    # mse_01 = MSE(hid_dis_real, hid_dis_pred)
-                    # mse_02 = MSE(hid_dis_real, hid_dis_sampled)
-                    # mse_tot = mse_01 + mse_02
-                    # print(loss_encoder, mse_tot)
                     loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(bce_dis_sampled)
-                    # d_scale_factor = 0.25 # REMOVE
-                    # loss_disc_2a = BCE(fin_dis_pred, Variable(torch.zeros_like(fin_dis_pred.data).cuda() - d_scale_factor))
-                    # loss_disc_2b = BCE(fin_dis_real, Variable(torch.ones_like(fin_dis_real.data).cuda()))
-                    # loss_disc_2 = loss_disc_2a + loss_disc_2b
-                    # print(loss_discriminator, loss_disc_2)
                     loss_decoder = torch.sum(bce_gen_sampled) + torch.sum(bce_gen_recon)
                     loss_decoder = torch.sum(lambda_mse / 2 * mse_1) + torch.sum(lambda_mse / 2 * mse_2) + (
                                 1.0 - lambda_mse) * loss_decoder
-                elif loss_method == 'Ren':
+
+                    # Register mean values for logging
+                    loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
+                    loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
+                    loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
+                    loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
+
+                if loss_method == 'Ren':
                     # Ren Loss Function
-                    # TODO: ADD EXTRA PARAMS (Only for COG)
-                    # loss_encoder, loss_decoder, loss_discriminator = VaeGan.ren_loss(disc_layer_original, disc_layer_predicted,
-                    #                                                         disc_class_original, disc_class_predicted,
-                    #                                                         kl, stage=stage)
+                    nle, kl, bce_dis_original, bce_dis_predicted, loss_encoder, loss_decoder, loss_discriminator = \
+                        VaeGan.ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, fin_dis_real,
+                                        fin_dis_pred, hid_dis_cog=None, fin_dis_cog=None, stage=stage, device=device)
 
-                    # set Ren params
-                    """hid_dis_pred = disc_layer_predicted
-                    fin_dis_pred = disc_class_predicted
-                    hid_dis_real = disc_layer_original
-                    fin_dis_real = disc_class_original"""
-                    d_scale_factor = 0.25
-                    g_scale_factor = 1 - 0.75 / 2
+                    # Register mean values for logging
+                    loss_encoder_mean = torch.mean(loss_encoder).data.cpu().numpy()
+                    loss_discriminator_mean = loss_discriminator.data.cpu().numpy()  # / batch_size
+                    loss_decoder_mean = loss_decoder.item()  # .cpu().numpy()/ batch_size
 
-                    BCE = nn.BCELoss().to(device)
-                    ones_label = Variable(torch.ones_like(fin_dis_real.data).cuda())
-
-                    dis_real_loss = BCE(fin_dis_real, Variable((torch.ones_like(fin_dis_real.data) - d_scale_factor).cuda()))
-                    dis_fake_pred_loss = BCE(fin_dis_pred, Variable(torch.zeros_like(fin_dis_pred.data).cuda()))
-                    dec_fake_pred_loss = BCE(fin_dis_pred, Variable((torch.ones_like(fin_dis_pred.data) - g_scale_factor).cuda()))
-                    # feature_loss_pred = torch.mean(torch.sum(NLLNormal(hid_dis_pred, hid_dis_real), [1, 2, 3]))
-                    feature_loss_pred = torch.mean(torch.sum(NLLNormal(hid_dis_pred, hid_dis_real)))  # Not sure about the sum
-
-                    loss_encoder = kl / (training_config.latent_dim * training_config.batch_size) - feature_loss_pred / (4 * 4 * 64)  # 1024
-                    loss_decoder = dec_fake_pred_loss - 1e-6 * feature_loss_pred
-                    loss_discriminator = dis_fake_pred_loss + dis_real_loss
-
-                # Register mean values for logging
-                loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
-                loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
-                loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
-                loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
 
                 if torch.mean(bce_dis_original).item() < equilibrium - margin or torch.mean(
                         bce_dis_predicted).item() < equilibrium - margin:
@@ -367,54 +348,22 @@ if __name__ == "__main__":
                     train_dec = True
 
                 # BACKPROP
-                """
-                What does each need
-                    Maria
-                        Enc: KL and MSE (loss())
-                """
-                step_method = 'old'  # as in implementation, or 'new' with new pytorch solution
-                # clean grads
-                if step_method == 'old':
-                    model.zero_grad()
+                # Backpropagation below ensures same results as if running optimizers in isolation
+                # And works in PyTorch==1.10 (allows for other important functions)
+                loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
+                optimizer_encoder.step()
 
-                    # encoder
-                    loss_encoder.backward(retain_graph=True)
-                    # someone likes to clamp the grad here
-                    # [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
-                    # update parameters
-                    optimizer_encoder.step()
-                    # clean others, so they are not afflicted by encoder loss
-                    model.zero_grad()
-                    # model.encoder.zero_grad()
+                if train_dec:
+                    model.decoder.zero_grad()
+                    loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
+                    optimizer_decoder.step()
 
-                    # Decoder
-                    if train_dec:
-                        loss_decoder.backward(retain_graph=True)
-                        # [p.grad.data.clamp_(-1, 1) for p in model.decoder.parameters()]
-                        optimizer_decoder.step()
-                        # clean the discriminator
-                        model.discriminator.zero_grad()
+                if train_dis:
+                    model.discriminator.zero_grad()
+                    loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
+                    optimizer_discriminator.step()
 
-                    # Discriminator
-                    if train_dis:
-                        loss_discriminator.backward()
-                        # [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
-                        optimizer_discriminator.step()
-
-                    elif step_method == 'new':
-                        # POTENTIAL SOLUTION FOR GRADIENT PROBLEM
-                        loss_encoder.backward(retain_graph=True)
-                        loss_decoder.backward(retain_graph=True)
-                        loss_discriminator.backward()
-
-                        optimizer_encoder.step()
-                        # model.zero_grad()
-
-                        if train_dec:
-                            optimizer_decoder.step()
-
-                        if train_dis:
-                            optimizer_discriminator.step()
+                model.zero_grad()
 
                 logging.info(
                     f'Epoch  {idx_epoch} {batch_idx + 1:3.0f} / {100 * (batch_idx + 1) / len(dataloader_train):2.3f}%, '

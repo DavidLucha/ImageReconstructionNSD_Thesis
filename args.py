@@ -10,6 +10,7 @@ load_epoch = training_config.load_epoch
 dataset ='GOD'
 subset = '1.8mm'  # '1.8mm, 3mm, 5S_Small, 8S_Small,'
 recon_level = training_config.recon_level
+network_checkpoint = None  # If stage has been stopped for some reason.
 # add loss method
 # add model import | probs temporary
 
