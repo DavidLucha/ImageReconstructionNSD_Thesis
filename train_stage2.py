@@ -23,7 +23,7 @@ import training_config
 from model_1 import VaeGan, Encoder, Decoder, VaeGanCognitive, Discriminator, CognitiveEncoder
 from utils_1 import CocoDataloader, ImageNetDataloader, GreyToColor, evaluate, PearsonCorrelation, \
     StructuralSimilarity, objective_assessment, parse_args, imgnet_dataloader, NLLNormal, FmriDataloader, \
-    RandomShift
+    RandomShift, SampleToTensor, CenterCrop, Rescale, Normalization
 
 numpy.random.seed(8)
 torch.manual_seed(8)
@@ -101,7 +101,7 @@ if __name__ == "__main__":
 
     # LOAD NETWORK WEIGHTS
     trained_net = os.path.join(OUTPUT_PATH, args.dataset, 'pretrain', args.pretrained_net,
-                               'pretrained_' + args.pretrained_net + '.pth')
+                               'pretrained_' + args.pretrained_net + '.pth') # CHANGE THIS
     print(trained_net)
     # Change 'pretrain' to previous stage
 
@@ -110,7 +110,8 @@ if __name__ == "__main__":
     # with open(os.path.join(SAVE_PATH, 'config.txt'), 'w') as f:
     #     json.dump(args.__dict__, f, indent=2)
 
-    root_path = os.path.join(training_config.data_root, args.dataset,)
+    root_path = os.path.join(training_config.data_root, args.dataset + '/')
+    # print(root_path) # TODO: Remove (D:/Lucha_Data/datasets/GOD/
 
     """
     DATASET LOADING
@@ -120,13 +121,14 @@ if __name__ == "__main__":
         # image_crop = training_config.image_crop
 
         # Load data
-        training_data = FmriDataloader(dataset=train_data, root_path=root_path,
+        """training_data = FmriDataloader(dataset=train_data, root_path=root_path,
                                            transform=transforms.Compose([transforms.Resize((training_config.image_size,
                                                                                             training_config.image_size)),
                                                                          transforms.CenterCrop(
                                                                              (training_config.image_size,
                                                                               training_config.image_size)),
                                                                          # RandomShift(),
+                                                                         # SampleToTensor(),
                                                                          transforms.ToTensor(),
                                                                          transforms.Normalize(training_config.mean,
                                                                                               training_config.std)
@@ -139,17 +141,38 @@ if __name__ == "__main__":
                                                                              (training_config.image_size,
                                                                               training_config.image_size)),
                                                                          # RandomShift(),
+                                                                         # SampleToTensor(),
                                                                          transforms.ToTensor(),
                                                                          transforms.Normalize(training_config.mean,
                                                                                               training_config.std)
-                                                                         ]))
+                                                                         ]))"""
 
-        dataloader_train = DataLoader(training_data, batch_size=args.batch_size,
+        training_data = FmriDataloader(dataset=train_data, root_path=root_path,
+                                           transform=transforms.Compose([
+                                                # Rescale(output_size=training_config.image_size),
+                                                CenterCrop(output_size=training_config.image_size),
+                                                Rescale(output_size=training_config.image_size),
+                                                RandomShift(),
+                                                SampleToTensor(), # Only one transforming both
+                                                Normalization(mean=training_config.mean,
+                                                              std=training_config.std)]))
+
+        validation_data = FmriDataloader(dataset=valid_data, root_path=root_path,
+                                           transform=transforms.Compose([
+                                                                    CenterCrop(output_size=training_config.image_size),
+                                                                    Rescale(output_size=training_config.image_size),
+                                                                    RandomShift(),
+                                                                    SampleToTensor(), # Only one transforming both
+                                                                    Normalization(mean=training_config.mean,
+                                                                                  std=training_config.std)]))
+
+        dataloader_train = DataLoader(training_data, batch_size=args.batch_size,  # collate_fn=PadCollate(dim=0),
                                       shuffle=True, num_workers=args.num_workers)
-        dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size,
+        dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size,  # collate_fn=PadCollate(dim=0),
                                       shuffle=True, num_workers=args.num_workers)
 
         NUM_VOXELS = len(train_data[0]['fmri'])
+        print(NUM_VOXELS) # TODO: Delete
 
     # TODO: NSD Dataloader
     elif args.dataset == 'NSD':
@@ -198,7 +221,7 @@ if __name__ == "__main__":
 
     # encoder = Encoder(z_size=args.latent_dim).to(device) # These aren't used anywhere TODO: Check delete?
     # decoder = Decoder(z_size=args.latent_dim, size=encoder.size).to(device)  # TODO: Check size var
-    teacher_model = VaeGan(device=device, z_size=args.latent_dim).to(device)
+    teacher_model = VaeGan(device=device, z_size=training_config.latent_dim).to(device)
     logging.info('Loading model from Stage 1')
     teacher_model.load_state_dict(torch.load(model_dir, map_location=device))
     discriminator = teacher_model.discriminator
@@ -208,21 +231,25 @@ if __name__ == "__main__":
     for param in teacher_model.decoder.parameters():
         param.requires_grad = False
 
-    logging.info('Number of voxels:', NUM_VOXELS)
-    logging.info('Training data length:', len(train_data))
-    logging.info('Validation data length:', len(valid_data))
+    # logging.info('Number of voxels:', NUM_VOXELS)
+    # logging.info('Training data length:', len(train_data))
+    # logging.info('Validation data length:', len(valid_data))
+    print('Number of voxels:', NUM_VOXELS)
+    print('Training data length:', len(train_data))
+    print('Validation data length:', len(valid_data))
 
     # Define model
-    cognitive_encoder = CognitiveEncoder(input_size=NUM_VOXELS, z_size=args.latent_dim).to(device)
+    cognitive_encoder = CognitiveEncoder(input_size=NUM_VOXELS, z_size=training_config.latent_dim).to(device)
     model = VaeGanCognitive(device=device, encoder=cognitive_encoder, decoder=teacher_model.decoder,
                             discriminator=discriminator, teacher_net=teacher_model, stage=2,
-                            z_size=args.latent_dim).to(device)
+                            z_size=training_config.latent_dim).to(device)
 
     # Loading Checkpoint | If you want to continue previous training
     # Set checkpoint path
-    net_checkpoint_path = os.path.join(OUTPUT_PATH, args.dataset, 'stage_2', args.network_checkpoint,
-                               'stage_2_' + args.network_checkpoint + '.pth')
-    print(net_checkpoint_path)
+    if args.network_checkpoint is not None:
+        net_checkpoint_path = os.path.join(OUTPUT_PATH, args.dataset, 'stage_2', args.network_checkpoint,
+                                   'stage_2_' + args.network_checkpoint + '.pth')
+        print(net_checkpoint_path)
 
     # Load and show results
     if args.network_checkpoint is not None and os.path.exists(net_checkpoint_path.replace(".pth", "_results.csv")):
@@ -264,7 +291,6 @@ if __name__ == "__main__":
     decay_mse = training_config.decay_mse
 
     # An optimizer and schedulers for each of the sub-networks, so we can selectively backprop
-    # TODO: Change LR to args for stages
     optimizer_encoder = torch.optim.RMSprop(params=model.encoder.parameters(), lr=training_config.learning_rate,
                                             alpha=0.9,
                                             eps=1e-8, weight_decay=training_config.weight_decay, momentum=0,
@@ -352,12 +378,18 @@ if __name__ == "__main__":
                 # VAE/GAN Loss
                 # Using Ren's Loss Function
                 # TODO: ADD EXTRA PARAMS (Only for COG)
-                nle, loss_encoder, loss_decoder, loss_discriminator = VaeGan.ren_loss(x_gt, x_tilde, mus,
+                """nle, loss_encoder, loss_decoder, loss_discriminator = VaeGanCognitive.ren_loss(x_gt, x_tilde, mus,
                                                                                       log_variances, hid_dis_real,
                                                                                       hid_dis_pred, fin_dis_real,
                                                                                       fin_dis_pred, stage=stage,
-                                                                                      device=device)
+                                                                                      device=device)"""
 
+                nle, kld, mse, bce_dis_original, bce_dis_predicted = VaeGanCognitive.loss(x_gt, x_tilde, hid_dis_real,
+                                                                                          hid_dis_pred, fin_dis_real,
+                                                                                          fin_dis_pred, mus,
+                                                                                          log_variances)
+
+                print('loss is done xD rawr')
                 """
                 IF DOING EQUILIBRIUM - probably won't
                 nle, kl, bce_dis_original, bce_dis_predicted, loss_encoder, loss_decoder, loss_discriminator = \

@@ -186,15 +186,56 @@ if __name__ == "__main__":
     writer_decoder = SummaryWriter(SAVE_PATH + '/runs_' + timestep + '/decoder')
     writer_discriminator = SummaryWriter(SAVE_PATH + '/runs_' + timestep + '/discriminator')
 
+    model_dir = trained_net.replace(".pth", '_{}.pth'.format(args.load_epoch))
+
     # TODO: Make new VaeGan class
     model = VaeGan(device=device, z_size=training_config.latent_dim, recon_level=args.recon_level).to(device)
+    logging.info('Loading model from pretraining')
+    model.load_state_dict(torch.load(model_dir, map_location=device))
+    model.eval()
 
-    if args.pretrained_net is not None and os.path.exists(trained_net.replace(".pth", "_results.csv")):
+    # Test model load
+    test_model = False
+
+    if test_model:
+        for batch_idx, data_batch in enumerate(dataloader_train):
+            logging.info('Testing model from pretraining')
+            model.eval()
+            data_in = Variable(data_batch, requires_grad=False).float().to(device)
+            data_target = Variable(data_batch, requires_grad=False).float().to(device)
+            out = model(data_in)
+
+            out = out.data.cpu()
+
+            fig, ax = plt.subplots(figsize=(10, 10))
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.imshow(make_grid(out[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+            test_output_dir = os.path.join(SAVE_PATH, 'model_test_valid')
+            plt.savefig(test_output_dir)
+
+            fig, ax = plt.subplots(figsize=(10, 10))
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.imshow(make_grid(data_in[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+            gt_dir = os.path.join(SAVE_PATH, 'model_test_ground_truth')
+            plt.savefig(gt_dir)
+            exit(0)
+
+    # Loading Checkpoint | If you want to continue previous training
+    # Set checkpoint path
+    if args.network_checkpoint is not None:
+        net_checkpoint_path = os.path.join(OUTPUT_PATH, args.dataset, 'stage_1', args.network_checkpoint,
+                                   'stage_1_' + args.network_checkpoint + '.pth')
+        print(net_checkpoint_path)
+
+    # Load and show results
+    if args.network_checkpoint is not None and os.path.exists(net_checkpoint_path.replace(".pth", "_results.csv")):
         logging.info('Load pretrained model')
-        model_dir = trained_net.replace(".pth", '_{}.pth'.format(args.load_epoch))
-        model.load_state_dict(torch.load(model_dir))
+        checkpoint_dir = trained_net.replace(".pth", '_{}.pth'.format(args.load_epoch))
+        model.load_state_dict(torch.load(checkpoint_dir))
         model.eval()
-        results = pd.read_csv(trained_net.replace(".pth", "_results.csv"))
+        results = pd.read_csv(net_checkpoint_path.replace(".pth", "_results.csv"))
         results = {col_name: list(results[col_name].values) for col_name in results.columns}
         stp = 1 + len(results['epochs'])
         if training_config.evaluate:
@@ -309,13 +350,16 @@ if __name__ == "__main__":
                 # Using Ren's Loss Function
                 # TODO: ADD EXTRA PARAMS (Only for COG)
                 # TODO: Add a second kl for cog
-                nle, kl, bce_dis_original, bce_dis_predicted, loss_encoder, loss_decoder, loss_discriminator = \
+                nle, kl, bce_dis_original, bce_dis_predicted, loss_encoder, loss_decoder, loss_discriminator, feature_loss_pred = \
                     VaeGan.ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, fin_dis_real,
                                     fin_dis_pred, hid_dis_cog=None, fin_dis_cog=None, stage=stage, device=device)
 
                 # Selectively disable the decoder of the discriminator if they are unbalanced
                 train_dis = True
                 train_dec = True
+
+                # Testing new encoder loss
+                loss_encoder = (torch.sum(kl) / (training_config.latent_dim * training_config.batch_size)) - (feature_loss_pred / (4 * 4 * 64))
 
                 # Register mean values for logging
                 loss_encoder_mean = torch.mean(loss_encoder).data.cpu().numpy()
@@ -388,7 +432,7 @@ if __name__ == "__main__":
             writer_decoder.add_scalar('loss_decoder_discriminator', loss_decoder_mean, idx_epoch)
             writer_discriminator.add_scalar('loss_decoder_discriminator', loss_discriminator_mean, idx_epoch)
 
-            if not idx_epoch % 2:
+            if not idx_epoch % 5:
                 # Save train examples
                 images_dir = os.path.join(SAVE_PATH, 'images', 'train')
                 if not os.path.exists(images_dir):

@@ -3,6 +3,7 @@ Run this script to data pre-process
 Concats fmri and image file
 """
 import os.path
+import torch
 import pickle
 from bdpy import BData
 import csv
@@ -11,9 +12,12 @@ import shutil
 import random
 import os
 from PIL import Image
+from sklearn import preprocessing
+import matplotlib.pyplot as plt
+import numpy as np
 
 
-def ren_data_prep(data_dir, image_list_dir):
+def ren_data_prep(data_dir, image_list_dir, norm=True):
     """
     Loads H5 data, pulls voxels from ROI and image index. (TRAINING)
     Combines these into a list of dictionaries formatted as:
@@ -30,7 +34,7 @@ def ren_data_prep(data_dir, image_list_dir):
     Note: Works for the GOD data, unsure if this will work for NSD
 
     """
-    DATA_TYPE = 'valid' # train or valid
+    DATA_TYPE = 'train' # train or valid
     DATASET = 'GOD'
     # TRAIN_IMG_PATH = "D:/Honours/Object Decoding Dataset/images_passwd/images/training/"
     SAVE_PATH = "D:/Lucha_Data/datasets/"
@@ -39,6 +43,8 @@ def ren_data_prep(data_dir, image_list_dir):
     if DATA_TYPE == 'valid':
         image_type = 'valid/'
     FILE_NAME_OUTPUT = '/images/' + image_type # Defines the path in the dictionary outputs
+
+    norm = True # TODO: Can remove
 
     with open(image_list_dir, 'r') as f:
         image_list = list(csv.reader(f, delimiter=","))
@@ -55,8 +61,8 @@ def ren_data_prep(data_dir, image_list_dir):
 
     for sub in subjects:
         fmri_image_dataset = []
-        # data = BData(data_dir + sub + '.h5') COMMENTED FOR TESTING PURPOSES
-        data = BData(data_dir + 'Subject1.h5')
+        data = BData(data_dir + sub + '.h5')
+        # data = BData(data_dir + 'Subject1.h5') # TODO: COMMENT THIS OUT (Testing only)
         if DATA_TYPE == 'train':
             fmri = data.select('ROI_VC')[:1200]
             image_idx = data.select('image_index')[:1200]
@@ -65,28 +71,64 @@ def ren_data_prep(data_dir, image_list_dir):
             image_idx = data.select('image_index')[1200:2950]
         image_idx = pd.DataFrame(image_idx, dtype='int')
         image_idx.columns = ['Image_ID']
-        image_names= image_idx.merge(image_list, how='left', on='Image_ID') # Works for testing
-        # Not sure if it works on training
-        # image_names = image_idx.merge(image_list, how='inner', on='Image_ID') # Works for train
+        image_names= image_idx.merge(image_list, how='left', on='Image_ID')
         image_names['File_Name'] = FILE_NAME_OUTPUT + image_names['File_Name'].astype(str)
         image_names = image_names.to_numpy()
         image_names = image_names[:,1]
 
-        for idx, (vox, pix) in enumerate(zip(fmri, image_names)):
+        # Normalise fMRI
+        if norm:
+            normed_fmri = preprocessing.scale(fmri)
+            # fmri_pd = pd.DataFrame(normed_fmri, dtype='float')
+            fmri_pd = normed_fmri
+            norm_status = '_normed'
+
+        if not norm:
+            # fmri_pd = pd.DataFrame(fmri, dtype='float')
+            norm_status = '_raw'
+            fmri_pd = fmri
+
+        # Plot distribution
+        # fig, ax = plt.subplots()
+        # test = np.random.randint(0,1200,8)
+        vis = False
+
+        if vis:
+            test = [167]
+            data_plot = pd.DataFrame(fmri_pd, dtype='float')
+            sub_data = data_plot[0:4].T
+            sub_data.plot.box()
+            plt.show()
+
+            for x in test:
+                data_plot_sub = data_plot.iloc[x]
+                hist = data_plot_sub.hist(bins=20)
+                plt.show()
+
+            # full_hist = data_plot.hist(bins=10)
+            plt.show()
+            # plt.close()
+
+
+        for idx, (vox, pix) in enumerate(zip(fmri_pd, image_names)):
             fmri_image_dataset.append({'fmri': vox, 'image': pix})
+
+        # print(pd.DataFrame.mean(fmri_pd))
+        # print(fmri_pd.stack().std())
+        # print(fmri_pd[8].mean())
 
         # Adds the subject to full training list
         training_data.extend(fmri_image_dataset)
 
-        with open(os.path.join(SAVE_PATH, DATASET, DATASET + '_' + sub + '_' + DATA_TYPE + '.pickle'), 'wb') as f:
+        with open(os.path.join(SAVE_PATH, DATASET, DATASET + '_' + sub + '_' + DATA_TYPE + norm_status + '.pickle'), 'wb') as f:
             pickle.dump(fmri_image_dataset, f)
 
     # Append all lists for full training dataset
-    with open(os.path.join(SAVE_PATH, DATASET, DATASET + '_' + 'all_subjects_' + DATA_TYPE + '.pickle'), 'wb') as f:
+    with open(os.path.join(SAVE_PATH, DATASET, DATASET + '_' + 'all_subjects_' + DATA_TYPE + norm_status + '.pickle'), 'wb') as f:
         pickle.dump(training_data, f)
 
 
-def ren_data_prep_average(data_dir, image_list_dir):
+def ren_data_prep_average(data_dir, image_list_dir, norm = True, avg = True):
     """
     Loads H5 data, pulls voxels from ROI and image index. (TEST)
     Averages by each image presentation
@@ -112,7 +154,8 @@ def ren_data_prep_average(data_dir, image_list_dir):
         image_type = 'train/'
     if DATA_TYPE == 'valid':
         image_type = 'valid/'
-    FILE_NAME_OUTPUT = '/images/' + image_type # Defines the path in the dictionary outputs
+
+    FILE_NAME_OUTPUT = '/images/' + image_type  # Defines the path in the dictionary outputs
 
     with open(image_list_dir, 'r') as f:
         image_list = list(csv.reader(f, delimiter=","))
@@ -129,83 +172,134 @@ def ren_data_prep_average(data_dir, image_list_dir):
 
     for sub in subjects:
         fmri_image_dataset = []
-        # data = BData(data_dir + sub + '.h5') COMMENTED FOR TESTING PURPOSES
-        data = BData(data_dir + 'Subject1.h5')
+        data = BData(data_dir + sub + '.h5')
+        # data = BData(data_dir + 'Subject1.h5') # TODO: Get rid of this | Testing only
         if DATA_TYPE == 'train':
             fmri = data.select('ROI_VC')[:1200]
             image_idx = data.select('image_index')[:1200]
         if DATA_TYPE == 'valid':
             fmri = data.select('ROI_VC')[1200:2950] # Corresponds to trials in test phase (50 images x 35 presentations)
             image_idx = data.select('image_index')[1200:2950]
-        image_idx = pd.DataFrame(image_idx, dtype='int')
-        image_idx.columns = ['Image_ID']
-        image_names= image_idx.merge(image_list, how='left', on='Image_ID') # Works for testing
-        file_names = image_names.loc[:,'File_Name']
-        fmri_pd = pd.DataFrame(fmri, dtype='float')
-        fmri_image = pd.concat([file_names, fmri_pd], axis=1)
-        # fmri_image.to_csv(r'fmri_image_test.csv', index=False, header=True) # To test calcs, all good.
-        avg_fmri = fmri_image.groupby('File_Name').mean()
-        avg_fmri_np = avg_fmri.to_numpy()
-        avg_row_names = pd.DataFrame(avg_fmri)
-        avg_row_names = avg_row_names.index.values
 
-        ###########
-        # I HAVE THE AVERAGES IN THE DF, BUT I NEED TO PULL THEM OUT INTO THE DICTIONARIES
-        ##########
+        if avg:
+            image_idx = pd.DataFrame(image_idx, dtype='int')
+            image_idx.columns = ['Image_ID']
+            image_names= image_idx.merge(image_list, how='left', on='Image_ID') # Works for testing
+            file_names = image_names.loc[:,'File_Name']
+            fmri_df = pd.DataFrame(fmri, dtype='float')
+            fmri_image = pd.concat([file_names, fmri_df], axis=1)
+            # fmri_image.to_csv(r'fmri_image_test.csv', index=False, header=True) # To test calcs, all good.
+            avg_fmri = fmri_image.groupby('File_Name').mean()
+            avg_status = '_avg'
 
-        # Not sure if it works on training
-        # image_names = image_idx.merge(image_list, how='inner', on='Image_ID') # Works for train
-        output_names = FILE_NAME_OUTPUT + avg_row_names
-        # output_names = output_names.to_numpy() # already nump
-        # output_names = output_names[:,1]
+            # Normalise data
+            # TODO: Check of Horikawa already normed
+                # TODO: I'd plot all the data as a histogram plot. So, if they are between roughly -3 and 3, it is already good to go!
+                # Seems to be evidence that they have
+            if norm:
+                normed_fmri = preprocessing.scale(avg_fmri)
+                # fmri_pd = pd.DataFrame(normed_fmri, dtype='float')
+                fmri_pd = normed_fmri
+                norm_status = '_normed'
+                # TEST MEAN AND SD
+                # print(pd.DataFrame.mean(fmri_pd))
+                # print(fmri_pd.stack().std())
+                # print(fmri_pd[8].mean())
 
-        for idx, (vox, pix) in enumerate(zip(avg_fmri_np, output_names)):
+            if not norm:
+                # fmri_pd = pd.DataFrame(avg_fmri, dtype='float')
+                fmri_pd = fmri
+                norm_status = '_raw'
+
+            avg_row_names = pd.DataFrame(avg_fmri)
+            avg_row_names = avg_row_names.index.values
+
+            image_names = FILE_NAME_OUTPUT + avg_row_names
+
+        if not avg:
+            image_idx = pd.DataFrame(image_idx, dtype='int')
+            image_idx.columns = ['Image_ID']
+            image_names = image_idx.merge(image_list, how='left', on='Image_ID')  # Works for testing
+            image_names['File_Name'] = FILE_NAME_OUTPUT + image_names['File_Name'].astype(str)
+            image_names = image_names.to_numpy()
+            image_names = image_names[:, 1]
+            avg_status = ''
+
+            # Normalise fMRI
+            if norm:
+                normed_fmri = preprocessing.scale(fmri)
+                # fmri_pd = pd.DataFrame(normed_fmri, dtype='float')
+                fmri_pd = normed_fmri
+                norm_status = '_normed'
+
+            if not norm:
+                # fmri_pd = pd.DataFrame(fmri, dtype='float')
+                fmri_pd = fmri
+                norm_status = '_raw'
+
+        for idx, (vox, pix) in enumerate(zip(fmri_pd, image_names)):
             fmri_image_dataset.append({'fmri': vox, 'image': pix})
 
         # Adds the subject to full training list
         training_data.extend(fmri_image_dataset)
 
-        with open(os.path.join(SAVE_PATH, DATASET, DATASET + '_' + sub + '_' + DATA_TYPE + '_avg.pickle'), 'wb') as f:
+        with open(os.path.join(SAVE_PATH, DATASET, DATASET + '_' + sub + '_' + DATA_TYPE + norm_status + avg_status + '.pickle'), 'wb') as f:
             pickle.dump(fmri_image_dataset, f)
 
     # Append all lists for full training dataset
-    with open(os.path.join(SAVE_PATH, DATASET, DATASET + '_' + 'all_subjects_' + DATA_TYPE + '_avg.pickle'), 'wb') as f:
+    with open(os.path.join(SAVE_PATH, DATASET, DATASET + '_' + 'all_subjects_' + DATA_TYPE + norm_status + avg_status + '.pickle'), 'wb') as f:
         pickle.dump(training_data, f)
 
 
 if __name__ == "__main__":
 
-    # Script for taking GOD data voxels, and turning them into list of dictionaries
-    data_dir = "D:/Honours/Object Decoding Dataset/7387130/" # Where h5 files are stored
-    image_list_dir = "D:/Honours/Object Decoding Dataset/images_passwd/images/image_test_id_nmd.csv" # CHANGE FOR TRAINING test or training
-    # subj_pick_PATH = "D:/Honours/Object Decoding Dataset/7387130/Subject Training Pickles/"
+    """
+    Script for taking GOD data voxels, and turning them into list of dictionaries
+    """
+    fmri_image_comp = True
 
-    # Save pickles for all subjects
-    # ren_dataset = ren_data_prep(data_dir, image_list_dir)  # Normal data
-    ren_dataset_avg = ren_data_prep_average(data_dir, image_list_dir)  # Avg Data
+    if fmri_image_comp:
+        training = True # CHANGE THIS DEPENDING ON WHAT YOU'RE DOING
 
-    
-    # Concat all pickles
-    # training_data = concatenate_bold_data(subj_pick_PATH)
+        data_dir = "D:/Honours/Object Decoding Dataset/7387130/"  # Where h5 files are stored
 
-    # with open(os.path.join(SAVE_PATH, 'bold_train', 'bold_train_norm.pickle'), 'wb') as f:
-    #     pickle.dump(train_data, f)
-    # Script End
+        if training:
+            image_list_dir = "D:/Honours/Object Decoding Dataset/images_passwd/images/image_training_id_nmd.csv"
+            # subj_pick_PATH = "D:/Honours/Object Decoding Dataset/7387130/Subject Training Pickles/"
+            ren_data_prep(data_dir, image_list_dir, norm=True)
+
+        # training = False
+
+        if not training:
+            image_list_dir = "D:/Honours/Object Decoding Dataset/images_passwd/images/image_test_id_nmd.csv"
+            ren_data_prep_average(data_dir, image_list_dir, norm=True, avg=True)  # Avg Data
+            ren_data_prep_average(data_dir, image_list_dir, norm=True, avg=False)
+
+            # Concat all pickles
+        # training_data = concatenate_bold_data(subj_pick_PATH)
+
+        # with open(os.path.join(SAVE_PATH, 'bold_train', 'bold_train_norm.pickle'), 'wb') as f:
+        #     pickle.dump(train_data, f)
+        # Script End
 
 
     # Grab random selection of 10k images from validation set (GOD ImageNet 2011)
     val_path = 'D:/Honours/val/'
     square_dir = 'D:/Lucha_Data/datasets/GOD/images/sq_pretrain/'
-    pretrain_dir = 'D:/Lucha_Data/datasets/GOD/images/pretrain/'
+    pretrain_dir = 'D:/Lucha_Data/datasets/GOD/images/pretrain_25k/'
 
     """
     Randomly select images from validation if x and y > 100
     Also filter out if aspect ratio is less than 0.67 or above 1.4
+    
+    NOTE: Some train VAEs on 60000 for 20 epochs = 1.2mil.
+    @ 20k samples, we do 75 epochs for 1.5mil
+    
     """
     rnd_sample = False
 
     if rnd_sample:
-        sample = random.sample(os.listdir(val_path), 20000)
+        sample = random.sample(os.listdir(val_path), 49999)
         sample_count = 0
         for fname in sample:
             srcpath = os.path.join(val_path, fname)
@@ -215,7 +309,7 @@ if __name__ == "__main__":
             if x > 100 and y > 100 and 0.67 < ratio < 1.4:
                 shutil.copy(srcpath, pretrain_dir)
                 sample_count += 1
-                if sample_count == 10000:
+                if sample_count == 25000:
                     break
 
     """
