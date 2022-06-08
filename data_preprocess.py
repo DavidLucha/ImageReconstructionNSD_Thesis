@@ -14,7 +14,9 @@ import os
 from PIL import Image
 from sklearn import preprocessing
 import matplotlib.pyplot as plt
+import torchvision.transforms as transforms
 import numpy as np
+from utils_1 import GreyToColor
 
 
 def ren_data_prep(data_dir, image_list_dir, norm=True):
@@ -97,6 +99,11 @@ def ren_data_prep(data_dir, image_list_dir, norm=True):
             test = [167]
             data_plot = pd.DataFrame(fmri_pd, dtype='float')
             sub_data = data_plot[0:4].T
+            # Checking proportion of raw data about abs(3)
+            # sub_data_abs = abs(sub_data)
+            # counts = sub_data[sub_data > 3.0].count()
+            # sub_data.count()
+            # prop = counts/(sub_data.count())
             sub_data.plot.box()
             plt.show()
 
@@ -256,7 +263,7 @@ if __name__ == "__main__":
     """
     Script for taking GOD data voxels, and turning them into list of dictionaries
     """
-    fmri_image_comp = True
+    fmri_image_comp = False
 
     if fmri_image_comp:
         training = True # CHANGE THIS DEPENDING ON WHAT YOU'RE DOING
@@ -342,3 +349,36 @@ if __name__ == "__main__":
             if x < 100 or y < 100:
                 os.remove(filepath)
 
+    """
+    Read shape of images
+    """
+    read_shape = False
+
+    if read_shape:
+        path = 'D:/Lucha_Data/datasets/GOD/images/train/'
+        transform = transforms.ToTensor()
+
+        for fname in os.listdir(path):
+            filepath = os.path.join(path, fname)
+            count = 0
+            with Image.open(filepath) as im:
+                image_tens = transform(im)
+                image_shape = image_tens.shape
+                # print(image_shape)
+            if not image_shape == [3, 500, 500]:
+                print(fname, image_shape)
+                count = count + 1
+                # print(fname)
+        print(count)
+
+        # Test opening greyscale image post transform
+        # transform = transforms.ToTensor()
+        grey = GreyToColor(500)
+
+        with Image.open('D:/Lucha_Data/datasets/GOD/images/train/n03512147_47076.JPEG') as image:
+            image = transform(image)
+            new_image = grey(image)
+            print(type(new_image))
+            print(new_image.shape)
+            plt.imshow(new_image.permute(1, 2, 0))
+            plt.show()

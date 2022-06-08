@@ -190,8 +190,37 @@ if __name__ == "__main__":
     model = VaeGan(device=device, z_size=training_config.latent_dim, recon_level=args.recon_level).to(device)
     # model.init_parameters()
 
-    logging.info('Initialize')
-    stp = 1
+    # Loading Checkpoint | If you want to continue previous training
+    # Set checkpoint path
+    if args.network_checkpoint is not None:
+        net_checkpoint_path = os.path.join(OUTPUT_PATH, args.dataset, 'pretrain', args.network_checkpoint,
+                                   'pretrained_' + args.network_checkpoint + '.pth')
+        print(net_checkpoint_path)
+
+    # Load and show results
+    if args.network_checkpoint is not None and os.path.exists(net_checkpoint_path.replace(".pth", "_results.csv")):
+        logging.info('Load pretrained model')
+        checkpoint_dir = net_checkpoint_path.replace(".pth", '_{}.pth'.format(args.checkpoint_epoch))
+        model.load_state_dict(torch.load(checkpoint_dir))
+        model.eval()
+        results = pd.read_csv(net_checkpoint_path.replace(".pth", "_results.csv"))
+        results = {col_name: list(results[col_name].values) for col_name in results.columns}
+        stp = 1 + len(results['epochs'])
+        if training_config.evaluate:
+            images_dir = os.path.join(SAVE_PATH, 'images')
+            if not os.path.exists(images_dir):
+                os.makedirs(images_dir)
+            pcc, ssim, mse, is_mean = evaluate(model, dataloader_valid, norm=True, mean=training_config.mean,
+                                               std=training_config.std,
+                                               path=images_dir)
+            print("Mean PCC:", pcc)
+            print("Mean SSIM:", ssim)
+            print("Mean MSE:", mse)
+            print("IS mean", is_mean)
+            exit(0)
+    else:
+        logging.info('Initialize')
+        stp = 1
 
     results = dict(
         epochs=[],
@@ -537,7 +566,7 @@ if __name__ == "__main__":
                 # only for one batch due to memory issue
                 break
 
-            if not idx_epoch % 5:
+            if not idx_epoch % 5 or idx_epoch == args.epochs:
                 torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
                 logging.info('Saving model')
 
@@ -550,13 +579,13 @@ if __name__ == "__main__":
 
             if metrics_valid is not None:
                 for key, value in result_metrics_valid.items():
-                    metric_value = torch.tensor(value, dtype=torch.float64).item()
-                    # UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True)
+                    metric_value = value.detach().clone().item()
+                    # Changed from: torch.tensor(value, dtype=torch.float64).item()
                     results[key].append(metric_value)
 
             if metrics_train is not None:
                 for key, value in result_metrics_train.items():
-                    metric_value = torch.tensor(value, dtype=torch.float64).item()
+                    metric_value = value.detach().clone().item()
                     results[key].append(metric_value)
 
             results_to_save = pd.DataFrame(results)

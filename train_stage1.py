@@ -232,7 +232,7 @@ if __name__ == "__main__":
     # Load and show results
     if args.network_checkpoint is not None and os.path.exists(net_checkpoint_path.replace(".pth", "_results.csv")):
         logging.info('Load pretrained model')
-        checkpoint_dir = trained_net.replace(".pth", '_{}.pth'.format(args.load_epoch))
+        checkpoint_dir = net_checkpoint_path.replace(".pth", '_{}.pth'.format(args.checkpoint_epoch))
         model.load_state_dict(torch.load(checkpoint_dir))
         model.eval()
         results = pd.read_csv(net_checkpoint_path.replace(".pth", "_results.csv"))
@@ -565,7 +565,7 @@ if __name__ == "__main__":
                 # only for one batch due to memory issue
                 break
 
-            if not idx_epoch % 20:
+            if not idx_epoch % 20 or idx_epoch == args.epochs:
                 torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
                 logging.info('Saving model')
 
@@ -578,13 +578,12 @@ if __name__ == "__main__":
 
             if metrics_valid is not None:
                 for key, value in result_metrics_valid.items():
-                    metric_value = torch.tensor(value, dtype=torch.float64).item()
-                    # UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True)
+                    metric_value = value.detach().clone().item()
                     results[key].append(metric_value)
 
             if metrics_train is not None:
                 for key, value in result_metrics_train.items():
-                    metric_value = torch.tensor(value, dtype=torch.float64).item()
+                    metric_value = value.detach().clone().item()
                     results[key].append(metric_value)
 
             results_to_save = pd.DataFrame(results)

@@ -1,144 +1,97 @@
-"""
-NOTE: THIS HAS NOT BEEN UPDATED AT ALL
-"""
 import os
 import time
-import json
 import numpy
-
+import json
 import torch
+import sys
 import pickle
 import logging
 import argparse
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from scipy.io import loadmat
-from torch import no_grad, nn
-from torchvision.utils import make_grid
+import torchvision
+from torch import nn, no_grad
 from torchvision import transforms
 from torch.autograd import Variable
-from torch.utils.data import DataLoader
+from torchvision.utils import make_grid
+from torch.utils.data import DataLoader, ConcatDataset
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import ExponentialLR
-from sklearn.model_selection import train_test_split
 
-import configs.gan_config as gan_cfg
-import configs.data_config as data_cfg
-from models.vae_gan import CognitiveEncoder, Encoder, Decoder, VaeGanCognitive, VaeGan, Discriminator
-from train.train_utils import evaluate, objective_assessment, PearsonCorrelation, StructuralSimilarity
-from data_preprocessing.data_loader import BoldRoiDataloader, Rescale, CenterCrop, SampleToTensor, RandomShift, \
-    Normalization, split_subject_data, MnistDataloader
+import training_config
+from model_1 import VaeGan, Encoder, Decoder, VaeGanCognitive, Discriminator, CognitiveEncoder
+from utils_1 import CocoDataloader, ImageNetDataloader, GreyToColor, evaluate, PearsonCorrelation, \
+    StructuralSimilarity, objective_assessment, parse_args, imgnet_dataloader, NLLNormal, FmriDataloader, \
+    RandomShift, SampleToTensor, CenterCrop, Rescale, Normalization, get_max_length
 
 numpy.random.seed(8)
 torch.manual_seed(8)
 torch.cuda.manual_seed(8)
 
-DEBUG = False
+torch.autograd.set_detect_anomaly(True)
+
+stage = 3
+
+# NOTE: Requires DVAEGAN env (updated pytorch>1.10)
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--input', '-i', help="user path where the datasets are located", type=str)
-    parser.add_argument('--output', '-o', help='user path where to save', type=str)
-    parser.add_argument('--logs', '-l', help='path where to save logs', type=str)
-    parser.add_argument('--batch_size', '-b', default=gan_cfg.batch_size, help='batch size for dataloader', type=int)
-    parser.add_argument('--learning_rate', '-lr', default=gan_cfg.learning_rate, help='learning rate', type=float)
-    parser.add_argument('--epochs', '-e', default=gan_cfg.n_epochs, help='number of epochs', type=int)
-    parser.add_argument('--image_crop', '-im_crop', default=gan_cfg.image_crop, help='size to which image should '
-                                                                                        'be cropped', type=int)
-    parser.add_argument('--image_size', '-im_size', default=gan_cfg.image_size, help='size to which image should '
-                                                                                        'be scaled', type=int)
-    parser.add_argument('--device', '-d', default=gan_cfg.device, help='what device to use', type=str)
-    parser.add_argument('--num_workers', '-nw', default=gan_cfg.num_workers, help='number of workers for dataloader',
-                        type=int)
-    parser.add_argument('--step_size', '-step', default=gan_cfg.step_size, help='number of epochs after which '
-                                                                                   'to decrease learning rate',
-                        type=int)
-    parser.add_argument('--patience', '-p', default=gan_cfg.patience, help='number of epochs with unchanged lr '
-                                                                              'for early stopping', type=int)
-    parser.add_argument('--weight_decay', '--wd', default=gan_cfg.weight_decay,
-                        help='weight decay used by optimizer', type=float)
-    parser.add_argument('--latent_dim', '-lat_dim', default=gan_cfg.latent_dim, help='dimension of the latent space',
-                        type=int)
-    parser.add_argument('--message', '-m', default='default message', help='experiment description', type=str)
-    parser.add_argument('--pretrained_gan', '-pretrain', default=gan_cfg.pretrained_gan, help='pretrained gan',
-                        type=str)
-    parser.add_argument('-load_epoch', '-pretrain_epoch', default=gan_cfg.load_epoch,
-                        help='epoch of the pretrained model', type=int)
-    parser.add_argument('--recon_level', default=gan_cfg.recon_level, type=int,
-                        help='reconstruction level in the descriminator')
-    parser.add_argument('--lambda_mse', default=gan_cfg.lambda_mse, type=float, help='weight for style error')
-    parser.add_argument('--decay_mse', default=gan_cfg.decay_mse, type=float, help='mse weight decrease')
-    parser.add_argument('--decay_lr', default=gan_cfg.decay_lr, type=float,
-                        help='learning rate decay for lr scheduler')
-    parser.add_argument('--margin', default=gan_cfg.decay_margin, type=float,
-                        help='margin for the generator/discriminator game')
-    parser.add_argument('--equilibrium', default=gan_cfg.equilibrium, type=float,
-                        help='equilibrium for the generator/discriminator game')
-    parser.add_argument('--decay_margin', default=gan_cfg.decay_margin, type=float,
-                        help='margin decay for the generator/discriminator game')
-    parser.add_argument('--decay_equilibrium', default=gan_cfg.decay_equilibrium, type=float,
-                        help='equilibrium decay for the generator/discriminator game')
-    parser.add_argument('--decoder', '-dec', default=gan_cfg.decoder_weights,
-                        help='pretrained vae-gan model to fix decoder weights, training stage II', type=str)
-    parser.add_argument('--cog_encoder', '-enc', default=gan_cfg.cog_encoder_weights,
-                        help='pretrained vae-gan-cog model to fix cognitive encoder weights , training stage III', type=str)
-    parser.add_argument('--mode', default='vae-gan', help='vae, vae-gan')
-    parser.add_argument('--dataset', default='bold5000', help='bold5000, mnist69')
+    """
+    ARGS PARSER
+    """
+    arguments = False  # Set to False while testing
 
-    args = parser.parse_args()
+    if arguments:
+        args = parse_args(sys.argv[1:])
 
-    # Path to pickle file with bold5000 data
-    USER_ROOT = args.output
-    DATA_PATH = os.path.join(args.input, data_cfg.data_root)
-    SAVE_PATH = os.path.join(USER_ROOT, data_cfg.save_training_results)
-    TRAIN_DATA_PATH = os.path.join(USER_ROOT, data_cfg.data_root, data_cfg.train_data)
-    VALID_DATA_PATH = os.path.join(USER_ROOT, data_cfg.data_root, data_cfg.valid_data)
+    if not arguments:
+        import args
 
-    # Split with fixed stimuli IDs
-    TRAIN_STIMULI = os.path.join(USER_ROOT, data_cfg.data_root, data_cfg.train_stimuli_split)
-    VALID_STIMULI = os.path.join(USER_ROOT, data_cfg.data_root, data_cfg.valid_stimuli_split)
+    """
+    PATHS
+    """
+    # Get current working directory
+    CWD = os.getcwd()
+    OUTPUT_PATH = os.path.join(training_config.data_root, 'output/')
 
-    ENCODER_WEIGHTS = os.path.join(USER_ROOT, data_cfg.save_training_results, 'gan_cog_2st', args.cog_encoder[0],
-                                   args.cog_encoder[0] + '_' + str(args.cog_encoder[1]) + '.pth')
-    # Create directory to save weights
-    if not os.path.exists(SAVE_PATH):
-        os.makedirs(SAVE_PATH)
+    # Load training data for GOD and NSD, default is NSD
+    TRAIN_DATA_PATH = os.path.join(training_config.data_root, training_config.nsd_train_data)
+    VALID_DATA_PATH = os.path.join(training_config.data_root, training_config.nsd_valid_data)
 
+    if args.dataset == 'GOD':
+        TRAIN_DATA_PATH = os.path.join(training_config.data_root, training_config.god_train_data)
+        VALID_DATA_PATH = os.path.join(training_config.data_root, training_config.god_valid_data)
+
+    """
+    LOGGING SETUP
+    """
     # Info logging
     timestep = time.strftime("%Y%m%d-%H%M%S")
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
     logger = logging.getLogger()
-    file_handler = logging.FileHandler(os.path.join(args.logs, 'train_gan_cog_3st' + timestep))
-    logger = logging.getLogger()
+    file_handler = logging.FileHandler(os.path.join(CWD, training_config.LOGS_PATH, 's1_training_' + timestep))
+    handler_formatting = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(handler_formatting)
     file_handler.setLevel(logging.INFO)
     logger.addHandler(file_handler)
 
     # Check available gpu
-    device = torch.device(args.device if torch.cuda.is_available() else 'cpu')
-    device2 = gan_cfg.device2
-    device3 = gan_cfg.device3
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logger.info("Used device: %s" % device)
 
     logging.info('set up random seeds')
-    torch.manual_seed(12345)
+    torch.manual_seed(2022)
 
     # Create directory for results
-    if DEBUG:
-        saving_dir = os.path.join(SAVE_PATH, 'debug', 'debug_gan_cog_3st_{}'.format(timestep))
-    else:
-        saving_dir = os.path.join(SAVE_PATH, 'gan_cog_3st', 'gan_cog_3st_{}'.format(timestep))
-    if not os.path.exists(saving_dir):
-        os.makedirs(saving_dir)
-    if args.pretrained_gan is not None:
-        pretrained_model_dir = os.path.join(SAVE_PATH, 'gan_cog_3st', args.pretrained_gan, args.pretrained_gan + '.pth')
-    saving_name = os.path.join(saving_dir, 'gan_cog_3st_{}.pth'.format(timestep))
+    stage_num = 'stage_3'
+    SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, stage_num, 'vaegan_{}'.format(timestep))
+    if not os.path.exists(SAVE_PATH):
+        os.makedirs(SAVE_PATH)
 
-    # Save arguments
-    with open(os.path.join(saving_dir, 'config.txt'), 'w') as f:
-        json.dump(args.__dict__, f, indent=2)
+    SAVE_SUB_PATH = os.path.join(SAVE_PATH, 'stage_3_vaegan_{}.pth'.format(timestep))
+    if not os.path.exists(SAVE_SUB_PATH):
+        os.makedirs(SAVE_SUB_PATH)
 
     # Load data which were concatenated for 4 subjects and split into training and validation sets
     with open(TRAIN_DATA_PATH, "rb") as input_file:
@@ -146,132 +99,195 @@ if __name__ == "__main__":
     with open(VALID_DATA_PATH, "rb") as input_file:
         valid_data = pickle.load(input_file)
 
-    # Split and save data if train only for one subject
-    # train_data, valid_data = train_test_split(train_data, test_size=0.1, random_state=12345)
-    # print(len(train_data))
-    # print(len(valid_data))
-    # with open(os.path.join(saving_dir, 'train_data'), 'wb') as f:
-    #     pickle.dump(train_data, f)
-    # with open(os.path.join(saving_dir, 'valid_data'), 'wb') as f:
-    #     pickle.dump(valid_data, f)
+    # Save arguments
+    # CURRENTLY NOT WORKING
+    # with open(os.path.join(SAVE_PATH, 'config.txt'), 'w') as f:
+    #     json.dump(args.__dict__, f, indent=2)
 
-    # Split with fixed stimuli IDs, use for one subject
-    train_data = split_subject_data(train_data, TRAIN_STIMULI)
-    valid_data = split_subject_data(valid_data, VALID_STIMULI)
+    root_path = os.path.join(training_config.data_root, args.dataset + '/')
 
-    # Load data
-    if args.dataset == 'bold5000':
+    """
+    DATASET LOADING
+    """
+    # TODO: Update dataloaders for cog/vis split
+    if args.dataset == 'GOD':
+        # image_crop = training_config.image_crop
 
-        training_data = BoldRoiDataloader(dataset=train_data,
-                                          root_path=DATA_PATH,
-                                          transform=transforms.Compose([
-                                                                    CenterCrop(output_size=args.image_crop),
-                                                                    Rescale(output_size=args.image_size),
+        # Load data
+        training_data = FmriDataloader(dataset=train_data, root_path=root_path,
+                                           transform=transforms.Compose([transforms.Resize((training_config.image_size,
+                                                                                            training_config.image_size)),
+                                                                         transforms.CenterCrop(
+                                                                             (training_config.image_size,
+                                                                              training_config.image_size)),
+                                                                         # RandomShift(),
+                                                                         # SampleToTensor(),
+                                                                         transforms.ToTensor(),
+                                                                         GreyToColor(training_config.image_size),
+                                                                         transforms.Normalize(training_config.mean,
+                                                                                              training_config.std)
+                                                                         ]))
+
+        validation_data = FmriDataloader(dataset=valid_data, root_path=root_path,
+                                           transform=transforms.Compose([transforms.Resize((training_config.image_size,
+                                                                                            training_config.image_size)),
+                                                                         transforms.CenterCrop(
+                                                                             (training_config.image_size,
+                                                                              training_config.image_size)),
+                                                                         # RandomShift(),
+                                                                         # SampleToTensor(),
+                                                                         transforms.ToTensor(),
+                                                                         GreyToColor(training_config.image_size),
+                                                                         transforms.Normalize(training_config.mean,
+                                                                                              training_config.std)
+                                                                         ]))
+
+        """training_data = FmriDataloader(dataset=train_data, root_path=root_path,
+                                           transform=transforms.Compose([
+                                                # Rescale(output_size=training_config.image_size),
+                                                CenterCrop(output_size=training_config.image_size),
+                                                Rescale(output_size=training_config.image_size),
+                                                RandomShift(),
+                                                SampleToTensor(), # Only one transforming both
+                                                Normalization(mean=training_config.mean,
+                                                              std=training_config.std)]))
+
+        validation_data = FmriDataloader(dataset=valid_data, root_path=root_path,
+                                           transform=transforms.Compose([
+                                                                    CenterCrop(output_size=training_config.image_size),
+                                                                    Rescale(output_size=training_config.image_size),
                                                                     RandomShift(),
-                                                                    SampleToTensor(),
-                                                                    Normalization(mean=gan_cfg.mean,
-                                                                                  std=gan_cfg.std)]))
+                                                                    SampleToTensor(), # Only one transforming both
+                                                                    Normalization(mean=training_config.mean,
+                                                                                  std=training_config.std)]))"""
 
-        validation_data = BoldRoiDataloader(dataset=valid_data,
-                                            root_path=DATA_PATH,
-                                            transform=transforms.Compose([
-                                                                    CenterCrop(output_size=args.image_crop),
-                                                                    Rescale(output_size=args.image_size),
-                                                                    SampleToTensor(),
-                                                                    Normalization(mean=gan_cfg.mean,
-                                                                                  std=gan_cfg.std)]))
+        dataloader_train = DataLoader(training_data, batch_size=args.batch_size,  # collate_fn=PadCollate(dim=0),
+                                      shuffle=True, num_workers=args.num_workers)
+        dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size,  # collate_fn=PadCollate(dim=0),
+                                      shuffle=True, num_workers=args.num_workers)
 
-        dataloader_train = DataLoader(training_data, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-        dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
+        NUM_VOXELS = len(train_data[0]['fmri'])
 
-        NUM_VOXELS = len(train_data[0]['fmri'])  # for BOLD500
+    # TODO: NSD Dataloader
+    elif args.dataset == 'NSD':
+        image_crop = training_config.image_crop
 
-    elif args.dataset == 'mnist69':
+        # Load data
+        training_data = CocoDataloader(train_data, pickle=False,
+                                       transform=transforms.Compose([transforms.CenterCrop((image_crop, image_crop)),
+                                                                     transforms.Resize((training_config.image_size,
+                                                                                        training_config.image_size)),
+                                                                     transforms.RandomHorizontalFlip(),
+                                                                     transforms.ToTensor(),
+                                                                     GreyToColor(training_config.image_size),
+                                                                     # converts greyscale to 3 channels
+                                                                     transforms.Normalize(training_config.mean,
+                                                                                          training_config.std)
+                                                                     ]))
 
-        # Path to mnist69 dataset
-        MNIST_PATH = os.path.join(USER_ROOT, data_cfg.data_root, data_cfg.mnist_path)
+        dataloader_train = DataLoader(training_data, batch_size=args.batch_size,
+                                      shuffle=True, num_workers=args.num_workers)
 
-        mnist_data = loadmat(MNIST_PATH)
-        train_data = np.concatenate((mnist_data['X'], mnist_data['Y']), axis=1)[:80]
-        valid_data = np.concatenate((mnist_data['X'], mnist_data['Y']), axis=1)[80:]
+    else:
+        logging.info('Wrong dataset')
 
-        training_data = MnistDataloader(dataset=train_data, transform=transforms.Compose([
-                                                                        Rescale(output_size=args.image_size),
-                                                                        SampleToTensor(),
-                                                                        Normalization(mean=gan_cfg.mean,
-                                                                                      std=gan_cfg.std)]))
+    # This writer function is for torch.tensorboard
+    writer = SummaryWriter(SAVE_PATH + '/runs_' + timestep)
+    writer_encoder = SummaryWriter(SAVE_PATH + '/runs_' + timestep + '/encoder')
+    writer_decoder = SummaryWriter(SAVE_PATH + '/runs_' + timestep + '/decoder')
+    writer_discriminator = SummaryWriter(SAVE_PATH + '/runs_' + timestep + '/discriminator')
 
-        validation_data = MnistDataloader(dataset=valid_data, transform=transforms.Compose([
-                                                                            Rescale(output_size=args.image_size),
-                                                                            SampleToTensor(),
-                                                                            Normalization(mean=gan_cfg.mean,
-                                                                                          std=gan_cfg.std)]))
+    logging.info(f'Validation data length: {NUM_VOXELS}')
+    logging.info(f'Validation data length: {len(train_data)}')
+    logging.info(f'Validation data length: {len(valid_data)}')
 
-        dataloader_train = DataLoader(training_data, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-        dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
+    """
+    What model components do we need?
+        Generator from Stage 1/Stage 2 works because it's the same
+        Cognitive encoder from Stage 2
+        Discriminator from Stage 2
+        
+    We don't need teacher model. Though Maria, loads it, but doesn't load any weights into it.
+    """
 
-        NUM_VOXELS = train_data[:, 28 * 28:].shape[1]
+    # Initialize network and load Stage 2 weights
+    # decoder = Decoder(z_size=training_config.latent_dim, size=encoder.size).to(device)
+    # teacher_model = VaeGan(device=device, z_size=training_config.latent_dim).to(device)
+    # teacher_model.load_state_dict(torch.load(model_dir, map_location=device))
+    # discriminator = teacher_model.discriminator
+    # teacher_model.discriminator.train() # Not discriminator.train()?
+    # teacher_model = None  # Don't need for stage 3 (use images as real)
 
-    writer = SummaryWriter(saving_dir + '/runs_' + timestep)
-    writer_encoder = SummaryWriter(saving_dir + '/runs_' + timestep + '/encoder')
-    writer_decoder = SummaryWriter(saving_dir + '/runs_' + timestep + '/decoder')
-    writer_discriminator = SummaryWriter(saving_dir + '/runs_' + timestep + '/discriminator')
-
-    logging.info('Number of voxels:', NUM_VOXELS)
-    logging.info('Training data length:', len(train_data))
-    logging.info('Validation data length:', len(valid_data))
-
-    # Teacher model from stage I
-    encoder = Encoder(z_size=args.latent_dim).to(device)
-    decoder = Decoder(z_size=args.latent_dim, size=encoder.size).to(device)
-    teacher_model = VaeGan(device=device, z_size=args.latent_dim).to(device)
+    # If error with loading model then:
+    teacher_model = VaeGan(device=device, z_size=training_config.latent_dim).to(device)
+    # David: they don't load moadl params here (teacher_model specifically)
     for param in teacher_model.parameters():
         param.requires_grad = False
 
+    vis_encoder = Encoder(z_size=training_config.latent_dim).to(device)  # Only used to grab size for decoder
+
     # Define model for stage II
-    cognitive_encoder = CognitiveEncoder(input_size=NUM_VOXELS, z_size=args.latent_dim).to(device)
-    decoder = Decoder(z_size=args.latent_dim, size=256).to(device)
-    discriminator = Discriminator().to(device)
+    cognitive_encoder = CognitiveEncoder(input_size=NUM_VOXELS, z_size=training_config.latent_dim).to(device)
+    decoder = Decoder(z_size=training_config.latent_dim, size=vis_encoder.size).to(device)  # TODO: Check size is okay
+    # Though it should be because every one instance uses decoder.size=encoder.size
+    # Given that we use the same decoder, this should be the same
+    discriminator = Discriminator().to(device) # Default: channels=3, recon_level=3
 
-    if args.mode == 'vae':  # no teacher model on stage II
-        teacher_model = None
-
+    # Initialize VaeGanCognitive
     model = VaeGanCognitive(device=device, encoder=cognitive_encoder, decoder=decoder,
                             discriminator=discriminator, teacher_net=teacher_model,
-                            z_size=args.latent_dim, stage=3).to(device)
+                            z_size=training_config.latent_dim, stage=3).to(device)
 
-    # Load weight from stage II
-    model.load_state_dict(torch.load(ENCODER_WEIGHTS, map_location=device))
+    # Load Stage 2 network weights
+    model_dir = os.path.join(OUTPUT_PATH, args.dataset, 'stage_2', args.stage_2_trained,
+                               'stage_2_' + args.stage_2_trained + '_{}.pth'.format(args.load_epoch))
+    # TODO: Change 'pretrain' to stage 2 when it's working
+
+    # Load weights from stage 2
+    logging.info('Loading model from Stage 2')
+    model.load_state_dict(torch.load(model_dir, map_location=device))
+    # I wonder if this gives us an issue, because we don't have the teacher model but
+    # Stage 2 would include a teacher_network. Might need it after all.
     model.discriminator.train()
     model.decoder.train()
+
+    # Fix Encoder (as per Ren's stages)
     for param in model.encoder.parameters():
         param.requires_grad = False
 
-    if args.pretrained_gan is not None and os.path.exists(pretrained_model_dir.replace(".pth", ".csv")):
+    # Loading Checkpoint | If you want to continue training for existing checkpoint
+    # Set checkpoint path
+    if args.network_checkpoint is not None:
+        net_checkpoint_path = os.path.join(OUTPUT_PATH, args.dataset, 'stage_3', args.network_checkpoint,
+                                   'stage_3_' + args.network_checkpoint + '.pth')
+        print(net_checkpoint_path)
+
+    # Load and show results for checkpoint
+    if args.network_checkpoint is not None and os.path.exists(net_checkpoint_path.replace(".pth", "_results.csv")):
         logging.info('Load pretrained model')
-        model_dir = pretrained_model_dir.replace(".pth", '_{}.pth'.format(args.load_epoch))
-        model.load_state_dict(torch.load(model_dir))
+        checkpoint_dir = net_checkpoint_path.replace(".pth", '_{}.pth'.format(args.checkpoint_epoch))
+        model.load_state_dict(torch.load(checkpoint_dir))
         model.eval()
-        results = pd.read_csv(pretrained_model_dir.replace(".pth", ".csv"))
+        results = pd.read_csv(net_checkpoint_path.replace(".pth", "_results.csv"))
         results = {col_name: list(results[col_name].values) for col_name in results.columns}
         stp = 1 + len(results['epochs'])
-        if gan_cfg.evaluate:
-            images_dir = os.path.join(saving_dir, 'images')
+        if training_config.evaluate:
+            images_dir = os.path.join(SAVE_PATH, 'images')
             if not os.path.exists(images_dir):
                 os.makedirs(images_dir)
-            pcc, ssim, mse, _ = evaluate(model, dataloader_train, norm=True, mean=gan_cfg.mean, std=gan_cfg.std, path=images_dir,
-                                         dataset='bold')
+            pcc, ssim, mse, is_mean = evaluate(model, dataloader_valid, norm=True, mean=training_config.mean,
+                                               std=training_config.std,
+                                               path=images_dir)
             print("Mean PCC:", pcc)
             print("Mean SSIM:", ssim)
             print("Mean MSE:", mse)
-            obj_score = objective_assessment(model, dataloader_valid, dataset='bold')
-            print("Objective score PCC", obj_score[0])
-            print("Objective score SSIM", obj_score[1])
+            print("IS mean", is_mean)
             exit(0)
     else:
         logging.info('Initialize')
         stp = 1
 
+    # Create empty results containers
     results = dict(
         epochs=[],
         loss_encoder=[],
@@ -280,23 +296,33 @@ if __name__ == "__main__":
         loss_reconstruction=[]
     )
 
-    # margin and equilibirum from original implementation
-    margin = args.margin
-    equilibrium = args.equilibrium
-    lambda_mse = args.lambda_mse
+    # Variables for equilibrium to improve GAN stability
+    margin = training_config.margin
+    equilibrium = training_config.equilibrium
+    lambda_mse = training_config.lambda_mse
+    decay_mse = training_config.decay_mse
 
-    # an optimizer for each of the sub-networks, so we can selectively backprop
+    # An optimizer and schedulers for each of the sub-networks, so we can selectively backprop
+    # optimizer_encoder = torch.optim.RMSprop(params=model.encoder.parameters(), lr=training_config.learning_rate,
+    #                                         alpha=0.9,
+    #                                         eps=1e-8, weight_decay=training_config.weight_decay, momentum=0,
+    #                                         centered=False)
+    # lr_encoder = ExponentialLR(optimizer_encoder, gamma=training_config.decay_lr)
 
-    optimizer_decoder = torch.optim.RMSprop(params=model.decoder.parameters(), lr=args.learning_rate, alpha=0.9,
-                                            eps=1e-8, weight_decay=0, momentum=0, centered=False)
-    lr_decoder = ExponentialLR(optimizer_decoder, gamma=args.decay_lr)
-    optimizer_discriminator = torch.optim.RMSprop(params=model.discriminator.parameters(), lr=args.learning_rate,
-                                                  alpha=0.9, eps=1e-8, weight_decay=0, momentum=0, centered=False)
-    lr_discriminator = ExponentialLR(optimizer_discriminator, gamma=args.decay_lr)
+    optimizer_decoder = torch.optim.RMSprop(params=model.decoder.parameters(), lr=training_config.learning_rate,
+                                            alpha=0.9, eps=1e-8, weight_decay=training_config.weight_decay,
+                                            momentum=0, centered=False)
+    lr_decoder = ExponentialLR(optimizer_decoder, gamma=training_config.decay_lr)
+
+    optimizer_discriminator = torch.optim.RMSprop(params=model.discriminator.parameters(),
+                                                  lr=training_config.learning_rate,
+                                                  alpha=0.9, eps=1e-8, weight_decay=training_config.weight_decay,
+                                                  momentum=0, centered=False)
+    lr_discriminator = ExponentialLR(optimizer_discriminator, gamma=training_config.decay_lr)
 
     # Metrics
     pearson_correlation = PearsonCorrelation()
-    structural_similarity = StructuralSimilarity(mean=gan_cfg.mean, std=gan_cfg.std)
+    structural_similarity = StructuralSimilarity(mean=training_config.mean, std=training_config.std)
     mse_loss = nn.MSELoss()
 
     result_metrics_train = {}
@@ -304,6 +330,7 @@ if __name__ == "__main__":
     metrics_train = {'train_PCC': pearson_correlation, 'train_SSIM': structural_similarity, 'train_MSE': mse_loss}
     metrics_valid = {'valid_PCC': pearson_correlation, 'valid_SSIM': structural_similarity, 'valid_MSE': mse_loss}
 
+    # Resets the metrics_train and metrics_valid to empty
     if metrics_valid is not None:
         for key in metrics_valid.keys():
             results.update({key: []})
@@ -323,12 +350,16 @@ if __name__ == "__main__":
 
         try:
 
-            # for each batch
+            # For each batch
             for batch_idx, data_batch in enumerate(dataloader_train):
 
                 model.train()
                 batch_size = len(data_batch['image'])
+                # x = Variable(data_batch, requires_grad=False).float().to(device)
+
                 # Fix encoder weights
+                for param in teacher_model.parameters():
+                    param.requires_grad = False
                 for param in model.encoder.parameters():
                     param.requires_grad = False
                 for param in model.decoder.parameters():
@@ -338,86 +369,95 @@ if __name__ == "__main__":
 
                 x_gt, x_tilde, disc_class, disc_layer, mus, log_variances = model(data_batch)
 
-                # split so we can get the different parts
-                disc_layer_original = disc_layer[:batch_size]
-                disc_layer_predicted = disc_layer[batch_size:-batch_size]
-                disc_layer_sampled = disc_layer[-batch_size:]
+                # Split so we can get the different parts
+                hid_dis_real = disc_layer[:batch_size]
+                hid_dis_pred = disc_layer[batch_size:-batch_size]
+                hid_dis_sampled = disc_layer[-batch_size:]
 
-                disc_class_original = disc_class[:batch_size]
-                disc_class_predicted = disc_class[batch_size:-batch_size]
-                disc_class_sampled = disc_class[-batch_size:]
+                # disc_class = fin_dis_
+                fin_dis_real = disc_class[:batch_size]
+                fin_dis_pred = disc_class[batch_size:-batch_size]
+                fin_dis_sampled = disc_class[-batch_size:]
 
-                # loss, nothing special here
-                nle, kld, mse, bce_dis_original, bce_dis_predicted, bce_dis_sampled = VaeGanCognitive.loss(x_gt, x_tilde,
-                                                                                                 disc_layer_original,
-                                                                                                 disc_layer_predicted,
-                                                                                                 disc_layer_sampled,
-                                                                                                 disc_class_original,
-                                                                                                 disc_class_predicted,
-                                                                                                 disc_class_sampled,
-                                                                                                 mus, log_variances)
-                # selectively disable the decoder of the discriminator if they are unbalanced
+                # VAE/GAN Loss
+                loss_method = 'Maria' # 'Maria', 'Ren'
+
+                # VAE/GAN loss
+                if loss_method == 'Maria':
+                    nle, kl, mse, bce_dis_original, bce_dis_predicted, bce_dis_sampled = \
+                        VaeGanCognitive.loss(x_gt, x_tilde, hid_dis_real, hid_dis_pred, fin_dis_real,
+                                             fin_dis_pred, fin_dis_sampled, mus, log_variances)
+
+                    loss_encoder = torch.sum(kl) + torch.sum(mse)
+                    loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
+                        bce_dis_sampled)
+                    loss_decoder = torch.sum(training_config.lambda_mse * mse) - (1.0 - training_config.lambda_mse) * loss_discriminator
+
+                    # Register mean values for logging
+                    loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
+                    loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
+                    loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
+                    loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
+
+                if loss_method == 'Ren':
+                    # Using Ren's Loss Function
+                    # TODO: Calculate loss functions here. Or do in function.
+                    # TODO: ADD EXTRA PARAMS (Only for COG)
+                    """nle, loss_encoder, loss_decoder, loss_discriminator = VaeGanCognitive.ren_loss(x_gt, x_tilde, mus,
+                                                                                          log_variances, hid_dis_real,
+                                                                                          hid_dis_pred, fin_dis_real,
+                                                                                          fin_dis_pred, stage=stage,
+                                                                                          device=device)"""
+                    # Register mean values for logging
+                    loss_encoder_mean = torch.mean(loss_encoder).data.cpu().numpy()
+                    loss_discriminator_mean = loss_discriminator.data.cpu().numpy()  # / batch_size
+                    loss_decoder_mean = loss_decoder.item()  # NOT USED, JUST FOR REF
+
+                    loss_encoder_mean_old = loss_encoder.data.cpu().numpy()  # / batch_size
+                    loss_discriminator_mean_old = loss_discriminator.data.cpu().numpy()  # / batch_size
+                    loss_decoder_mean_old = loss_decoder.data.cpu().numpy()  # NOT USED, JUST FOR REF
+                    loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
+
+                # Selectively disable the decoder of the discriminator if they are unbalanced
                 train_dis = True
                 train_dec = True
 
-                # VAE/GAN loss
-                if args.mode == 'vae-gan':
-                    # loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(bce_dis_sampled)
-                    # loss_decoder = torch.sum(lambda_mse * mse)
-                    # loss_encoder = torch.sum(kld) + torch.sum(0.1 * mse)
-                    loss_encoder = torch.sum(kld) + torch.sum(mse)
-                    loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(bce_dis_sampled)
-                    loss_decoder = torch.sum(args.lambda_mse * mse) - (1.0 - args.lambda_mse) * loss_discriminator
-
-                # VAE loss
-                if args.mode == 'vae':
-                    loss_encoder = torch.sum(kld) + torch.sum(nle)
-                    loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_sampled)
-                    loss_decoder = torch.sum(args.lambda_mse * nle)
-                    train_dis = False
-
-                # register mean values of the losses for logging
-                loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
-                loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
-                loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
-                loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
-
-                if torch.mean(bce_dis_original).item() < equilibrium - margin or torch.mean(bce_dis_predicted).item() < equilibrium - margin:
-                    train_dis = False
-                if torch.mean(bce_dis_original).item() > equilibrium + margin or torch.mean(bce_dis_predicted).item() > equilibrium + margin:
-                    train_dec = False
-                if train_dec is False and train_dis is False:
-                    train_dis = True
-                    train_dec = True
+                # Initially try training without equilibrium
+                train_equilibrium = False # Leave off probably
+                if train_equilibrium:
+                    if torch.mean(bce_dis_original).item() < equilibrium - margin or torch.mean(
+                            bce_dis_predicted).item() < equilibrium - margin:
+                        train_dis = False
+                    if torch.mean(bce_dis_original).item() > equilibrium + margin or torch.mean(
+                            bce_dis_predicted).item() > equilibrium + margin:
+                        train_dec = False
+                    if train_dec is False and train_dis is False:
+                        train_dis = True
+                        train_dec = True
 
                 # BACKPROP
-
-                # Encoder
-                model.zero_grad()
-                # loss_encoder.backward(retain_graph=True)
-                # [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
+                model.zero_grad() # TODO: Don't I need this for Stage 1 and 2? Currently missing. Test.
+                # loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
                 # optimizer_encoder.step()
-                # model.zero_grad()
 
-                # Decoder
                 if train_dec:
-                    loss_decoder.backward(retain_graph=True)
-                    [p.grad.data.clamp_(-1,1) for p in model.decoder.parameters()]
+                    model.decoder.zero_grad()
+                    loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
                     optimizer_decoder.step()
-                    # clean the discriminator
-                    model.discriminator.zero_grad()
 
-                # Discriminator
                 if train_dis:
-                    loss_discriminator.backward()
-                    [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
+                    model.discriminator.zero_grad()
+                    loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
                     optimizer_discriminator.step()
+
+                model.zero_grad()
 
                 logging.info(
                     f'Epoch  {idx_epoch} {batch_idx + 1:3.0f} / {100 * (batch_idx + 1) / len(dataloader_train):2.3f}%, '
                     f'---- encoder loss: {loss_encoder_mean:.5f} ---- | '
                     f'---- decoder loss: {loss_decoder_mean:.5f} ---- | '
-                    f'---- discriminator loss: {loss_discriminator_mean:.5f}')
+                    f'---- discriminator loss: {loss_discriminator_mean:.5f} ---- | '
+                    f'---- network status (dec, dis): {train_dec}, {train_dis}')
 
                 writer.add_scalar('loss_reconstruction_batch', loss_nle_mean, step_index)
                 writer_encoder.add_scalar('loss_encoder_batch', loss_encoder_mean, step_index)
@@ -431,11 +471,12 @@ if __name__ == "__main__":
             lr_decoder.step()
             lr_discriminator.step()
 
-            margin *= args.decay_margin
-            equilibrium *= args.decay_equilibrium
+            margin *= training_config.decay_margin
+            equilibrium *= training_config.decay_equilibrium
+
             if margin > equilibrium:
                 equilibrium = margin
-            lambda_mse *= args.decay_mse
+            lambda_mse *= decay_mse
             if lambda_mse > 1:
                 lambda_mse = 1
 
@@ -445,7 +486,8 @@ if __name__ == "__main__":
             writer_discriminator.add_scalar('loss_decoder_discriminator', loss_discriminator_mean, idx_epoch)
 
             if not idx_epoch % 2:
-                images_dir = os.path.join(saving_dir, 'images', 'train')
+                # Save train examples
+                images_dir = os.path.join(SAVE_PATH, 'images', 'train')
                 if not os.path.exists(images_dir):
                     os.makedirs(images_dir)
 
@@ -489,75 +531,77 @@ if __name__ == "__main__":
                             else:
                                 result_metrics_train[key] = metric(x_tilde, x_gt)
 
-                    out = out.data.cpu()
+                out = out.data.cpu()
 
-                    images_dir = os.path.join(saving_dir, 'images', 'valid')
-                    if not os.path.exists(images_dir):
-                        os.makedirs(images_dir)
+                # Save validation examples
+                images_dir = os.path.join(SAVE_PATH, 'images', 'valid')
+                if not os.path.exists(images_dir):
+                    os.makedirs(images_dir)
 
-                    if idx_epoch == 0:
-                        fig, ax = plt.subplots(figsize=(10, 10))
-                        ax.set_xticks([])
-                        ax.set_yticks([])
-                        ax.imshow(make_grid(data_target[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
-                        gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
-                        plt.savefig(gt_dir)
-
+                if idx_epoch == 0:
                     fig, ax = plt.subplots(figsize=(10, 10))
                     ax.set_xticks([])
                     ax.set_yticks([])
-                    ax.imshow(make_grid(out[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
-                    output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
-                    plt.savefig(output_dir)
+                    ax.imshow(make_grid(data_target[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                    gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
+                    plt.savefig(gt_dir)
 
-                    out = (out + 1) / 2
-                    out = make_grid(out, nrow=8)
-                    writer.add_image("reconstructed", out, step_index)
+                fig, ax = plt.subplots(figsize=(10, 10))
+                ax.set_xticks([])
+                ax.set_yticks([])
+                ax.imshow(make_grid(out[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
+                plt.savefig(output_dir)
 
-                    out = model(None, 100)
-                    out = out.data.cpu()
-                    out = (out + 1) / 2
-                    out = make_grid(out, nrow=8)
-                    writer.add_image("generated", out, step_index)
+                out = (out + 1) / 2
+                out = make_grid(out, nrow=8)
+                writer.add_image("reconstructed", out, step_index)
 
-                    out = data_target.data.cpu()
-                    out = (out + 1) / 2
-                    out = make_grid(out, nrow=8)
-                    writer.add_image("original", out, step_index)
+                # TODO: I had some issues through here - CHECK
+                """out = model(None, 100)
+                out = out.data.cpu()
+                out = (out + 1) / 2
+                out = make_grid(out, nrow=8)
+                writer.add_image("generated", out, step_index)"""
 
-                    if metrics_valid is not None:
+                out = data_target.data.cpu()
+                out = (out + 1) / 2
+                out = make_grid(out, nrow=8)
+                writer.add_image("original", out, step_index)
+
+                if metrics_valid is not None:
+                    for key, values in result_metrics_valid.items():
+                        result_metrics_valid[key] = torch.mean(values)
+                    # Logging metrics
+                    if writer is not None:
                         for key, values in result_metrics_valid.items():
-                            result_metrics_valid[key] = torch.mean(values)
-                        # Logging metrics
-                        if writer is not None:
-                            for key, values in result_metrics_valid.items():
-                                writer.add_scalar(key, values, stp + idx_epoch)
+                            writer.add_scalar(key, values, stp + idx_epoch)
 
-                    if metrics_train is not None:
+                if metrics_train is not None:
+                    for key, values in result_metrics_train.items():
+                        result_metrics_train[key] = torch.mean(values)
+                    # Logging metrics
+                    if writer is not None:
                         for key, values in result_metrics_train.items():
-                            result_metrics_train[key] = torch.mean(values)
-                        # Logging metrics
-                        if writer is not None:
-                            for key, values in result_metrics_train.items():
-                                writer.add_scalar(key, values, stp + idx_epoch)
+                            writer.add_scalar(key, values, stp + idx_epoch)
 
-                    logging.info(
-                        f'Epoch  {idx_epoch} ---- train PCC:  {result_metrics_train["train_PCC"].item():.5f} ---- | '
-                        f'---- train SSIM: {result_metrics_train["train_SSIM"].item():.5f} ---- '
-                        f'---- train MSE: {result_metrics_train["train_MSE"].item():.5f} ---- ')
+                logging.info(
+                    f'Epoch  {idx_epoch} ---- train PCC:  {result_metrics_train["train_PCC"].item():.5f} ---- | '
+                    f'---- train SSIM: {result_metrics_train["train_SSIM"].item():.5f} ---- '
+                    f'---- train MSE: {result_metrics_train["train_MSE"].item():.5f} ---- ')
 
-                    logging.info(
-                        f'Epoch  {idx_epoch} ---- valid PCC:  {result_metrics_valid["valid_PCC"].item():.5f} ---- | '
-                        f'---- valid SSIM: {result_metrics_valid["valid_SSIM"].item():.5f} ---- '
-                        f'---- valid MSE: {result_metrics_valid["valid_MSE"].item():.5f} ---- ')
+                logging.info(
+                    f'Epoch  {idx_epoch} ---- valid PCC:  {result_metrics_valid["valid_PCC"].item():.5f} ---- | '
+                    f'---- valid SSIM: {result_metrics_valid["valid_SSIM"].item():.5f} ---- '
+                    f'---- valid MSE: {result_metrics_valid["valid_MSE"].item():.5f} ---- ')
 
-                    break
+                break
 
-            if not idx_epoch % 5 and not DEBUG:
-                torch.save(model.state_dict(), saving_name.replace('.pth', '_' + str(idx_epoch) + '.pth'))
+            if not idx_epoch % 20 or idx_epoch == args.epochs:
+                torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
                 logging.info('Saving model')
 
-                # Record losses & scores
+            # Record losses & scores
             results['epochs'].append(idx_epoch + stp)
             results['loss_encoder'].append(loss_encoder_mean)
             results['loss_decoder'].append(loss_decoder_mean)
@@ -566,16 +610,16 @@ if __name__ == "__main__":
 
             if metrics_valid is not None:
                 for key, value in result_metrics_valid.items():
-                    metric_value = torch.tensor(value, dtype=torch.float64).item()
+                    metric_value = value.detach().clone().item()
                     results[key].append(metric_value)
 
             if metrics_train is not None:
                 for key, value in result_metrics_train.items():
-                    metric_value = torch.tensor(value, dtype=torch.float64).item()
+                    metric_value = value.detach().clone().item()
                     results[key].append(metric_value)
 
             results_to_save = pd.DataFrame(results)
-            results_to_save.to_csv(saving_name.replace(".pth", ".csv"), index=False)
+            results_to_save.to_csv(SAVE_SUB_PATH.replace(".pth", "_results.csv"), index=False)
 
         except KeyboardInterrupt as e:
             logging.info(e, 'Saving plots')
@@ -589,7 +633,7 @@ if __name__ == "__main__":
             plt.xlabel("iterations")
             plt.ylabel("Loss")
             plt.legend()
-            plots_dir = os.path.join(saving_dir, 'plots')
+            plots_dir = os.path.join(SAVE_PATH, 'plots')
             if not os.path.exists(plots_dir):
                 os.makedirs(plots_dir)
             plot_dir = os.path.join(plots_dir, 'GD_loss')
@@ -602,11 +646,11 @@ if __name__ == "__main__":
             plt.xlabel("iterations")
             plt.ylabel("Loss")
             plt.legend()
-            plots_dir = os.path.join(saving_dir, 'plots')
+            plots_dir = os.path.join(SAVE_PATH, 'plots')
             if not os.path.exists(plots_dir):
                 os.makedirs(plots_dir)
             plot_dir = os.path.join(plots_dir, 'ER_loss')
             plt.savefig(plot_dir)
             logging.info("Plots are saved")
-
+            plt.show()
     exit(0)

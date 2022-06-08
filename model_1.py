@@ -400,7 +400,6 @@ class VaeGan(nn.Module):
 
         """
 
-        # TODO: Fix NLL Loss - Find alternative / Torch won't load
         # Stage 1 Loss
         if stage == 1:
             dis_real_loss = BCE(fin_dis_real,
@@ -510,7 +509,7 @@ class VaeGanCognitive(nn.Module):
 
             if self.training:
 
-                    if self.mode == 'vae':
+                    if self.mode == 'vae': # TODO: It should always do this, right? Delete condition.
 
                         mus, log_variances = self.encoder(x)
                         z = self.reparameterize(mus, log_variances)
@@ -551,8 +550,7 @@ class VaeGanCognitive(nn.Module):
         return super(VaeGanCognitive, self).__call__(*args, **kwargs)
 
     @staticmethod
-    def loss(gt_x, x_tilde, hid_dis_real, hid_dis_pred, fin_dis_real,
-             fin_dis_pred, mus, variances):
+    def loss(gt_x, x_tilde, hid_dis_real, hid_dis_pred, fin_dis_real, fin_dis_pred, fin_dis_sampled, mus, variances):
 
         # (gt_x, x_tilde, hid_dis_real, hid_dis_pred, hid_dis_sampled, fin_dis_real,
         #              fin_dis_pred, fin_dis_sampled, mus, variances):
@@ -572,9 +570,9 @@ class VaeGanCognitive(nn.Module):
         # bce for decoder and discriminator for original and reconstructed
         bce_dis_original = -torch.log(fin_dis_real + 1e-3)
         bce_dis_predicted = -torch.log(1 - fin_dis_pred + 1e-3)
-        # bce_dis_sampled = -torch.log(1 - fin_dis_sampled + 1e-3)
+        bce_dis_sampled = -torch.log(1 - fin_dis_sampled + 1e-3)
 
-        return nle, kld, mse, bce_dis_original, bce_dis_predicted  #, bce_dis_sampled
+        return nle, kld, mse, bce_dis_original, bce_dis_predicted, bce_dis_sampled
 
     @staticmethod
     def ren_loss(x_gt, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, fin_dis_real, fin_dis_pred,

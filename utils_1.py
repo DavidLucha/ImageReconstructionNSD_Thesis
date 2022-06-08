@@ -28,6 +28,7 @@ from scipy.ndimage import shift
 from torchvision.utils import make_grid, save_image
 import torchvision
 
+import training_config
 
 """
 Data loaders
@@ -64,28 +65,19 @@ class FmriDataloader(object):
             self.dataset[idx]['image'] = self.root_path + self.dataset[idx]['image']
             # self.dataset[idx]['image'] = self.dataset[idx]['image'].replace(name, self.root_path)
 
-        stimulus = mpimg.imread(self.dataset[idx]['image'])
-        # SHOW TEST
-        # imgplot = plt.imshow(stimulus)
-        # plt.show()
+        # stimulus = mpimg.imread(self.dataset[idx]['image'])
+        stimulus = Image.open(self.dataset[idx]['image'])
 
-        """# Applies transformations only to image
+        # Applies transformations only to image
         if self.transform:
-            print('Transforming sample')
-            stimulus = self.transform(stimulus) # Was sample = (sample)
-        print('finished transforms')
+            mod_stimulus = self.transform(stimulus) # Was sample = (sample)
 
         # Applies tensor conversion to voxels
-        fmri_tensor = torch.FloatTensor(voxels)"""
+        fmri_tensor = torch.FloatTensor(voxels)
 
-        sample = {'fmri': voxels, 'image': stimulus} # was voxels
+        transformed_sample = {'fmri': fmri_tensor, 'image': mod_stimulus}
 
-        if self.transform:
-            # print('Transforming sample')
-            sample = self.transform(sample) # Was sample = (sample)
-        # print('finished transforms')
-
-        return sample
+        return transformed_sample
 
 
 class SampleToTensor(object):
@@ -228,7 +220,7 @@ Custom Collate Function for Variable fMRI Input
 """
 
 
-"""def get_max_length(x):
+def get_max_length(x):
     return len(max(x, key=len))
 
 
@@ -248,7 +240,7 @@ def custom_collate(batch):
             lst.append(torch.FloatTensor(samples))
         elif isinstance(samples[0], collections.Sequence):
             lst.append(torch.FloatTensor(pad_sequence(samples)))
-    return lst"""
+    return lst
 
 
 """
@@ -305,6 +297,7 @@ class ImageNetDataloader(object):
     def __getitem__(self, idx):
 
         image = Image.open(self.image_names[idx])
+        print(type(image)) # TODO: Remove
 
         if self.transform:
             image = self.transform(image)

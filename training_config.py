@@ -2,9 +2,9 @@
 decoder_weights = ['gan_20210127-012348', 90] # This should change in stage 2 vs 3
 pretrained_net = 'vaegan_20220606-130121'  # TODO: Change this
 stage_1_trained = ''
-stage_2_trained = ''
+stage_2_trained = 'vaegan_20220608-152046'
 stage_3_trained = '' # FINAL MODEL
-load_epoch = 40  # was 335
+load_epoch = 20  # was 335
 # TODO: Make sure network is saving final epoch
 evaluate = False
 
@@ -19,7 +19,7 @@ device3 = 'cuda:5'
 patience = 0   # for early stopping, 0 = deactivate early stopping
 data_split = 0.2
 batch_size = 16  # pytorch vaegan =64 | according to Ren main (16)
-learning_rate_s1 = 0.0001 # Stage 1 (should be .003 - but too drastic right now)
+learning_rate_s1 = 0.0001 # TODO: Stage 1 (should be .003 - but too drastic right now)
 # NOTE: Origin VAE/GAE implementation uses 3e-4 but is dependent on batch size (64)
 learning_rate = 0.0003 # Stage 2 & 3
 weight_decay = 0 # 1e-7

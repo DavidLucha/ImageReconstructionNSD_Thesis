@@ -2,15 +2,19 @@ import training_config
 
 input = ''
 batch_size = training_config.batch_size
-epochs = training_config.n_epochs
+epochs = training_config.n_epochs # TODO: Change based on stages
 image_size = training_config.image_size
 num_workers = training_config.num_workers
 pretrained_net = training_config.pretrained_net
+stage_1_trained = training_config.stage_1_trained
+stage_2_trained = training_config.stage_2_trained
+stage_3_trained = training_config.stage_3_trained  # FINAL MODEL
 load_epoch = training_config.load_epoch
 dataset ='GOD'
 subset = '1.8mm'  # '1.8mm, 3mm, 5S_Small, 8S_Small,'
 recon_level = training_config.recon_level
 network_checkpoint = None  # If stage has been stopped for some reason.
+checkpoint_epoch = 50
 # add loss method
 # add model import | probs temporary
 
