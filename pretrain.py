@@ -22,13 +22,15 @@ from torch.optim.lr_scheduler import ExponentialLR
 import training_config
 from model_1 import VaeGan
 from utils_1 import CocoDataloader, ImageNetDataloader, GreyToColor, evaluate, PearsonCorrelation, \
-    StructuralSimilarity, objective_assessment, parse_args, imgnet_dataloader
+    StructuralSimilarity, objective_assessment, parse_args, imgnet_dataloader, NLLNormal
 
 numpy.random.seed(8)
 torch.manual_seed(8)
 torch.cuda.manual_seed(8)
 
 torch.autograd.set_detect_anomaly(True)
+
+stage = 1
 
 if __name__ == "__main__":
 
@@ -186,10 +188,39 @@ if __name__ == "__main__":
     writer_discriminator = SummaryWriter(SAVE_PATH + '/runs_' + timestep + '/discriminator')
 
     model = VaeGan(device=device, z_size=training_config.latent_dim, recon_level=args.recon_level).to(device)
-    model.init_parameters()
+    # model.init_parameters()
 
-    logging.info('Initialize')
-    stp = 1
+    # Loading Checkpoint | If you want to continue previous training
+    # Set checkpoint path
+    if args.network_checkpoint is not None:
+        net_checkpoint_path = os.path.join(OUTPUT_PATH, args.dataset, 'pretrain', args.network_checkpoint,
+                                   'pretrained_' + args.network_checkpoint + '.pth')
+        print(net_checkpoint_path)
+
+    # Load and show results
+    if args.network_checkpoint is not None and os.path.exists(net_checkpoint_path.replace(".pth", "_results.csv")):
+        logging.info('Load pretrained model')
+        checkpoint_dir = net_checkpoint_path.replace(".pth", '_{}.pth'.format(args.checkpoint_epoch))
+        model.load_state_dict(torch.load(checkpoint_dir))
+        model.eval()
+        results = pd.read_csv(net_checkpoint_path.replace(".pth", "_results.csv"))
+        results = {col_name: list(results[col_name].values) for col_name in results.columns}
+        stp = 1 + len(results['epochs'])
+        if training_config.evaluate:
+            images_dir = os.path.join(SAVE_PATH, 'images')
+            if not os.path.exists(images_dir):
+                os.makedirs(images_dir)
+            pcc, ssim, mse, is_mean = evaluate(model, dataloader_valid, norm=True, mean=training_config.mean,
+                                               std=training_config.std,
+                                               path=images_dir)
+            print("Mean PCC:", pcc)
+            print("Mean SSIM:", ssim)
+            print("Mean MSE:", mse)
+            print("IS mean", is_mean)
+            exit(0)
+    else:
+        logging.info('Initialize')
+        stp = 1
 
     results = dict(
         epochs=[],
@@ -204,17 +235,19 @@ if __name__ == "__main__":
     equilibrium = training_config.equilibrium
     lambda_mse = training_config.lambda_mse
     decay_mse = training_config.decay_mse
+    lr = 0.0003 # TODO: Remove for stages
 
     # An optimizer and schedulers for each of the sub-networks, so we can selectively backprop
-    optimizer_encoder = torch.optim.RMSprop(params=model.encoder.parameters(), lr=training_config.learning_rate_s1, alpha=0.9,
+    # TODO: Change LR to args for stages
+    optimizer_encoder = torch.optim.RMSprop(params=model.encoder.parameters(), lr=lr, alpha=0.9,
                                             eps=1e-8, weight_decay=training_config.weight_decay, momentum=0, centered=False)
     lr_encoder = ExponentialLR(optimizer_encoder, gamma=training_config.decay_lr)
 
-    optimizer_decoder = torch.optim.RMSprop(params=model.decoder.parameters(), lr=training_config.learning_rate_s1, alpha=0.9,
+    optimizer_decoder = torch.optim.RMSprop(params=model.decoder.parameters(), lr=lr, alpha=0.9,
                                             eps=1e-8, weight_decay=training_config.weight_decay, momentum=0, centered=False)
     lr_decoder = ExponentialLR(optimizer_decoder, gamma=training_config.decay_lr)
 
-    optimizer_discriminator = torch.optim.RMSprop(params=model.discriminator.parameters(), lr=training_config.learning_rate_s1,
+    optimizer_discriminator = torch.optim.RMSprop(params=model.discriminator.parameters(), lr=lr,
                                                   alpha=0.9, eps=1e-8, weight_decay=training_config.weight_decay, momentum=0, centered=False)
     lr_discriminator = ExponentialLR(optimizer_discriminator, gamma=training_config.decay_lr)
 
@@ -244,7 +277,6 @@ if __name__ == "__main__":
     batch_number = len(dataloader_train)
     step_index = 0
 
-    # TODO: Go through the actual training loop
     for idx_epoch in range(args.epochs):
 
         try:
@@ -267,40 +299,79 @@ if __name__ == "__main__":
                 x_tilde, disc_class, disc_layer, mus, log_variances = model(x)
 
                 # Split so we can get the different parts
-                disc_layer_original = disc_layer[:batch_size]
-                disc_layer_predicted = disc_layer[batch_size:-batch_size]
-                disc_layer_sampled = disc_layer[-batch_size:]
+                # disc_layer = hid_dis_
+                hid_dis_real = disc_layer[:batch_size]
+                hid_dis_pred = disc_layer[batch_size:-batch_size]
+                hid_dis_sampled = disc_layer[-batch_size:]
 
-                disc_class_original = disc_class[:batch_size]
-                disc_class_predicted = disc_class[batch_size:-batch_size]
-                disc_class_sampled = disc_class[-batch_size:]
-
-                # VAE/GAN
-                nle, kld, mse, bce_dis_original, bce_dis_predicted, bce_dis_sampled = VaeGan.loss(x, x_tilde,
-                                                                                                  disc_layer_original,
-                                                                                                  disc_layer_predicted,
-                                                                                                  disc_layer_sampled,
-                                                                                                  disc_class_original,
-                                                                                                  disc_class_predicted,
-                                                                                                  disc_class_sampled,
-                                                                                                  mus, log_variances)
-                # mse_v2, bcde
+                # disc_class = fin_dis_
+                fin_dis_real = disc_class[:batch_size]
+                fin_dis_pred = disc_class[batch_size:-batch_size]
+                fin_dis_sampled = disc_class[-batch_size:]
 
                 # Selectively disable the decoder of the discriminator if they are unbalanced
                 train_dis = True
                 train_dec = True
 
-                # VAE/GAN loss
-                loss_encoder = torch.sum(kld) + torch.sum(mse)
-                loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
-                    bce_dis_sampled)
-                loss_decoder = torch.sum(training_config.lambda_mse * mse) - (1.0 - training_config.lambda_mse) * loss_discriminator
+                loss_method = 'Orig' # 'Maria', 'Orig', 'Ren'
 
-                # Register mean values for logging
-                loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
-                loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
-                loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
-                loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
+                # VAE/GAN loss
+                if loss_method == 'Maria':
+                    nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
+                    bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
+                                                                 hid_dis_pred, hid_dis_sampled,
+                                                                 fin_dis_real, fin_dis_pred,
+                                                                 fin_dis_sampled, mus, log_variances)
+
+                    loss_encoder = torch.sum(kl) + torch.sum(mse_1)
+                    loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
+                        bce_dis_sampled)
+                    loss_decoder = torch.sum(training_config.lambda_mse * mse_1) - (1.0 - training_config.lambda_mse) * loss_discriminator
+
+                    # Register mean values for logging
+                    loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
+                    loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
+                    loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
+                    loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
+
+                if loss_method == 'Orig':
+                    nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
+                    bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
+                                                                 hid_dis_pred, hid_dis_sampled,
+                                                                 fin_dis_real, fin_dis_pred,
+                                                                 fin_dis_sampled, mus, log_variances)
+
+                    # Loss from torch vaegan loss
+                    loss_encoder = torch.sum(mse_1) + torch.sum(mse_2) + torch.sum(kl)
+                    loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(bce_dis_sampled)
+                    loss_decoder = torch.sum(bce_gen_sampled) + torch.sum(bce_gen_recon)
+                    loss_decoder = torch.sum(lambda_mse / 2 * mse_1) + torch.sum(lambda_mse / 2 * mse_2) + (
+                                1.0 - lambda_mse) * loss_decoder
+
+                    # Register mean values for logging
+                    loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
+                    loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
+                    loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
+                    loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
+
+                if loss_method == 'Ren':
+                    # Ren Loss Function
+                    kl, feature_loss_pred, dis_fake_pred_loss, dis_real_loss, dec_fake_pred_loss = \
+                        VaeGan.ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, fin_dis_real,
+                                        fin_dis_pred, hid_dis_sampled, fin_dis_sampled, stage=stage, device=device)
+
+                    print(kl, feature_loss_pred, dis_fake_pred_loss, dis_real_loss)
+
+                    loss_encoder = kl + feature_loss_pred # GOOD | but Ren does some further division
+                    loss_discriminator = dis_fake_pred_loss + dis_real_loss  # could add sampled term
+                    loss_decoder = (1 - training_config.lambda_mse) * dec_fake_pred_loss - training_config.lambda_mse * feature_loss_pred
+
+
+                    # Register mean values for logging
+                    loss_encoder_mean = torch.mean(loss_encoder).data.cpu().numpy()
+                    loss_discriminator_mean = loss_discriminator.data.cpu().numpy()  # / batch_size
+                    loss_decoder_mean = loss_decoder.item()  # .cpu().numpy()/ batch_size
+
 
                 if torch.mean(bce_dis_original).item() < equilibrium - margin or torch.mean(
                         bce_dis_predicted).item() < equilibrium - margin:
@@ -313,49 +384,22 @@ if __name__ == "__main__":
                     train_dec = True
 
                 # BACKPROP
-                # clean grads
-                model.zero_grad()
-
-
-                # encoder
-                loss_encoder.backward(retain_graph=True)
-                # someone likes to clamp the grad here
-                # [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
-                # update parameters
+                # Backpropagation below ensures same results as if running optimizers in isolation
+                # And works in PyTorch==1.10 (allows for other important functions)
+                loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
                 optimizer_encoder.step()
-                # clean others, so they are not afflicted by encoder loss
-                model.zero_grad()
-                # model.encoder.zero_grad()
 
-                # Decoder
                 if train_dec:
-                    loss_decoder.backward(retain_graph=True)
-                    # [p.grad.data.clamp_(-1, 1) for p in model.decoder.parameters()]
+                    model.decoder.zero_grad()
+                    loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
                     optimizer_decoder.step()
-                    # clean the discriminator
+
+                if train_dis:
                     model.discriminator.zero_grad()
-
-                # Discriminator
-                if train_dis:
-                    loss_discriminator.backward()
-                    # [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
+                    loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
                     optimizer_discriminator.step()
-                """
 
-                # POTENTIAL SOLUTION FOR GRADIENT PROBLEM
-                loss_encoder.backward(retain_graph=True)
-                loss_decoder.backward(retain_graph=True)
-                loss_discriminator.backward()
-
-                optimizer_encoder.step()
-                # model.zero_grad()
-
-                if train_dec:
-                    optimizer_decoder.step()
-
-                if train_dis:
-                    optimizer_discriminator.step()"""
-
+                model.zero_grad()
 
                 logging.info(
                     f'Epoch  {idx_epoch} {batch_idx + 1:3.0f} / {100 * (batch_idx + 1) / len(dataloader_train):2.3f}%, '
@@ -522,7 +566,7 @@ if __name__ == "__main__":
                 # only for one batch due to memory issue
                 break
 
-            if not idx_epoch % 5:
+            if not idx_epoch % 5 or idx_epoch == args.epochs:
                 torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
                 logging.info('Saving model')
 
@@ -535,13 +579,13 @@ if __name__ == "__main__":
 
             if metrics_valid is not None:
                 for key, value in result_metrics_valid.items():
-                    metric_value = torch.tensor(value, dtype=torch.float64).item()
-                    # UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True)
+                    metric_value = value.detach().clone().item()
+                    # Changed from: torch.tensor(value, dtype=torch.float64).item()
                     results[key].append(metric_value)
 
             if metrics_train is not None:
                 for key, value in result_metrics_train.items():
-                    metric_value = torch.tensor(value, dtype=torch.float64).item()
+                    metric_value = value.detach().clone().item()
                     results[key].append(metric_value)
 
             results_to_save = pd.DataFrame(results)

@@ -16,22 +16,26 @@ import matplotlib.image as mpimg
 import torchvision.models as models
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
+import collections
+from skimage import transform
 
 # from tqdm import tqdm
 from torch import nn, no_grad
 from torch.autograd import Variable
 from PIL import Image
 from os import listdir
+from scipy.ndimage import shift
 from torchvision.utils import make_grid, save_image
 import torchvision
 
+import training_config
 
 """
 Data loaders
 """
 
 
-class BoldRoiDataloader(object):
+class FmriDataloader(object):
     """
     Dataloader for ROI information in BOLD5000 dataset
     https://ndownloader.figshare.com/files/12965447
@@ -57,17 +61,191 @@ class BoldRoiDataloader(object):
         # TODO: here we replace stimuli paths with your own with root_path
         # It's supposed that fMRI data are in the folder "/BOLD5000/"
         if self.root_path is not None and self.root_path not in self.dataset[idx]['image']:
-            name = self.dataset[idx]['image'].split('BOLD5000')[0]
-            self.dataset[idx]['image'] = self.dataset[idx]['image'].replace(name, self.root_path)
+            # name = self.dataset[idx]['image'].split('BOLD5000')[0]
+            self.dataset[idx]['image'] = self.root_path + self.dataset[idx]['image']
+            # self.dataset[idx]['image'] = self.dataset[idx]['image'].replace(name, self.root_path)
 
-        stimulus = mpimg.imread(self.dataset[idx]['image'])
+        # stimulus = mpimg.imread(self.dataset[idx]['image'])
+        stimulus = Image.open(self.dataset[idx]['image'])
 
-        sample = {'fmri': voxels, 'image': stimulus}
-
+        # Applies transformations only to image
         if self.transform:
-            sample = self.transform(sample)
+            mod_stimulus = self.transform(stimulus) # Was sample = (sample)
 
-        return sample
+        # Applies tensor conversion to voxels
+        fmri_tensor = torch.FloatTensor(voxels)
+
+        transformed_sample = {'fmri': fmri_tensor, 'image': mod_stimulus}
+
+        return transformed_sample
+
+
+class SampleToTensor(object):
+
+    """
+    Transforms numpy or PIl image to tensor
+    """
+
+    def __call__(self, sample):
+
+        image, fmri = sample['image'], sample['fmri']
+        image_array = image.transpose(2, 0, 1)
+        image_tensor = torch.FloatTensor(image_array)
+        fmri_tensor = torch.FloatTensor(sample['fmri'])
+
+        sample_tensor = {'fmri': fmri_tensor, 'image': image_tensor}
+
+        return sample_tensor
+
+
+class RandomShift(object):
+    """
+    Randomly shifts image with max_shift
+    """
+
+    def __init__(self, max_shift=5):
+
+        self.max_shift = max_shift
+
+    def __call__(self, sample):
+
+        image, fmri = sample['image'], sample['fmri']
+        image_shifted = rand_shift(image, self.max_shift)
+
+        transformed_sample = {'fmri': fmri, 'image': image_shifted}
+
+        return transformed_sample
+
+
+class Normalization(object):
+    """
+    Stimuli normalization (fmri are normalized during concatenation) with mean and std per channel,
+    apply to tensors
+
+    :return: transformed_sample {'fmri', 'image'}
+        Sample with normalized fmri and images
+    """
+    def __init__(self, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, sample):
+
+        image, fmri = sample['image'], sample['fmri']
+        for i in range(3):
+            image[i] = (image[i] - self.mean[i]) / self.std[i]
+        norm_img = image
+
+        transformed_sample = {'fmri': fmri, 'image': norm_img}
+
+        return transformed_sample
+
+
+class Rescale(object):
+    """
+    Rescale images for pretrained model (375x375 -> 224x224)
+    """
+    def __init__(self, output_size=224):
+        """
+        @param output_size: image output size
+        """
+        self.output_size = output_size
+
+    def __call__(self, sample):
+        """
+        @return: transformed_sample: {'fmri', 'image'}
+        Sample with rescaled images
+        """
+
+        image, fmri = sample['image'], sample['fmri']
+        # transform = transforms.Resize(self.output_size, self.output_size)
+        # scaled_img = transform(image)
+        scaled_img = transform.resize(image, (self.output_size, self.output_size))
+        # scaled_img = transform.forward(image)
+        transformed_sample = {'fmri': fmri, 'image': scaled_img}
+
+        return transformed_sample
+
+
+class CenterCrop(object):
+    """
+    Center crop to the output size
+    """
+
+    def __init__(self, output_size=374):
+        """
+        @param output_size: image output size
+        """
+        if type(output_size) == 'int':
+            self.cropx = output_size[0]
+            self.cropy = output_size[1]
+        else:
+            self.cropx = self.cropy = output_size
+
+    def __call__(self, sample):
+        """
+        @return: transformed_sample: {'fmri', 'image'}
+        Sample with rescaled images
+        """
+
+        image, fmri = sample['image'], sample['fmri']
+
+        _, y, x = image.shape
+        startx = x // 2 - (self.cropx // 2)
+        starty = y // 2 - (self.cropy // 2)
+        cropped_img = image[:, starty:starty + self.cropy, startx:startx + self.cropx]
+
+        transformed_sample = {'fmri': fmri, 'image': cropped_img}
+
+        return transformed_sample
+
+
+def rand_shift(img, max_shift=0):
+    """
+    Shifts images randomly
+    @param img: np.array [size x size x channels]
+        Image to be shifted
+    @param max_shift: shift value
+
+    @return: image shifted along x and y directions
+    """
+    x_shift, y_shift = numpy.random.randint(-max_shift, max_shift + 1, size=2)
+    img_shifted = shift(img, [x_shift, y_shift, 0], prefilter=False, order=0, mode='nearest')
+    return img_shifted
+
+
+"""
+Custom Collate Function for Variable fMRI Input
+"""
+
+
+def get_max_length(x):
+    return len(max(x, key=len))
+
+
+def pad_sequence(seq):
+    def _pad(_it, _max_len):
+        return [0] * (_max_len - len(_it)) + _it
+    return [_pad(it, get_max_length(seq)) for it in seq]
+
+
+def custom_collate(batch):
+    transposed = zip(*batch)
+    lst = []
+    for samples in transposed:
+        if isinstance(samples[0], int):
+            lst.append(torch.FloatTensor(samples))
+        elif isinstance(samples[0], float):
+            lst.append(torch.FloatTensor(samples))
+        elif isinstance(samples[0], collections.Sequence):
+            lst.append(torch.FloatTensor(pad_sequence(samples)))
+    return lst
+
+
+"""
+More Dataloaders
+"""
 
 
 class CocoDataloader(object):
@@ -119,6 +297,7 @@ class ImageNetDataloader(object):
     def __getitem__(self, idx):
 
         image = Image.open(self.image_names[idx])
+        print(type(image)) # TODO: Remove
 
         if self.transform:
             image = self.transform(image)
@@ -578,4 +757,17 @@ def imgnet_dataloader(batch_size):
     # Initialize DataLoader
     data_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True)
     return data_loader
+
+
+def NLLNormal(pred, target):
+
+    c = -0.5 * numpy.log(2 * numpy.pi)  # -0.5 * ~0.80 = -.40~
+    multiplier = 1.0 / (2.0 * 1 ** 2)  # 0.5 (1/2)
+    tmp = torch.square(pred - target)
+    tmp *= -multiplier
+    tmp += c
+    # sum, then mean
+    # tmp = torch.mean(tmp)
+
+    return tmp
 
