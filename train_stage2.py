@@ -20,20 +20,18 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import ExponentialLR
 
 import training_config
-from model_1 import VaeGan, Encoder, Decoder, VaeGanCognitive, Discriminator, CognitiveEncoder
-from utils_1 import CocoDataloader, ImageNetDataloader, GreyToColor, evaluate, PearsonCorrelation, \
-    StructuralSimilarity, objective_assessment, parse_args, imgnet_dataloader, NLLNormal, FmriDataloader, \
-    RandomShift, SampleToTensor, CenterCrop, Rescale, Normalization, get_max_length
+from model_2 import VaeGan, Encoder, Decoder, VaeGanCognitive, Discriminator, CognitiveEncoder
+from utils_2 import GreyToColor, evaluate, PearsonCorrelation, \
+    StructuralSimilarity, objective_assessment, parse_args, FmriDataloader, collate_fn
 
 numpy.random.seed(8)
 torch.manual_seed(8)
 torch.cuda.manual_seed(8)
 
 torch.autograd.set_detect_anomaly(True)
+timestep = time.strftime("%Y%m%d-%H%M%S")
 
 stage = 2
-
-# NOTE: Requires DVAEGAN env (updated pytorch>1.10)
 
 if __name__ == "__main__":
 
@@ -54,23 +52,41 @@ if __name__ == "__main__":
     # Get current working directory
     CWD = os.getcwd()
     OUTPUT_PATH = os.path.join(training_config.data_root, 'output/')
+    SUBJECT_PATH = 'Subject{}/'.format(str(args.subject_no))
 
     # Load training data for GOD and NSD, default is NSD
-    TRAIN_DATA_PATH = os.path.join(training_config.data_root, training_config.nsd_train_data)
-    VALID_DATA_PATH = os.path.join(training_config.data_root, training_config.nsd_valid_data)
+    TRAIN_DATA_PATH = os.path.join(training_config.data_root,
+                                   training_config.nsd_train_data.replace("Z", str(args.subject_no)))
+    VALID_DATA_PATH = os.path.join(training_config.data_root,
+                                   training_config.nsd_valid_data.replace("Z", str(args.subject_no)))
 
     if args.dataset == 'GOD':
-        TRAIN_DATA_PATH = os.path.join(training_config.data_root, training_config.god_train_data)
-        VALID_DATA_PATH = os.path.join(training_config.data_root, training_config.god_valid_data)
+        TRAIN_DATA_PATH = os.path.join(training_config.data_root,
+                                       training_config.god_train_data.replace("Z", str(args.subject_no)))
+        VALID_DATA_PATH = os.path.join(training_config.data_root,
+                                       training_config.god_valid_data.replace("Z", str(args.subject_no)))
+
+    # Create directory for results
+    stage_num = 'stage_2'
+    SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, SUBJECT_PATH, stage_num, 'vaegan_{}'.format(timestep))
+    if not os.path.exists(SAVE_PATH):
+        os.makedirs(SAVE_PATH)
+
+    SAVE_SUB_PATH = os.path.join(SAVE_PATH, 'stage_2_vaegan_{}.pth'.format(timestep))
+    if not os.path.exists(SAVE_SUB_PATH):
+        os.makedirs(SAVE_SUB_PATH)
+
+    LOG_PATH = os.path.join(SAVE_PATH, training_config.LOGS_PATH)
+    if not os.path.exists(LOG_PATH):
+        os.makedirs(LOG_PATH)
 
     """
     LOGGING SETUP
     """
     # Info logging
-    timestep = time.strftime("%Y%m%d-%H%M%S")
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
     logger = logging.getLogger()
-    file_handler = logging.FileHandler(os.path.join(CWD, training_config.LOGS_PATH, 's1_training_' + timestep))
+    file_handler = logging.FileHandler(LOG_PATH)
     handler_formatting = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(handler_formatting)
     file_handler.setLevel(logging.INFO)
@@ -82,16 +98,6 @@ if __name__ == "__main__":
 
     logging.info('set up random seeds')
     torch.manual_seed(2022)
-
-    # Create directory for results
-    stage_num = 'stage_2'
-    SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, stage_num, 'vaegan_{}'.format(timestep))
-    if not os.path.exists(SAVE_PATH):
-        os.makedirs(SAVE_PATH)
-
-    SAVE_SUB_PATH = os.path.join(SAVE_PATH, 'stage_2_vaegan_{}.pth'.format(timestep))
-    if not os.path.exists(SAVE_SUB_PATH):
-        os.makedirs(SAVE_SUB_PATH)
 
     # Load data which were concatenated for 4 subjects and split into training and validation sets
     with open(TRAIN_DATA_PATH, "rb") as input_file:
@@ -161,10 +167,10 @@ if __name__ == "__main__":
                                                                     Normalization(mean=training_config.mean,
                                                                                   std=training_config.std)]))"""
 
-        dataloader_train = DataLoader(training_data, batch_size=args.batch_size,  # collate_fn=PadCollate(dim=0),
+        dataloader_train = DataLoader(training_data, batch_size=args.batch_size,  collate_fn=collate_fn,
                                       shuffle=True, num_workers=args.num_workers)
-        dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size,  # collate_fn=PadCollate(dim=0),
-                                      shuffle=True, num_workers=args.num_workers)
+        dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size,  collate_fn=collate_fn,
+                                      shuffle=False, num_workers=args.num_workers)
 
         NUM_VOXELS = len(train_data[0]['fmri'])
 
@@ -198,7 +204,7 @@ if __name__ == "__main__":
     writer_discriminator = SummaryWriter(SAVE_PATH + '/runs_' + timestep + '/discriminator')
 
     # Load Stage 1 network weights
-    model_dir = os.path.join(OUTPUT_PATH, args.dataset, 'pretrain', args.pretrained_net,
+    model_dir = os.path.join(OUTPUT_PATH, args.dataset, SUBJECT_PATH, 'pretrain', args.pretrained_net,
                                'pretrained_' + args.pretrained_net + '_{}.pth'.format(args.load_epoch))
     # TODO: Change 'pretrain' to stage 1 when it's working
 
@@ -231,7 +237,7 @@ if __name__ == "__main__":
     # Loading Checkpoint | If you want to continue training for existing checkpoint
     # Set checkpoint path
     if args.network_checkpoint is not None:
-        net_checkpoint_path = os.path.join(OUTPUT_PATH, args.dataset, 'stage_2', args.network_checkpoint,
+        net_checkpoint_path = os.path.join(OUTPUT_PATH, args.dataset, SUBJECT_PATH, 'stage_2', args.network_checkpoint,
                                    'stage_2_' + args.network_checkpoint + '.pth')
         print(net_checkpoint_path)
 
@@ -326,7 +332,6 @@ if __name__ == "__main__":
 
             # For each batch
             for batch_idx, data_batch in enumerate(dataloader_train):
-
                 model.train()
                 batch_size = len(data_batch['image'])
                 # x = Variable(data_batch, requires_grad=False).float().to(device)
@@ -467,6 +472,7 @@ if __name__ == "__main__":
                 fig, ax = plt.subplots(figsize=(10, 10))
                 ax.set_xticks([])
                 ax.set_yticks([])
+                ax.set_title('Training Ground Truth at Epoch {}'.format(idx_epoch))
                 ax.imshow(make_grid(data_batch['image'][: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
                 gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                 plt.savefig(gt_dir)
@@ -474,6 +480,7 @@ if __name__ == "__main__":
                 fig, ax = plt.subplots(figsize=(10, 10))
                 ax.set_xticks([])
                 ax.set_yticks([])
+                ax.set_title('Training Reconstruction at Epoch {}'.format(idx_epoch))
                 ax.imshow(make_grid(x_tilde[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
                 output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
                 plt.savefig(output_dir)
@@ -518,6 +525,7 @@ if __name__ == "__main__":
                     fig, ax = plt.subplots(figsize=(10, 10))
                     ax.set_xticks([])
                     ax.set_yticks([])
+                    ax.set_title('Validation Ground Truth')
                     ax.imshow(make_grid(data_target[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
                     gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                     plt.savefig(gt_dir)
@@ -525,6 +533,7 @@ if __name__ == "__main__":
                 fig, ax = plt.subplots(figsize=(10, 10))
                 ax.set_xticks([])
                 ax.set_yticks([])
+                ax.set_title('Validation Reconstruction at Epoch {}'.format(idx_epoch))
                 ax.imshow(make_grid(out[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
                 output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
                 plt.savefig(output_dir)
@@ -533,12 +542,11 @@ if __name__ == "__main__":
                 out = make_grid(out, nrow=8)
                 writer.add_image("reconstructed", out, step_index)
 
-                # TODO: I had some issues through here - CHECK
-                """out = model(None, 100)
-                out = out.data.cpu()
-                out = (out + 1) / 2
-                out = make_grid(out, nrow=8)
-                writer.add_image("generated", out, step_index)"""
+                # out = model(None, 100)
+                # out = out.data.cpu()
+                # out = (out + 1) / 2
+                # out = make_grid(out, nrow=8)
+                # writer.add_image("generated", out, step_index)
 
                 out = data_target.data.cpu()
                 out = (out + 1) / 2
