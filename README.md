@@ -1,5 +1,6 @@
-# Reconstruct natural images from fMRI using D-VAE-GAN
+# Reconstructing Seen Images From Natural Scenes Dataset Using Deep Learning
 
+This is 
 Example code for the paper "Reconstructing seen image from brain activity by visually-guided cognitive representation and adversarial learning". Method for reconstructing natural images from brain activities (fMRI) need a pretrained VAE/GAN model which is already trained on "unlabeled natural images" (just need image data without fMRI recordings). This can make the networks initialized properly, which is  helpful for producing satisfied reconstruction results. After that, you can use alternative encoding models to encode fMRI signals to latent space for recovering stimuli, or just use encoding model we provide.
 The method use a three stage strategy to train generate model mentioned above, we provide optimizer method (contain loss func)for each step in model.py file.
 

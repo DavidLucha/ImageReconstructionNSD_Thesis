@@ -16,7 +16,7 @@ from sklearn import preprocessing
 import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 import numpy as np
-from utils_1 import GreyToColor
+from utils_2 import GreyToColor
 
 
 def ren_data_prep(data_dir, image_list_dir, norm=True):
@@ -293,7 +293,7 @@ if __name__ == "__main__":
     # Grab random selection of 10k images from validation set (GOD ImageNet 2011)
     val_path = 'D:/Honours/val/'
     square_dir = 'D:/Lucha_Data/datasets/GOD/images/sq_pretrain/'
-    pretrain_dir = 'D:/Lucha_Data/datasets/GOD/images/pretrain_25k/'
+    pretrain_dir = 'D:/Lucha_Data/datasets/GOD/images/pretrain_all/'
 
     """
     Randomly select images from validation if x and y > 100
@@ -316,8 +316,21 @@ if __name__ == "__main__":
             if x > 100 and y > 100 and 0.67 < ratio < 1.4:
                 shutil.copy(srcpath, pretrain_dir)
                 sample_count += 1
-                if sample_count == 25000:
-                    break
+
+    # print(sample_count)
+                # if sample_count == 25000:
+                #     break
+
+    """
+     Delete random batch of images to get from 31042 to 30000
+    """
+    delete_rnd = True
+
+    if delete_rnd:
+        sample = random.sample(os.listdir(pretrain_dir), 1042)
+        for fname in sample:
+            filepath = os.path.join(pretrain_dir, fname)
+            os.remove(filepath)
 
     """
     Copy all square images from validation to sqr_pretrain

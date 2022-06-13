@@ -8,6 +8,7 @@ import pickle
 import logging
 import argparse
 import pandas as pd
+import matplotlib
 import matplotlib.pyplot as plt
 
 import torchvision
@@ -20,15 +21,16 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import ExponentialLR
 
 import training_config
-from model_1 import VaeGan
-from utils_1 import CocoDataloader, ImageNetDataloader, GreyToColor, evaluate, PearsonCorrelation, \
-    StructuralSimilarity, objective_assessment, parse_args, imgnet_dataloader, NLLNormal
+from model_2 import VaeGan
+from utils_2 import ImageNetDataloader, GreyToColor, evaluate, PearsonCorrelation, \
+    StructuralSimilarity, objective_assessment, parse_args, NLLNormal, potentiation
 
-numpy.random.seed(8)
-torch.manual_seed(8)
-torch.cuda.manual_seed(8)
+numpy.random.seed(2010)
+torch.manual_seed(2010)
+torch.cuda.manual_seed(2010)
 
 torch.autograd.set_detect_anomaly(True)
+timestep = time.strftime("%Y%m%d-%H%M%S")
 
 stage = 1
 
@@ -59,15 +61,30 @@ if __name__ == "__main__":
     if args.dataset == 'GOD':
         TRAIN_DATA_PATH = os.path.join(training_config.data_root, training_config.god_pretrain_imgs)
         VALID_DATA_PATH = os.path.join(training_config.data_root, training_config.god_s1_valid_imgs)
+        # TODO: Change this. Let's make this a subset of a larger pre-training batch.
+
+    # Create directory for results
+    stage_num = 'pretrain'
+    SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, stage_num, 'vaegan_{}'.format(timestep))
+    if not os.path.exists(SAVE_PATH):
+        os.makedirs(SAVE_PATH)
+
+    SAVE_SUB_PATH = os.path.join(SAVE_PATH, 'pretrained_vaegan_{}.pth'.format(timestep))
+    if not os.path.exists(SAVE_SUB_PATH):
+        os.makedirs(SAVE_SUB_PATH)
+
+    LOG_PATH = os.path.join(SAVE_PATH, training_config.LOGS_PATH)
+    if not os.path.exists(LOG_PATH):
+        os.makedirs(LOG_PATH)
+        # os.chmod(LOG_PATH, 0o777)
 
     """
     LOGGING SETUP
     """
     # Info logging
-    timestep = time.strftime("%Y%m%d-%H%M%S")
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
     logger = logging.getLogger()
-    file_handler = logging.FileHandler(os.path.join(CWD, training_config.LOGS_PATH, 's1_training_' + timestep))
+    file_handler = logging.FileHandler(os.path.join(LOG_PATH, 'log.log'))
     handler_formatting = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(handler_formatting)
     # logger = logging.getLogger()
@@ -82,21 +99,7 @@ if __name__ == "__main__":
     logger.info("Used device: %s" % device)
 
     logging.info('set up random seeds')
-    torch.manual_seed(2022)
-
-    """
-    MORE DIRECTORY STUFF
-        - requires the timestep variable etc.
-    """
-    # Create directory for results
-    stage_num = 'pretrain'
-    SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, stage_num, 'vaegan_{}'.format(timestep))
-    if not os.path.exists(SAVE_PATH):
-        os.makedirs(SAVE_PATH)
-
-    SAVE_SUB_PATH = os.path.join(SAVE_PATH, 'pretrained_vaegan_{}.pth'.format(timestep))
-    if not os.path.exists(SAVE_SUB_PATH):
-        os.makedirs(SAVE_SUB_PATH)
+    torch.manual_seed(2010)
 
     # Save arguments
     # CURRENTLY NOT WORKING
@@ -112,63 +115,54 @@ if __name__ == "__main__":
     valid_data = VALID_DATA_PATH
 
     if args.dataset == 'GOD':
-        image_crop = training_config.image_crop
-
         # Load data
+        # For pretraining, images are of different aspect ratios. We apply a resize to shorter side of the image \
+        # To maintain the aspect ratio of the original image. Then apply a random crop and horizontal flip.
         training_data = ImageNetDataloader(train_data, pickle=False,
-                                       transform=transforms.Compose([transforms.Resize((training_config.image_size,
-                                                                                        training_config.image_size)),
-                                                                     transforms.CenterCrop((training_config.image_size,
+                                       transform=transforms.Compose([transforms.Resize(training_config.image_size),
+                                                                     transforms.RandomCrop((training_config.image_size,
                                                                                             training_config.image_size)),
-                                                                     # transforms.RandomHorizontalFlip(),
-                                                                     transforms.ToTensor(),
-                                                                     GreyToColor(training_config.image_size),
-                                                                     transforms.Normalize(training_config.mean,
-                                                                                          training_config.std)
-                                                                     ]))
-
-        validation_data = ImageNetDataloader(valid_data, pickle=False,
-                                       transform=transforms.Compose([transforms.Resize((training_config.image_size,
-                                                                                        training_config.image_size)),
-                                                                     transforms.CenterCrop((training_config.image_size,
-                                                                                            training_config.image_size)),
-                                                                     # transforms.RandomHorizontalFlip(),
-                                                                     transforms.ToTensor(),
-                                                                     transforms.Normalize(training_config.mean,
-                                                                                          training_config.std)
-                                                                     ]))
-
-        dataloader_train = DataLoader(training_data, batch_size=args.batch_size,
-                                      shuffle=True, num_workers=args.num_workers)
-        # dataloader_train = imgnet_dataloader(args.batch_size)
-        dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size,
-                                      shuffle=True, num_workers=args.num_workers)
-
-    # TODO: NSD Dataloader
-    elif args.dataset == 'NSD':
-        image_crop = training_config.image_crop
-
-        # Load data
-        training_data = CocoDataloader(train_data, pickle=False,
-                                       transform=transforms.Compose([transforms.CenterCrop((image_crop, image_crop)),
-                                                                     transforms.Resize((training_config.image_size,
-                                                                                        training_config.image_size)),
                                                                      transforms.RandomHorizontalFlip(),
                                                                      transforms.ToTensor(),
                                                                      GreyToColor(training_config.image_size),
-                                                                     # converts greyscale to 3 channels
+                                                                     transforms.Normalize(training_config.mean,
+                                                                                          training_config.std)
+                                                                     ]))
+
+        # We then apply CenterCrop and don't random flip to ensure that validation reconstructions match the \
+        # ground truth image grid.
+        validation_data = ImageNetDataloader(valid_data, pickle=False,
+                                       transform=transforms.Compose([transforms.Resize(training_config.image_size),
+                                                                     transforms.CenterCrop((training_config.image_size,
+                                                                                            training_config.image_size)),
+                                                                     transforms.ToTensor(),
+                                                                     GreyToColor(training_config.image_size),
                                                                      transforms.Normalize(training_config.mean,
                                                                                           training_config.std)
                                                                      ]))
 
         dataloader_train = DataLoader(training_data, batch_size=args.batch_size,
                                       shuffle=True, num_workers=args.num_workers)
+        dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size,
+                                      shuffle=False, num_workers=args.num_workers)
+
+    # TODO: NSD Dataloader
+    elif args.dataset == 'NSD':
+        """
+        Insert here, if needed.
+        """
 
     else:
         logging.info('Wrong dataset')
 
 
     """# Test dataloader and show grid
+    print(plt.style.available)
+
+    font = {'family': 'Times New Roman',
+            'weight': 'bold',
+            'size': 14}
+
     def show_and_save(file_name, img):
         npimg = numpy.transpose(img.numpy(), (1, 2, 0))
         fig = plt.figure(dpi=200)
@@ -176,10 +170,24 @@ if __name__ == "__main__":
         fig.suptitle(file_name, fontsize=14, fontweight='bold')
         plt.imshow(npimg)
         # plt.imsave(f, npimg)
-        
+
     real_batch = next(iter(dataloader_train))
-    show_and_save("Test Dataloader", make_grid((real_batch * 0.5 + 0.5).cpu(), 8))
-    plt.show()"""
+
+    fig, ax = plt.subplots(figsize=(10, 10))
+    # ax.text(family="Times New Roman", size=12)
+    ax.set_xticks([]) # Sets to no ticks
+    ax.set_yticks([])
+    ax.set_title('Iteration of Real Batch', **font)
+    ax.imshow(make_grid(real_batch[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+    fig.show()
+
+    # output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
+    # plt.savefig(output_dir)
+
+    # show_and_save("Test Dataloader", make_grid((real_batch * 0.5 + 0.5).cpu(), 8))
+    # plt.show()
+
+    raise Exception('Stop after grid show.')"""
 
     # This writer function is for torch.tensorboard - might be worth
     writer = SummaryWriter(SAVE_PATH + '/runs_' + timestep)
@@ -188,7 +196,13 @@ if __name__ == "__main__":
     writer_discriminator = SummaryWriter(SAVE_PATH + '/runs_' + timestep + '/discriminator')
 
     model = VaeGan(device=device, z_size=training_config.latent_dim, recon_level=args.recon_level).to(device)
-    # model.init_parameters()
+
+    # Variables for equilibrium to improve GAN stability
+    margin = training_config.margin
+    equilibrium = training_config.equilibrium
+    lambda_mse = training_config.lambda_mse
+    decay_mse = training_config.decay_mse
+    lr = training_config.learning_rate_pt
 
     # Loading Checkpoint | If you want to continue previous training
     # Set checkpoint path
@@ -206,6 +220,7 @@ if __name__ == "__main__":
         results = pd.read_csv(net_checkpoint_path.replace(".pth", "_results.csv"))
         results = {col_name: list(results[col_name].values) for col_name in results.columns}
         stp = 1 + len(results['epochs'])
+        lr = potentiation(lr, training_config.decay_lr, args.checkpoint_epoch)
         if training_config.evaluate:
             images_dir = os.path.join(SAVE_PATH, 'images')
             if not os.path.exists(images_dir):
@@ -222,6 +237,8 @@ if __name__ == "__main__":
         logging.info('Initialize')
         stp = 1
 
+    print(lr) # TODO: Remove if working
+
     results = dict(
         epochs=[],
         loss_encoder=[],
@@ -230,25 +247,37 @@ if __name__ == "__main__":
         loss_reconstruction=[]
     )
 
-    # Variables for equilibrium to improve GAN stability
-    margin = training_config.margin
-    equilibrium = training_config.equilibrium
-    lambda_mse = training_config.lambda_mse
-    decay_mse = training_config.decay_mse
-    lr = 0.0003 # TODO: Remove for stages
-
     # An optimizer and schedulers for each of the sub-networks, so we can selectively backprop
+    # TODO: Change LR to args for stages | test RMS vs Adam
     # TODO: Change LR to args for stages
-    optimizer_encoder = torch.optim.RMSprop(params=model.encoder.parameters(), lr=lr, alpha=0.9,
-                                            eps=1e-8, weight_decay=training_config.weight_decay, momentum=0, centered=False)
+    optim_method = 'RMS'  # RMS or Adam or SGD (Momentum)
+    if optim_method == 'RMS':
+        optimizer_encoder = torch.optim.RMSprop(params=model.encoder.parameters(), lr=lr,
+                                                alpha=0.9,
+                                                eps=1e-8, weight_decay=training_config.weight_decay, momentum=0,
+                                                centered=False)
+        optimizer_decoder = torch.optim.RMSprop(params=model.decoder.parameters(), lr=lr,
+                                                alpha=0.9,
+                                                eps=1e-8, weight_decay=training_config.weight_decay, momentum=0,
+                                                centered=False)
+        optimizer_discriminator = torch.optim.RMSprop(params=model.discriminator.parameters(),
+                                                      lr=lr,
+                                                      alpha=0.9, eps=1e-8, weight_decay=training_config.weight_decay,
+                                                      momentum=0, centered=False)
+
+    if optim_method == 'Adam':
+        optimizer_encoder = torch.optim.Adam(params=model.encoder.parameters(), lr=lr,
+                                             eps=1e-8, weight_decay=training_config.weight_decay)
+        optimizer_decoder = torch.optim.Adam(params=model.decoder.parameters(), lr=lr,
+                                             eps=1e-8, weight_decay=training_config.weight_decay)
+        optimizer_discriminator = torch.optim.Adam(params=model.discriminator.parameters(),
+                                                   lr=lr, eps=1e-8,
+                                                   weight_decay=training_config.weight_decay)
+
+
+    # Initialize schedulers for learning rate
     lr_encoder = ExponentialLR(optimizer_encoder, gamma=training_config.decay_lr)
-
-    optimizer_decoder = torch.optim.RMSprop(params=model.decoder.parameters(), lr=lr, alpha=0.9,
-                                            eps=1e-8, weight_decay=training_config.weight_decay, momentum=0, centered=False)
     lr_decoder = ExponentialLR(optimizer_decoder, gamma=training_config.decay_lr)
-
-    optimizer_discriminator = torch.optim.RMSprop(params=model.discriminator.parameters(), lr=lr,
-                                                  alpha=0.9, eps=1e-8, weight_decay=training_config.weight_decay, momentum=0, centered=False)
     lr_discriminator = ExponentialLR(optimizer_discriminator, gamma=training_config.decay_lr)
 
     # Metrics
@@ -276,25 +305,25 @@ if __name__ == "__main__":
 
     batch_number = len(dataloader_train)
     step_index = 0
+    epochs_n = 100  # args.epochs TODO: here.
 
-    for idx_epoch in range(args.epochs):
+    for idx_epoch in range(epochs_n):
 
         try:
 
             # For each batch
             for batch_idx, data_batch in enumerate(dataloader_train):
-
                 model.train()
 
                 if args.dataset == 'GOD':
                     batch_size = len(data_batch)
                     x = Variable(data_batch, requires_grad=False).float().to(device)
 
-                elif args.dataset == 'NSD':
-                    batch_size = len(data_batch[0])
-                    x = Variable(data_batch[0], requires_grad=False).float().to(device)
-                else:
-                    logging.info('Wrong dataset') #ingo
+                # elif args.dataset == 'NSD':
+                #     batch_size = len(data_batch[0])
+                #     x = Variable(data_batch[0], requires_grad=False).float().to(device)
+                # else:
+                #     logging.info('Wrong dataset') #ingo
 
                 x_tilde, disc_class, disc_layer, mus, log_variances = model(x)
 
@@ -313,7 +342,7 @@ if __name__ == "__main__":
                 train_dis = True
                 train_dec = True
 
-                loss_method = 'Orig' # 'Maria', 'Orig', 'Ren'
+                loss_method = 'Maria' # 'Maria', 'Orig', 'Ren'
 
                 # VAE/GAN loss
                 if loss_method == 'Maria':
@@ -443,6 +472,7 @@ if __name__ == "__main__":
                 fig, ax = plt.subplots(figsize=(10, 10))
                 ax.set_xticks([])
                 ax.set_yticks([])
+                ax.set_title('Training Ground Truth at Epoch {}'.format(idx_epoch))
                 ax.imshow(make_grid(x[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
                 gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                 plt.savefig(gt_dir)
@@ -451,6 +481,7 @@ if __name__ == "__main__":
                 fig, ax = plt.subplots(figsize=(10, 10))
                 ax.set_xticks([])
                 ax.set_yticks([])
+                ax.set_title('Training Reconstruction at Epoch {}'.format(idx_epoch))
                 ax.imshow(make_grid(x_tilde[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
                 output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
                 plt.savefig(output_dir)
@@ -502,6 +533,7 @@ if __name__ == "__main__":
                     fig, ax = plt.subplots(figsize=(10, 10))
                     ax.set_xticks([])
                     ax.set_yticks([])
+                    ax.set_title('Validation Ground Truth')
                     ax.imshow(make_grid(data_in[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
                     gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                     plt.savefig(gt_dir)
@@ -509,6 +541,7 @@ if __name__ == "__main__":
                 fig, ax = plt.subplots(figsize=(10, 10))
                 ax.set_xticks([])
                 ax.set_yticks([])
+                ax.set_title('Validation Reconstruction at Epoch {}'.format(idx_epoch))
                 ax.imshow(make_grid(out[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
                 output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
                 plt.savefig(output_dir)
@@ -517,8 +550,7 @@ if __name__ == "__main__":
                 out = make_grid(out, nrow=8)
                 writer.add_image("reconstructed", out, step_index)
 
-                """
-                out = model(None, 100)
+                """out = model(None, 100)
                 out = out.data.cpu()
                 out = (out + 1) / 2
                 out = make_grid(out, nrow=8)
@@ -527,10 +559,10 @@ if __name__ == "__main__":
                 fig, ax = plt.subplots(figsize=(10, 10))
                 ax.set_xticks([])
                 ax.set_yticks([])
+                ax.set_title('Random Generation at Epoch {}'.format(idx_epoch))
                 ax.imshow(make_grid(out[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
                 output_dir = os.path.join(images_dir, 'random', 'epoch_' + str(idx_epoch) + '_output_' + 'rand')
-                plt.savefig(output_dir)
-                """
+                plt.savefig(output_dir)"""
 
                 out = data_target.data.cpu()
                 out = (out + 1) / 2
@@ -566,7 +598,7 @@ if __name__ == "__main__":
                 # only for one batch due to memory issue
                 break
 
-            if not idx_epoch % 5 or idx_epoch == args.epochs:
+            if not idx_epoch % 5 or idx_epoch == epochs_n-1:
                 torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
                 logging.info('Saving model')
 
