@@ -80,19 +80,13 @@ if __name__ == "__main__":
     if not os.path.exists(LOG_PATH):
         os.makedirs(LOG_PATH)
 
-    # LOAD NETWORK WEIGHTS
-    trained_net = os.path.join(OUTPUT_PATH, args.dataset, SUBJECT_PATH, 'pretrain', args.pretrained_net,
-                               'pretrained_' + args.pretrained_net + '.pth')
-    print(trained_net)
-    # TODO: Change 'pretrain' to previous stage
-
     """
     LOGGING SETUP
     """
     # Info logging
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
     logger = logging.getLogger()
-    file_handler = logging.FileHandler(LOG_PATH)
+    file_handler = logging.FileHandler(os.path.join(LOG_PATH, 'log.log'))
     handler_formatting = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(handler_formatting)
     file_handler.setLevel(logging.INFO)
@@ -127,7 +121,7 @@ if __name__ == "__main__":
                                                                          # transforms.CenterCrop(
                                                                          #     (training_config.image_size,
                                                                          #      training_config.image_size)),
-                                                                         transforms.RandomHorizontalFlip(),
+                                                                         # transforms.RandomHorizontalFlip(),
                                                                          transforms.ToTensor(),
                                                                          GreyToColor(training_config.image_size),
                                                                          transforms.Normalize(training_config.mean,
@@ -140,7 +134,7 @@ if __name__ == "__main__":
                                                                      training_config.image_size)),
                                                   # transforms.CenterCrop((training_config.image_size,
                                                   #                        training_config.image_size)),
-                                                  transforms.RandomHorizontalFlip(),
+                                                  # transforms.RandomHorizontalFlip(),
                                                   transforms.ToTensor(),
                                                   transforms.Normalize(training_config.mean,
                                                                        training_config.std)
@@ -193,7 +187,11 @@ if __name__ == "__main__":
     writer_decoder = SummaryWriter(SAVE_PATH + '/runs_' + timestep + '/decoder')
     writer_discriminator = SummaryWriter(SAVE_PATH + '/runs_' + timestep + '/discriminator')
 
-    model_dir = trained_net.replace(".pth", '_{}.pth'.format(args.load_epoch))
+    # LOAD NETWORK WEIGHTS
+    model_dir = os.path.join(OUTPUT_PATH, args.dataset, 'pretrain', args.pretrained_net[0],
+                               'pretrained_' + args.pretrained_net[0] + '_' + str(args.pretrained_net[1]) + '.pth')
+    logging.info('Loaded network is:', model_dir)
+    # model_dir = trained_net.replace(".pth", '_{}.pth'.format(args.load_epoch))
 
     # TODO: Make new VaeGan class
     model = VaeGan(device=device, z_size=training_config.latent_dim, recon_level=args.recon_level).to(device)
@@ -258,7 +256,7 @@ if __name__ == "__main__":
             print("IS mean", is_mean)
             exit(0)
     else:
-        logging.info('Initialize')
+        logging.info('Using loaded network')
         stp = 1
 
     results = dict(
@@ -332,6 +330,7 @@ if __name__ == "__main__":
 
     batch_number = len(dataloader_train)
     step_index = 0
+    epochs_n = training_config.n_epochs
 
     for idx_epoch in range(args.epochs):
 
@@ -369,29 +368,54 @@ if __name__ == "__main__":
                 # Using Ren's Loss Function
                 # TODO: ADD EXTRA PARAMS (Only for COG)
                 # TODO: Add a second kl for cog
-                nle, kl, bce_dis_original, bce_dis_predicted, loss_encoder, loss_decoder, loss_discriminator, feature_loss_pred = \
+                """nle, kl, bce_dis_original, bce_dis_predicted, loss_encoder, loss_decoder, loss_discriminator, feature_loss_pred = \
                     VaeGan.ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, fin_dis_real,
-                                    fin_dis_pred, hid_dis_cog=None, fin_dis_cog=None, stage=stage, device=device)
+                                    fin_dis_pred, hid_dis_cog=None, fin_dis_cog=None, stage=stage, device=device)"""
 
                 # Selectively disable the decoder of the discriminator if they are unbalanced
                 train_dis = True
                 train_dec = True
 
-                # Testing new encoder loss
-                loss_encoder = (torch.sum(kl) / (training_config.latent_dim * training_config.batch_size)) - (feature_loss_pred / (4 * 4 * 64))
+                loss_method = 'Maria' # 'Maria', 'Ren'
 
-                # Register mean values for logging
-                loss_encoder_mean = torch.mean(loss_encoder).data.cpu().numpy()
-                loss_discriminator_mean = loss_discriminator.data.cpu().numpy()  # / batch_size
-                loss_decoder_mean = loss_decoder.item()  # .cpu().numpy()/ batch_size
+                # VAE/GAN loss
+                if loss_method == 'Maria':
+                    nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
+                    bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
+                                                                 hid_dis_pred, hid_dis_sampled,
+                                                                 fin_dis_real, fin_dis_pred,
+                                                                 fin_dis_sampled, mus, log_variances)
 
-                loss_encoder_mean_old = loss_encoder.data.cpu().numpy() #  / batch_size
-                loss_discriminator_mean_old = loss_discriminator.data.cpu().numpy()  # / batch_size
-                loss_decoder_mean_old = loss_decoder.data.cpu().numpy()  # / batch_size
-                loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
+                    loss_encoder = torch.sum(kl) + torch.sum(mse_1)
+                    loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
+                        bce_dis_sampled)
+                    loss_decoder = torch.sum(training_config.lambda_mse * mse_1) - (1.0 - training_config.lambda_mse) * loss_discriminator
+
+                    # Register mean values for logging
+                    loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
+                    loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
+                    loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
+                    loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
+
+                if loss_method == 'Ren':
+                    # Ren Loss Function
+                    kl, feature_loss_pred, dis_fake_pred_loss, dis_real_loss, dec_fake_pred_loss = \
+                        VaeGan.ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, fin_dis_real,
+                                        fin_dis_pred, hid_dis_sampled, fin_dis_sampled, stage=stage, device=device)
+
+                    print(kl, feature_loss_pred, dis_fake_pred_loss, dis_real_loss)
+
+                    loss_encoder = kl + feature_loss_pred # GOOD | but Ren does some further division
+                    loss_discriminator = dis_fake_pred_loss + dis_real_loss  # could add sampled term
+                    loss_decoder = (1 - training_config.lambda_mse) * dec_fake_pred_loss - training_config.lambda_mse * feature_loss_pred
+
+                    # Register mean values for logging
+                    loss_encoder_mean = torch.mean(loss_encoder).data.cpu().numpy()
+                    loss_discriminator_mean = loss_discriminator.data.cpu().numpy()  # / batch_size
+                    loss_decoder_mean = loss_decoder.item()  # .cpu().numpy()/ batch_size
 
                 # Initially try training without equilibrium
-                """if torch.mean(bce_dis_original).item() < equilibrium - margin or torch.mean(
+                if torch.mean(bce_dis_original).item() < equilibrium - margin or torch.mean(
                         bce_dis_predicted).item() < equilibrium - margin:
                     train_dis = False
                 if torch.mean(bce_dis_original).item() > equilibrium + margin or torch.mean(
@@ -399,7 +423,7 @@ if __name__ == "__main__":
                     train_dec = False
                 if train_dec is False and train_dis is False:
                     train_dis = True
-                    train_dec = True"""
+                    train_dec = True
 
                 # BACKPROP
                 # Backpropagation below ensures same results as if running optimizers in isolation
@@ -587,7 +611,7 @@ if __name__ == "__main__":
                 # only for one batch due to memory issue
                 break
 
-            if not idx_epoch % 20 or idx_epoch == args.epochs:
+            if not idx_epoch % 20 or idx_epoch == epochs_n-1:
                 torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
                 logging.info('Saving model')
 

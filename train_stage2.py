@@ -86,7 +86,7 @@ if __name__ == "__main__":
     # Info logging
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
     logger = logging.getLogger()
-    file_handler = logging.FileHandler(LOG_PATH)
+    file_handler = logging.FileHandler(os.path.join(LOG_PATH, 'log.log'))
     handler_formatting = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(handler_formatting)
     file_handler.setLevel(logging.INFO)
@@ -167,9 +167,9 @@ if __name__ == "__main__":
                                                                     Normalization(mean=training_config.mean,
                                                                                   std=training_config.std)]))"""
 
-        dataloader_train = DataLoader(training_data, batch_size=args.batch_size,  collate_fn=collate_fn,
+        dataloader_train = DataLoader(training_data, batch_size=args.batch_size,  # collate_fn=collate_fn,
                                       shuffle=True, num_workers=args.num_workers)
-        dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size,  collate_fn=collate_fn,
+        dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size,  # collate_fn=collate_fn,
                                       shuffle=False, num_workers=args.num_workers)
 
         NUM_VOXELS = len(train_data[0]['fmri'])
@@ -204,8 +204,9 @@ if __name__ == "__main__":
     writer_discriminator = SummaryWriter(SAVE_PATH + '/runs_' + timestep + '/discriminator')
 
     # Load Stage 1 network weights
-    model_dir = os.path.join(OUTPUT_PATH, args.dataset, SUBJECT_PATH, 'pretrain', args.pretrained_net,
-                               'pretrained_' + args.pretrained_net + '_{}.pth'.format(args.load_epoch))
+    model_dir = os.path.join(OUTPUT_PATH, args.dataset, 'pretrain', args.pretrained_net[0],
+                               'pretrained_' + args.pretrained_net[0] + '_' + str(args.pretrained_net[1]) + '.pth')
+    logging.info('Loaded network is:', model_dir)
     # TODO: Change 'pretrain' to stage 1 when it's working
 
     # Set model directory from Stage 1
@@ -263,7 +264,7 @@ if __name__ == "__main__":
             print("IS mean", is_mean)
             exit(0)
     else:
-        logging.info('Initialize')
+        logging.info('Using loaded network')
         stp = 1
 
     # Create empty results containers
@@ -325,6 +326,7 @@ if __name__ == "__main__":
 
     batch_number = len(dataloader_train)
     step_index = 0
+    epochs_n = training_config.n_epochs
 
     for idx_epoch in range(args.epochs):
 
@@ -403,7 +405,7 @@ if __name__ == "__main__":
                 train_dec = False
 
                 # Initially try training without equilibrium
-                train_equilibrium = False # Leave off probably
+                train_equilibrium = False  # Leave off probably
                 if train_equilibrium:
                     if torch.mean(bce_dis_original).item() < equilibrium - margin or torch.mean(
                             bce_dis_predicted).item() < equilibrium - margin:
@@ -582,7 +584,7 @@ if __name__ == "__main__":
                 # only for one batch due to memory issue
                 break
 
-            if not idx_epoch % 20 or idx_epoch == args.epochs:
+            if not idx_epoch % 20 or idx_epoch == epochs_n-1:
                 torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
                 logging.info('Saving model')
 
@@ -637,5 +639,5 @@ if __name__ == "__main__":
             plot_dir = os.path.join(plots_dir, 'ER_loss')
             plt.savefig(plot_dir)
             logging.info("Plots are saved")
-            plt.show()
+            # plt.show() # TODO: Check this
     exit(0)

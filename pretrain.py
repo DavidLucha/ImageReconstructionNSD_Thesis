@@ -305,7 +305,7 @@ if __name__ == "__main__":
 
     batch_number = len(dataloader_train)
     step_index = 0
-    epochs_n = 100  # args.epochs TODO: here.
+    epochs_n = args.epochs
 
     for idx_epoch in range(epochs_n):
 
@@ -356,6 +356,26 @@ if __name__ == "__main__":
                     loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
                         bce_dis_sampled)
                     loss_decoder = torch.sum(training_config.lambda_mse * mse_1) - (1.0 - training_config.lambda_mse) * loss_discriminator
+
+                    # Register mean values for logging
+                    loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
+                    loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
+                    loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
+                    loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
+
+                if loss_method == 'David':
+                    nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
+                    bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
+                                                                 hid_dis_pred, hid_dis_sampled,
+                                                                 fin_dis_real, fin_dis_pred,
+                                                                 fin_dis_sampled, mus, log_variances)
+
+                    loss_encoder = torch.sum(kl) + torch.sum(mse_1)
+                    loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
+                        bce_dis_sampled)
+                    bce_g_tilde_loss = -torch.log(0.375 - fin_dis_pred + 1e-3)
+                    loss_decoder = torch.sum(bce_g_tilde_loss) - torch.sum(training_config.lambda_mse * mse_1)
+                    # loss_decoder = torch.sum(training_config.lambda_mse * mse_1) - (1.0 - training_config.lambda_mse) * loss_discriminator
 
                     # Register mean values for logging
                     loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
