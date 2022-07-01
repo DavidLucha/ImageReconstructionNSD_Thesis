@@ -88,7 +88,7 @@ if __name__ == "__main__":
     # Info logging
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
     logger = logging.getLogger()
-    file_handler = logging.FileHandler(LOG_PATH)
+    file_handler = logging.FileHandler(os.path.join(LOG_PATH, 'log.log'))
     handler_formatting = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(handler_formatting)
     file_handler.setLevel(logging.INFO)
@@ -228,7 +228,7 @@ if __name__ == "__main__":
 
     # If error with loading model then:
     teacher_model = VaeGan(device=device, z_size=training_config.latent_dim).to(device)
-    # David: they don't load moadl params here (teacher_model specifically)
+    # David: they don't load model params here (teacher_model specifically)
     for param in teacher_model.parameters():
         param.requires_grad = False
 
@@ -239,7 +239,7 @@ if __name__ == "__main__":
     decoder = Decoder(z_size=training_config.latent_dim, size=vis_encoder.size).to(device)  # TODO: Check size is okay
     # Though it should be because every one instance uses decoder.size=encoder.size
     # Given that we use the same decoder, this should be the same
-    discriminator = Discriminator().to(device) # Default: channels=3, recon_level=3
+    discriminator = Discriminator().to(device)  # Default: channels=3, recon_level=3
 
     # Initialize VaeGanCognitive
     model = VaeGanCognitive(device=device, encoder=cognitive_encoder, decoder=decoder,
@@ -247,9 +247,9 @@ if __name__ == "__main__":
                             z_size=training_config.latent_dim, stage=3).to(device)
 
     # Load Stage 2 network weights
-    model_dir = os.path.join(OUTPUT_PATH, args.dataset, SUBJECT_PATH, 'stage_2', args.stage_2_trained,
-                               'stage_2_' + args.stage_2_trained + '_{}.pth'.format(args.load_epoch))
-    # TODO: Change 'pretrain' to stage 2 when it's working
+    model_dir = os.path.join(OUTPUT_PATH, args.dataset, SUBJECT_PATH, 'stage_2', args.stage_2_trained[0],
+                               'stage_2_' + args.stage_2_trained[0] + '_' + str(args.stage_2_trained[1]) + '.pth')
+    logging.info('Loaded network is:', model_dir)
 
     # Load weights from stage 2
     logging.info('Loading model from Stage 2')
@@ -292,7 +292,7 @@ if __name__ == "__main__":
             print("IS mean", is_mean)
             exit(0)
     else:
-        logging.info('Initialize')
+        logging.info('Using loaded network')
         stp = 1
 
     # Create empty results containers
@@ -353,6 +353,7 @@ if __name__ == "__main__":
 
     batch_number = len(dataloader_train)
     step_index = 0
+    epochs_n = training_config.n_epochs_s3
 
     for idx_epoch in range(args.epochs):
 
@@ -608,7 +609,7 @@ if __name__ == "__main__":
 
                 break
 
-            if not idx_epoch % 20 or idx_epoch == args.epochs:
+            if not idx_epoch % 20 or idx_epoch == epochs_n-1:
                 torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
                 logging.info('Saving model')
 

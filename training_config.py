@@ -1,9 +1,9 @@
 """____________________Config for Dual-VAE/GAN training___________________________"""
 # NU = not used
 decoder_weights = ['gan_20210127-012348', 90] # This should change in stage 2 vs 3
-pretrained_net = 'vaegan_20220613-014326'  # TODO: Change this
-stage_1_trained = ''
-stage_2_trained = 'vaegan_20220608-193031'
+pretrained_net = ['vaegan_20220613-014326', 90]  # TODO: Change this
+stage_1_trained = ['vaegan_20220613-014326', 90] # TODO: Change this - currently a pretrain
+stage_2_trained = ['vaegan_20220615-104028', 380] # TODO: Change this 'vaegan_20220608-193031'
 stage_3_trained = '' # FINAL MODEL
 load_epoch = 10  # was 335
 # TODO: Make sure network is saving final epoch
@@ -23,7 +23,7 @@ batch_size = 64  # according to Ren code = 16
 
 learning_rate_pt = 0.0003
 # NOTE: Original VAE/GAE implementation uses 3e-4 but is dependent on batch size (64)
-learning_rate_s1 = 0.003 # TODO: Change after loss functions change
+learning_rate_s1 = 0.0001 # TODO: Change after loss functions change .0003
 # Stage 1 lr should be .003 (according to Ren) - but too drastic right now given the sum loss (use 0.0001)
 learning_rate = 0.0003  # Stage 2 & 3
 weight_decay = 0  # Used in optimizers

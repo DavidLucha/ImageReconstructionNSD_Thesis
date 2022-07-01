@@ -13,9 +13,9 @@ load_epoch = training_config.load_epoch
 dataset ='GOD'
 subset = '1.8mm'  # '1.8mm, 3mm, 5S_Small, 8S_Small,'
 recon_level = training_config.recon_level
-network_checkpoint = 'vaegan_20220613-014326'  # 'vaegan_20220610-153208' # None
+network_checkpoint = None # 'vaegan_20220613-014326'  # 'vaegan_20220610-153208' # None
 checkpoint_epoch = 90
-subject_no = 0  # Default three for GOD
+subject_no = 3  # Default three for GOD
 # subject 0 is all subjects (for NSD)
 # add loss method
 # add model import | probs temporary
