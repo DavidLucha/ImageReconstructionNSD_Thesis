@@ -1,58 +1,71 @@
 # Reconstructing Seen Images From Natural Scenes Dataset Using Deep Learning
 
-This is 
-Example code for the paper "Reconstructing seen image from brain activity by visually-guided cognitive representation and adversarial learning". Method for reconstructing natural images from brain activities (fMRI) need a pretrained VAE/GAN model which is already trained on "unlabeled natural images" (just need image data without fMRI recordings). This can make the networks initialized properly, which is  helpful for producing satisfied reconstruction results. After that, you can use alternative encoding models to encode fMRI signals to latent space for recovering stimuli, or just use encoding model we provide.
-The method use a three stage strategy to train generate model mentioned above, we provide optimizer method (contain loss func)for each step in model.py file.
+This is the repository for my Psychology honours thesis. This involves a rough technical replication of Ren et al.'s (2019) d-VAE/GAN using two datasets: the Generic Object Decoding (DOG) Dataset and the Natural Scenes Dataset (NSD). We look at whether ultra-high field fMRI can improve the capabilities of neural networks for natural image reconstruction. I also investigate the extent to which voxel resolution and training set size contribute to reconstruction quality. Finally, I demonstrate the relative importance of ROIs for reconstruction using the NSD. 
+
+Please email me at dlucha@uqconnect.edu.au if you have any questions.
 
 
-## image reconstruction from fMRI signal  
-for the natural image example
-- run reconstruct_natural_image.py
+## Training Instructions
 
-for network structure details
-- check model.py
+1. Download data and set training_config.data_root to directory
+2. To pretrain, run pretrain.py. This will train a vae-gan model on image-only dataset (ImageNet 2011 Validation Set - download here: [LINK])
+3. For each dataset (using arg --dataset) run train_stage1.py. 
+4. For each subject, load the trained model from Stage 1 (using arg --prev_stage_trained), and run train_stage2.py and train_stage3.py sequentially (per subject). Make sure you update the --prev_stage_trained argument for Stage 3 (i.e., loading model from stage 2).
 
-for train/test data prepare 
-- check utils.py
-
-
-
-## for your own data
-
-1. train a vae-gan model on images dataset (reconstruct image just from image, but not involve fMRI), maybe need to collect a new external image dataset (for example, divide out a subset of imagenet)
-2. train d-vae-gan model as we described in three stage train strategy part
-3. Adapt some parameters in args part in model.py , fine-tune the weights for the loss terms on an isolated data set.
-4. You should be able to just run reconstruct_natural_image.py then.
+Note: X_config.py are important for detailing the directories for inputs and outputs.
 
 
 ### Requirements
+As per requirements.txt, the following are needed to run the main training scripts:
+- bdpy==0.18
+- h5py==2.10.0
+- matplotlib==3.3.4
+- nibabel==3.2.2
+- nilearn==0.9.1
+- numpy==1.19.2
+- pandas==1.1.5
+- Pillow==9.2.0
+- progressbar33==2.4
+- pycocotools==2.0.4
+- pycocotools_windows==2.0.0.2
+- scikit_image==0.17.2
+- scikit_learn==1.1.1
+- scipy==1.5.2
+- skimage==0.0
+- tensorboardX==2.5.1
+- tensorflow==2.9.1
+- torch==1.10.2
+- torchvision==0.11.3
 
-- Anaconda Python 3.6
-- Tensorflow or Tensorflow-GPU
-- Numpy
-- Scipy
+Note: See /data/requirement_w_preprocess.txt for dependencies used in data preprocessing.
+
 
 ### Data
+The data for training needs to be in a specific format for the network to train properly. Data is structured as a list of dictionaries ({"fMRI":"normalized voxel activity","image":"/path/to/seen/image"}). Code used for processing the raw data can be found in /data/.
+#### Generic Object Decoding Dataset
+- The raw fMRI data can be downloaded: [Deep Image Reconstruction@OpenNeuro](https://openneuro.org/datasets/ds001506)
+#### Natural Scenes Dataset
+- Instructions to download raw data ...
+- Processed data can be downloaded here: 
+#### ImageNet 2011 Validation Set (For Pretraining)
+- The image set for pretrained network can be downloaded here:
 
-- The unpreprocessed fMRI data: [Deep Image Reconstruction@OpenNeuro](https://openneuro.org/datasets/ds001506)
-- detailed preprocessing steps can be found in paper [Shen, Horikawa, Majima, and Kamitani (2019) Deep image reconstruction from human brain activity. PLOS Computational Biology](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1006633)
-- data need to be processed to several pairs (fMRI vector, stimulus image) for train/test, for example: (A_1.mat, B_1.JPEG)
 
 ### Model
 
-- You need the following tensorflow model files to run the example scripts .
-   [d-vaegan-model](https://drive.google.com/file/d/13vIyrjYvG7uuRsvetD7d6mfuUw65Ew0W/view?usp=sharing)
+- Trained models can be downloaded from here:
+   [d-vaegan-model](https://drive.google.com/file/...)
+
 
 ### Results
+#### Study 1
+- The reconstructed images of Horikawa17 (GOD) dataset: 
+ [Horikawa17](https://github.com/.../data4_imgs.pdf)
+- The reconstructed images of NSD dataset (Allen et al., 2021): 
+ [Horikawa17](https://github.com/.../data4_imgs.pdf)
+- - The reconstructed images of non-pretrained NSD dataset (Allen et al., 2021): 
+ [Horikawa17](https://github.com/.../data4_imgs.pdf)
 
-- The reconstructed images of Miyawaki08 dataset: 
- [Miyawaki08](https://github.com/ziqiren/dvaeganImageRecon/blob/master/ReconImage/data1_imgs.pdf)
-- The reconstructed images of vanGerven10 dataset: 
- [vanGerven10](https://github.com/ziqiren/dvaeganImageRecon/blob/master/ReconImage/data2_imgs.pdf)
-- The reconstructed images of Schoenmakers13 dataset: 
- [Schoenmakers13](https://github.com/ziqiren/dvaeganImageRecon/blob/master/ReconImage/data3_imgs.pdf)
-- The reconstructed images of Horikawa17 dataset: 
- [Horikawa17](https://github.com/ziqiren/dvaeganImageRecon/blob/master/ReconImage/data4_imgs.pdf)
 
 
 

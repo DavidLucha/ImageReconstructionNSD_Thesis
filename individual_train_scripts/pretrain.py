@@ -39,32 +39,10 @@ if __name__ == "__main__":
     """
     ARGS PARSER
     """
-    arguments = True  # Set to False while testing
+    arguments = False  # Set to False while testing
 
     if arguments:
-        # args = parse_args(sys.argv[1:])
-        parser = argparse.ArgumentParser()
-        # parser.add_argument('--input', help="user path where the datasets are located", type=str)
-
-        parser.add_argument('--batch_size', default=training_config.batch_size, help='batch size for dataloader',
-                            type=int)
-        parser.add_argument('--epochs', default=training_config.n_epochs, help='number of epochs', type=int)
-        parser.add_argument('--image_size', default=training_config.image_size, help='size to which image should '
-                                                                                     'be scaled', type=int)
-        parser.add_argument('--num_workers', '-nw', default=training_config.num_workers,
-                            help='number of workers for dataloader', type=int)
-        # Pretrained network components
-        parser.add_argument('--pretrained_net', '-pretrain', default=training_config.pretrained_net,
-                            help='pretrained network', type=str)
-        parser.add_argument('--load_epoch', '-pretrain_epoch', default=training_config.load_epoch,
-                            help='epoch of the pretrained model', type=int)
-        parser.add_argument('--dataset', default='GOD', help='GOD, NSD', type=str)
-        parser.add_argument('--subset', default='1.8mm', help='1.8mm, 3mm, 5S_Small, 8S_Small,'
-                                                              '5S_Large, 8S_Large', type=str)
-        parser.add_argument('--recon_level', default=training_config.recon_level,
-                            help='reconstruction level in the discriminator',
-                            type=int)  # NOT REALLY SURE WHAT RECON LEVEL DOES TBH - see VAE GAN implementation
-        args = parse_args()
+        args = parse_args(sys.argv[1:])
 
     if not arguments:
         import args
