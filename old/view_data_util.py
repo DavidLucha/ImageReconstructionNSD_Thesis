@@ -10,6 +10,20 @@ import training_config as cfg
 stage = 'stage_1'
 lr = cfg.learning_rate
 
+# Test loading betas from NSD concat
+# subj_04_betas = pd.read_pickle("D:/Lucha_Data/datasets/NSD/1.8mm/raw_concat_pickle/subj_04_raw_concat_trial_fmri.pickle")
+# subj_04_betas_normed = pd.read_pickle("D:/Lucha_Data/datasets/NSD/1.8mm/normed_concat_pickle/subj_04_normed_concat_trial_fmri.pickle")
+
+# Test loading list dicts from NSD concat
+LOAD_PATH = "D:/Lucha_Data/datasets/NSD/1.8mm/"
+pickle_dir = LOAD_PATH + "normed_concat_pickle/subj_07_normed_concat_trial_fmri.pickle"
+print("Reading betas from pickle file: ", pickle_dir)
+s7_fmri = pd.read_pickle(pickle_dir)
+S7_train = pd.read_pickle(LOAD_PATH + 'train/max/Subj_07_NSD_max_train.pickle')
+S7_test = pd.read_pickle(LOAD_PATH + 'valid/max/Subj_07_NSD_max_valid.pickle')
+S7_train_single = pd.read_pickle(LOAD_PATH + 'train/single_pres/Subj_07_NSD_single_pres_train.pickle')
+S7_test_single = pd.read_pickle(LOAD_PATH + 'valid/single_pres/Subj_07_NSD_single_pres_valid.pickle')
+
 dalo = None
 if dalo is not None:
     print('helo')
@@ -217,3 +231,8 @@ LOAD_PATH = "D:/Honours/Gaviz Downloads/" + Subjects[1] + '.npz'
 sbj_2 = np.load(LOAD_PATH)
 # sbj_1 = 4466
 # sbj_2 = 4404
+
+
+# Testing formatting
+for x in [3, 14]:
+    print("This is the {:02} number".format(x))

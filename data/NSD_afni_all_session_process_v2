@@ -1,0 +1,40 @@
+# Per Subject
+# Subject 08
+for i in 1 2 3 4 5 6 7 8 9
+do
+    3dcalc -a betas_session0$i.nii.gz -expr 'a/300' -prefix subj_08_converted_betas_session0$i -datum float
+    3dmaskdump -mask ../../../../../inode/vol_roi/subj_08/subj_08_full_mask+orig.BRIK -index -noijk -xyz -o subj_08_masked_betas_session0$i.txt subj_08_converted_betas_session0$i+orig.BRIK
+    3dcalc -a subj_08_converted_betas_session0$i+orig.BRIK -b ../../../../../inode/vol_roi/subj_08/subj_08_full_mask+orig.BRIK -expr 'a * ispositive(b)' -prefix subj_08_masked_converted_betas_session0$i
+    rm subj_08_converted_betas_session0$i+orig.BRIK
+    rm subj_08_converted_betas_session0$i+orig.HEAD
+done
+
+# Script needs to change from session 10
+# Counts per subject are [37, 37, 29, 27, 37, 29, 37, 27]
+# [10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37]
+for i in 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27
+do
+    3dcalc -a betas_session$i.nii.gz -expr 'a/300' -prefix subj_08_converted_betas_session$i -datum float
+    3dmaskdump -mask ../../../../../inode/vol_roi/subj_08/subj_08_full_mask+orig.BRIK -index -noijk -xyz -o subj_08_masked_betas_session$i.txt subj_08_converted_betas_session$i+orig.BRIK
+    3dcalc -a subj_08_converted_betas_session$i+orig.BRIK -b ../../../../../inode/vol_roi/subj_08/subj_08_full_mask+orig.BRIK -expr 'a * ispositive(b)' -prefix subj_08_masked_converted_betas_session$i
+    rm subj_08_converted_betas_session$i+orig.BRIK
+    rm subj_08_converted_betas_session$i+orig.HEAD
+done
+
+# Change to unix formating
+cd /mnt/d/NSD/nsddata_betas/ppdata/subj08/func1pt8mm/betas_fithrf_GLMdenoise_RR/
+vi ./mask_script_subj_08.sh
+
+:set ff=unix
+:wq
+
+# All subjects
+for s in 1 2 3 4 5 6 7 8
+do
+    echo "Mounting Subject $s Folder"
+    cd /mnt/d/NSD/nsddata_betas/ppdata/subj0$s/func1pt8mm/betas_fithrf_GLMdenoise_RR/
+    echo "Running Script for Subject $s"
+    ./mask_script_subj_0$s.sh
+    echo "Finished with Subject $s"
+done
+
