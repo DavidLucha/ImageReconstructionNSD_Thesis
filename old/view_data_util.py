@@ -6,6 +6,66 @@ import csv
 import os
 import torch
 import training_config as cfg
+import random
+
+
+"""
+Testing random selection of dataset
+"""
+random.seed(76)
+
+LOAD_PATH = "D:/Lucha_Data/datasets/NSD/1.8mm/"
+pickle_dir = LOAD_PATH + "train/single_pres/Subj_01_NSD_single_pres_train.pickle"
+print("Reading betas from pickle file: ", pickle_dir)
+# sp = single_pres
+# s1_sp_betas = pickle.load(pickle_dir)
+# s1_sp_betas = pd.read_pickle(pickle_dir)
+
+with open(pickle_dir, "rb") as input_file:
+    train_data = pickle.load(input_file)
+
+# Could use random.sample but this would not be reproducible.
+# We would want the same subset of images between 1.8mm and 3mm
+large = random.sample(train_data, 7500)
+medium = random.sample(large, 4000)
+small = random.sample(medium, 1200)
+
+# Get random arrays and save to pickles for reproducibility
+get_array = True
+if get_array:
+    # So we will use an array and pickle load this
+    data_avail = [8859, 8188, 7907] # 37, 29, 27
+    # data_size = [1200, 4000, 7500, 8000]
+    data_size = [7500, 4000, 1200]
+    # data_avail[1:]
+    output_path = "D:/Lucha_Data/datasets/NSD/misc/dataset_randomness"
+
+    for n in data_avail:
+        # Gets the 8000 from either avail
+        # Or just do it in the code - to save space
+        rnd_array = np.random.randint(0, n-1, data_size[0])
+        print(rnd_array, len(rnd_array), min(rnd_array), max(rnd_array))
+
+        with open(os.path.join(output_path, data_size[0] + '_NSD_single_pres_' + n + '_train_array.pickle'), 'wb') as f:
+            pickle.dump(rnd_array, f)
+
+    med_array = np.random.randint(0, data_size[0]-1, data_size[1])
+    print(med_array, len(med_array), min(med_array), max(med_array))
+    small_array = np.random.randint(0, data_size[1]-1, data_size[2])
+    print(small_array, len(small_array), min(small_array), max(small_array))
+
+    with open(os.path.join(output_path, data_size[1] + '_NSD_single_pres_train_array.pickle'), 'wb') as f:
+        pickle.dump(small_array, f)
+
+    with open(os.path.join(output_path, data_size[2] + '_NSD_single_pres_train_array.pickle'), 'wb') as f:
+        pickle.dump(med_array, f)
+
+
+
+
+
+
+########################################### END ################################################
 
 stage = 'stage_1'
 lr = cfg.learning_rate

@@ -12,25 +12,15 @@ import numpy
 import random
 import logging
 import torch.nn.functional as F
-import matplotlib.image as mpimg
-import torchvision.models as models
-import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
-import collections
-from skimage import transform
-import pandas as pd
-import h5py
 
-# from tqdm import tqdm
 from torch import nn, no_grad
 from torch.autograd import Variable
 from PIL import Image
 from os import listdir
-from scipy.ndimage import shift
-from torchvision.utils import make_grid, save_image
+
 import torchvision
 
-import training_config
 
 """
 Data loaders

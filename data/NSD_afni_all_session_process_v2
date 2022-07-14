@@ -1,3 +1,7 @@
+# Combine masks per subject
+3dcalc -a prf-visualrois.nii.gz -b floc-faces.nii.gz -c floc-places.nii.gz -d Kastner2015.nii.gz -expr "posval(a) + 8 * equals(b, 2) + 9 * equals(b, 3) + 10 * equals(c, 2) + 11 * equals(d, 14) + 12 * equals(d, 15)" -prefix subj_02_full_mask
+3dmaskdump -mask subj_02_full_mask+orig.BRIK.gz -index -noijk -xyz -o subj_02_ROI_labels.txt subj_02_full_mask+orig.BRIK.gz
+
 # Per Subject
 # Subject 08
 for i in 1 2 3 4 5 6 7 8 9
@@ -38,3 +42,38 @@ do
     echo "Finished with Subject $s"
 done
 
+
+
+
+
+#############
+# Resampling
+
+# Resample then, combine masks
+# General syntax: 3dresample -input prf-visualrois.nii.gz -prefix prf-visualrois_3mm -dxyz 3 3 3
+# Loop didn't work
+for file in prf-visualrois floc-faces floc-places Kastner2015
+    do
+        echo $value
+        3dresample -input $file.nii.gz -prefix $file_3mm -dxyz 3 3 3
+    done
+
+### USE THIS ###
+# NOT USING LOOP
+3dresample -input prf-visualrois.nii.gz -prefix prf-visualrois_3mm -dxyz 3 3 3
+3dresample -input floc-faces.nii.gz -prefix floc-faces_3mm -dxyz 3 3 3
+3dresample -input floc-places.nii.gz -prefix floc-places_3mm -dxyz 3 3 3
+3dresample -input Kastner2015.nii.gz -prefix Kastner2015_3mm -dxyz 3 3 3
+
+# Combine masks per subject
+3dcalc -a prf-visualrois_3mm+orig.BRIK.gz -b floc-faces_3mm+orig.BRIK.gz -c floc-places_3mm+orig.BRIK.gz -d Kastner2015_3mm+orig.BRIK.gz -expr "posval(a) + 8 * equals(b, 2) + 9 * equals(b, 3) + 10 * equals(c, 2) + 11 * equals(d, 14) + 12 * equals(d, 15)" -prefix subj_04_full_mask_3mm
+3dmaskdump -mask subj_04_full_mask_3mm+orig.BRIK.gz -index -noijk -xyz -o subj_04_3mm_ROI_labels.txt subj_04_full_mask_3mm+orig.BRIK.gz
+echo done
+### USE THIS END ###
+
+###
+subj=4
+
+# Test just resample full mask
+3dresample -input subj_04_full_mask+orig.BRIK.gz -prefix subj_04_resample_full_mask_3mm -dxyz 3 3 3
+3dmaskdump -mask subj_04_resample_full_mask_3mm+orig.BRIK.gz -index -noijk -xyz -o subj_04_resample_3mm_ROI_labels.txt subj_04_resample_full_mask_3mm+orig.BRIK.gz

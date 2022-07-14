@@ -1,15 +1,12 @@
 import os
 import time
 import numpy
-import json
 import torch
-import sys
-import pickle
 import logging
 import argparse
 import pandas as pd
-import matplotlib
 import matplotlib.pyplot as plt
+import json
 
 import torchvision
 from torch import nn
@@ -25,16 +22,18 @@ from model_2 import VaeGan
 from utils_2 import ImageNetDataloader, GreyToColor, evaluate, PearsonCorrelation, \
     StructuralSimilarity, objective_assessment, parse_args, NLLNormal, potentiation
 
-numpy.random.seed(2010)
-torch.manual_seed(2010)
-torch.cuda.manual_seed(2010)
-
-torch.autograd.set_detect_anomaly(True)
-timestep = time.strftime("%Y%m%d-%H%M%S")
-
-stage = 1
 
 if __name__ == "__main__":
+
+    numpy.random.seed(2010)
+    torch.manual_seed(2010)
+    torch.cuda.manual_seed(2010)
+
+    torch.autograd.set_detect_anomaly(True)
+    timestep = time.strftime("%Y%m%d-%H%M%S")
+    # print('timestep is ',timestep)
+
+    stage = 1
 
     """
     ARGS PARSER
@@ -46,25 +45,30 @@ if __name__ == "__main__":
         parser = argparse.ArgumentParser()
         # parser.add_argument('--input', help="user path where the datasets are located", type=str)
 
+        parser.add_argument('--run_name', default=timestep, help='sets the run name to the time shell script run',
+                            type=str)
         parser.add_argument('--batch_size', default=training_config.batch_size, help='batch size for dataloader',
                             type=int)
-        parser.add_argument('--epochs', default=training_config.n_epochs, help='number of epochs', type=int)
-        parser.add_argument('--image_size', default=training_config.image_size, help='size to which image should '
-                                                                                     'be scaled', type=int)
+        parser.add_argument('--epochs', default=training_config.n_epochs_pt, help='number of epochs', type=int)
         parser.add_argument('--num_workers', '-nw', default=training_config.num_workers,
                             help='number of workers for dataloader', type=int)
-        # Pretrained network components
+        # Pretrained/checkpoint network components
+        parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
+                                                                       'vaegan_20220613-014326', type=str)
+        parser.add_argument('--checkpoint_epoch', default=90, help='epoch of checkpoint network', type=int)
         parser.add_argument('--pretrained_net', '-pretrain', default=training_config.pretrained_net,
                             help='pretrained network', type=str)
         parser.add_argument('--load_epoch', '-pretrain_epoch', default=training_config.load_epoch,
                             help='epoch of the pretrained model', type=int)
         parser.add_argument('--dataset', default='GOD', help='GOD, NSD', type=str)
-        parser.add_argument('--subset', default='1.8mm', help='1.8mm, 3mm, 5S_Small, 8S_Small,'
-                                                              '5S_Large, 8S_Large', type=str)
-        parser.add_argument('--recon_level', default=training_config.recon_level,
-                            help='reconstruction level in the discriminator',
-                            type=int)  # NOT REALLY SURE WHAT RECON LEVEL DOES TBH - see VAE GAN implementation
-        args = parse_args()
+        # Only need vox_res arg from stage 2 and 3
+        parser.add_argument('--vox_res', default='1.8mm', help='1.8mm, 3mm', type=str)
+        # Probably only needed stage 2/3 (though do we want to change stage 1 - depends on whether we do the full Ren...
+        # Thing where we do a smaller set for stage 1. But I think I might do a Maria and just have stage 1 with no...
+        # pretraining phase...
+        parser.add_argument('--set_size', default='max', help='max:max available, large:7500, med:4000, small:1200')
+        parser.add_argument('--message', default='', help='Any notes or other information')
+        args = parser.parse_args()
 
     if not arguments:
         import args
@@ -87,11 +91,11 @@ if __name__ == "__main__":
 
     # Create directory for results
     stage_num = 'pretrain'
-    SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, stage_num, 'vaegan_{}'.format(timestep))
+    SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, stage_num, 'vaegan_{}'.format(args.run_name))
     if not os.path.exists(SAVE_PATH):
         os.makedirs(SAVE_PATH)
 
-    SAVE_SUB_PATH = os.path.join(SAVE_PATH, 'pretrained_vaegan_{}.pth'.format(timestep))
+    SAVE_SUB_PATH = os.path.join(SAVE_PATH, 'pretrained_vaegan_{}.pth'.format(args.run_name))
     if not os.path.exists(SAVE_SUB_PATH):
         os.makedirs(SAVE_SUB_PATH)
 
@@ -125,8 +129,8 @@ if __name__ == "__main__":
 
     # Save arguments
     # CURRENTLY NOT WORKING
-    # with open(os.path.join(SAVE_PATH, 'config.txt'), 'w') as f:
-    #     json.dump(args.__dict__, f, indent=2)
+    with open(os.path.join(SAVE_PATH, 'config.txt'), 'w') as f:
+        json.dump(args.__dict__, f, indent=2)
 
 
     """
@@ -212,12 +216,12 @@ if __name__ == "__main__":
     raise Exception('Stop after grid show.')"""
 
     # This writer function is for torch.tensorboard - might be worth
-    writer = SummaryWriter(SAVE_PATH + '/runs_' + timestep)
-    writer_encoder = SummaryWriter(SAVE_PATH + '/runs_' + timestep + '/encoder')
-    writer_decoder = SummaryWriter(SAVE_PATH + '/runs_' + timestep + '/decoder')
-    writer_discriminator = SummaryWriter(SAVE_PATH + '/runs_' + timestep + '/discriminator')
+    writer = SummaryWriter(SAVE_PATH + '/runs_' + args.run_name)
+    writer_encoder = SummaryWriter(SAVE_PATH + '/runs_' + args.run_name + '/encoder')
+    writer_decoder = SummaryWriter(SAVE_PATH + '/runs_' + args.run_name + '/decoder')
+    writer_discriminator = SummaryWriter(SAVE_PATH + '/runs_' + args.run_name + '/discriminator')
 
-    model = VaeGan(device=device, z_size=training_config.latent_dim, recon_level=args.recon_level).to(device)
+    model = VaeGan(device=device, z_size=training_config.latent_dim, recon_level=training_config.recon_level).to(device)
 
     # Variables for equilibrium to improve GAN stability
     margin = training_config.margin
@@ -259,7 +263,7 @@ if __name__ == "__main__":
         logging.info('Initialize')
         stp = 1
 
-    print(lr) # TODO: Remove if working
+    # print(lr) # TODO: Remove if working
 
     results = dict(
         epochs=[],
@@ -696,5 +700,5 @@ if __name__ == "__main__":
             plot_dir = os.path.join(plots_dir, 'ER_loss')
             plt.savefig(plot_dir)
             logging.info("Plots are saved")
-            plt.show()
+            # plt.show()
     exit(0)
