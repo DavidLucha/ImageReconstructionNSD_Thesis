@@ -7,7 +7,9 @@ import h5py
 from sklearn import preprocessing
 import matplotlib.pyplot as plt
 from PIL import Image
-from NSD_process_utils import NSDProcess, nsd_data_dict_prep
+import pickle
+import random
+from data.NSD_process_utils import NSDProcess, nsd_data_dict_prep
 
 """
 Training/Test Split Image Extraction
@@ -82,6 +84,7 @@ if concat:
     session_count = [0, 37, 37, 29, 27, 37, 29, 37, 27]
     out_path = "D:/Lucha_Data/datasets/NSD/"
     vox_res = "1.8mm"
+    # TODO: Change this for 3mm vox
 
     # Full for session range:
     #         for session in range(1, session_count[subject]+1):
@@ -175,7 +178,7 @@ Creating trainable datasets (list of dicts)
     data_type = train/test both?
 """
 
-dict_prep = True
+dict_prep = False
 
 if dict_prep:
     # Hello there. - Obi Wan
@@ -192,3 +195,114 @@ if dict_prep:
     nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, False)
     # Using first presentation only
     nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, True)
+
+
+
+
+"""
+Testing random selection of dataset
+
+Only pulls arrays, can use this to save data sets or just to cut it down from the training stages
+First gets 7500 from each of the possible single presentation set sizes [8859, 8188, 7907]
+Then grabs 4000 from that 7500 and then 1200 from 4000. Making sure we're controlling as much as possible.
+Saving pickles for reproducibility. The same random selection is made for each participants (for 4000, 1200). 
+Initial 7500 pick varies depending on the available training set size of the participant.
+"""
+
+# Get random arrays and save to pickles for reproducibility
+get_array = False
+if get_array:
+    random.seed(76)
+    # So we will use an array and pickle load this
+    data_avail = [8859, 8188, 7907]  # 37, 29, 27
+    # data_size = [1200, 4000, 7500, 8000]
+    data_size = [7500, 4000, 1200]
+    # data_avail[1:]
+    output_path = "D:/Lucha_Data/datasets/NSD/misc/dataset_randomness"
+
+    for n in data_avail:
+        # Gets the 8000 from either avail
+        # Or just do it in the code - to save space
+        rnd_array = np.random.randint(0, n - 1, data_size[0])
+        print(rnd_array, len(rnd_array), min(rnd_array), max(rnd_array))
+
+        with open(os.path.join(output_path, '7500_NSD_single_pres_{}_train_array.pickle'.format(n)), 'wb') as f:
+            pickle.dump(rnd_array, f)
+
+    med_array = np.random.randint(0, data_size[0] - 1, data_size[1])
+    print(med_array, len(med_array), min(med_array), max(med_array))
+    small_array = np.random.randint(0, data_size[1] - 1, data_size[2])
+    print(small_array, len(small_array), min(small_array), max(small_array))
+
+    with open(os.path.join(output_path, '4000_NSD_single_pres_train_array.pickle'), 'wb') as f:
+        pickle.dump(med_array, f)
+
+    with open(os.path.join(output_path, '1200_NSD_single_pres_train_array.pickle'), 'wb') as f:
+        pickle.dump(small_array, f)
+
+
+# var_training set grabs the variable-sized training sets based on the set random arrays from above
+var_training_set = False
+
+if var_training_set:
+    input_path = "D:/Lucha_Data/datasets/NSD/"
+    array_path = "misc/dataset_randomness"
+    voxel_res = "1.8mm"
+    fmri_path = os.path.join(input_path, voxel_res + "/train/single_pres")
+    subj = [1, 2, 3, 4, 5, 6, 7, 8]
+
+    for s in subj:
+        data_path = os.path.join(fmri_path, "Subj_0{}_NSD_single_pres_train.pickle".format(s))
+        # Load data
+        with open(data_path, "rb") as input_file:
+            data = pickle.load(input_file)
+
+        # Load small and medium array
+        small_array_path = os.path.join(input_path, array_path, "1200_NSD_single_pres_train_array.pickle")
+        med_array_path = os.path.join(input_path, array_path, "4000_NSD_single_pres_train_array.pickle")
+
+        with open(small_array_path, "rb") as input_file:
+            small_array = pickle.load(input_file)
+
+        with open(med_array_path, "rb") as input_file:
+            med_array = pickle.load(input_file)
+
+        if s in [1, 2, 5, 7]:
+            print("I, {}, am large (37 session)".format(s))
+            big_array_path = os.path.join(input_path, array_path, "7500_NSD_single_pres_8859_train_array.pickle")
+
+        elif s in [3, 6]:
+            print("I, {}, am less large (29 sessions)".format(s))
+            big_array_path = os.path.join(input_path, array_path, "7500_NSD_single_pres_8188_train_array.pickle")
+        elif s in [4, 8]:
+            print("I, {}, am even less larger (27 sessions)".format(s))
+            big_array_path = os.path.join(input_path, array_path, "7500_NSD_single_pres_7907_train_array.pickle")
+
+        with open(big_array_path, "rb") as input_file:
+            big_array = pickle.load(input_file)
+
+        large_set_data = [data[i] for i in big_array]
+        med_set_data = [large_set_data[i] for i in med_array]
+        small_set_data = [med_set_data[i] for i in small_array]
+
+        # list = [1,3,5]
+        # new_list = [data[i] for i in list]
+
+        sizes = [1200, 4000, 7500]
+        for size in sizes:
+            # Save pickle
+            output_path = os.path.join(fmri_path, str(size))
+
+            if size == 1200:
+                out_data = small_set_data
+            elif size == 4000:
+                out_data = med_set_data
+            else:
+                out_data = large_set_data
+
+            print('Saving Subject {} data ({}) to {}...'.format(s, size, output_path))
+
+            with open(os.path.join(output_path, 'Subj_0{}_{}_NSD_single_pres_train.pickle'.format(s, size)), 'wb') as f:
+                # e.g., /Subj_01_NSD_max_train.pickle OR /Subj_01_NSD_single_pres_train.pickle
+                pickle.dump(out_data, f)
+

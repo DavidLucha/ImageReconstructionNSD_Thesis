@@ -29,7 +29,7 @@ learning_rate = 0.0003  # Stage 2 & 3
 weight_decay = 0  # Used in optimizers
 decay_lr = 0.98 # 0.98 (Maria) 0.75 (Lam)
 
-n_epochs_pt = 120
+n_epochs_pt = 5 # 120
 n_epochs = 400  # 400 for Stage 1 & 2
 n_epochs_s3 = 200  # Stage 3
 
@@ -62,7 +62,7 @@ TRAINED_NET_ROOT = ''
 
 # GOD Data
 # For Pretrain
-god_pretrain_imgs = 'GOD/images/pretrain_all/'
+god_pretrain_imgs = 'GOD/images/pretrain_30k/'
 # For Stage 1
 god_s1_train_imgs = 'GOD/images/train/'
 god_s1_valid_imgs = 'GOD/images/valid/'

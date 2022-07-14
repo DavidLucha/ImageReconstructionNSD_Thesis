@@ -664,5 +664,5 @@ if __name__ == "__main__":
             plot_dir = os.path.join(plots_dir, 'ER_loss')
             plt.savefig(plot_dir)
             logging.info("Plots are saved")
-            plt.show()
+            # plt.show()
     exit(0)

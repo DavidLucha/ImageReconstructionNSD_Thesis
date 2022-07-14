@@ -1,4 +1,5 @@
 import training_config
+import time
 
 input = ''
 batch_size = training_config.batch_size
@@ -16,6 +17,7 @@ recon_level = training_config.recon_level
 network_checkpoint = None # 'vaegan_20220613-014326'  # 'vaegan_20220610-153208' # None
 checkpoint_epoch = 90
 subject_no = 3  # Default three for GOD
+run_name = time.strftime("%Y%m%d-%H%M%S")
 # subject 0 is all subjects (for NSD)
 # add loss method
 # add model import | probs temporary

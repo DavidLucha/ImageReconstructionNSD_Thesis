@@ -1,0 +1,10 @@
+bdpy==0.18
+h5py==2.10.0
+matplotlib==3.3.4
+nibabel==3.2.2
+nilearn==0.9.1
+numpy==1.19.2
+pandas==1.1.5
+scipy==1.5.2
+torch==1.10.2
+torchvision==0.11.3
