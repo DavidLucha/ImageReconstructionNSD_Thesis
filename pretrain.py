@@ -48,6 +48,9 @@ if __name__ == "__main__":
 
             parser.add_argument('--run_name', default=timestep, help='sets the run name to the time shell script run',
                                 type=str)
+            parser.add_argument('--data_root', default=training_config.data_root,
+                                help='sets directory of /datasets folder. Default set to D: drive.'
+                                     'If on HPC, use /scratch/qbi/uqdlucha/datasets/', type=str)
 
             # Optimizing parameters | also, see lambda and margin in training_config.py
             parser.add_argument('--batch_size', default=training_config.batch_size, help='batch size for dataloader',
@@ -55,7 +58,8 @@ if __name__ == "__main__":
             parser.add_argument('--epochs', default=training_config.n_epochs_pt, help='number of epochs', type=int)
             parser.add_argument('--num_workers', '-nw', default=training_config.num_workers,
                                 help='number of workers for dataloader', type=int)
-            parser.add_argument('-loss_method', default='maria', help='defines loss calculations', type=str)
+            parser.add_argument('-loss_method', default='Maria',
+                                help='defines loss calculations. Maria, David, Orig.', type=str)
             parser.add_argument('--lr', default=training_config.learning_rate_pt, type=float)
             parser.add_argument('--decay_lr', default=training_config.decay_lr,
                                 help='.98 in Maria, .75 in original VAE/GAN', type=float)
@@ -86,15 +90,15 @@ if __name__ == "__main__":
         """
         # Get current working directory
         CWD = os.getcwd()
-        OUTPUT_PATH = os.path.join(training_config.data_root, 'output/')
+        OUTPUT_PATH = os.path.join(args.data_root, 'output/')
 
         # Load training data for GOD and NSD, default is NSD
-        TRAIN_DATA_PATH = os.path.join(training_config.data_root, training_config.nsd_s1_train_imgs)
-        VALID_DATA_PATH = os.path.join(training_config.data_root, training_config.nsd_s1_valid_imgs)
+        TRAIN_DATA_PATH = os.path.join(args.data_root, training_config.nsd_s1_train_imgs)
+        VALID_DATA_PATH = os.path.join(args.data_root, training_config.nsd_s1_valid_imgs)
 
         if args.dataset == 'GOD':
-            TRAIN_DATA_PATH = os.path.join(training_config.data_root, training_config.god_pretrain_imgs)
-            VALID_DATA_PATH = os.path.join(training_config.data_root, training_config.god_s1_valid_imgs)
+            TRAIN_DATA_PATH = os.path.join(args.data_root, training_config.god_pretrain_imgs)
+            VALID_DATA_PATH = os.path.join(args.data_root, training_config.god_s1_valid_imgs)
             # TODO: Change this. Let's make this a subset of a larger pre-training batch.
 
         # Create directory for results
