@@ -122,6 +122,8 @@ if __name__ == "__main__":
         # Info logging
         logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
         logger = logging.getLogger()
+        pil_logger = logging.getLogger('PIL')
+        pil_logger.setLevel(logging.INFO)
         file_handler = logging.FileHandler(os.path.join(LOG_PATH, 'log.txt'))
         handler_formatting = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         file_handler.setFormatter(handler_formatting)

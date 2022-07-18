@@ -8,13 +8,14 @@
 #SBATCH -o tensor_out.txt
 #SBATCH -e tensor_error.txt
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:tesla:1
 
-module load anaconda/3.7
-source activate /scratch/qbi/uqdlucha/python/dvaegan
-module load gnu7/7.2.0
+module load anaconda
+module load gcc/12.1.0
 module load cuda/11.3.0
 module load mvapich2
+
+source activate /scratch/qbi/uqdlucha/python/dvaegan
 
 RUN_NAME=$(date +%Y%m%d-%H%M%S)
 # 20220712_172256
