@@ -58,7 +58,7 @@ if __name__ == "__main__":
             parser.add_argument('--epochs', default=training_config.n_epochs_pt, help='number of epochs', type=int)
             parser.add_argument('--num_workers', '-nw', default=training_config.num_workers,
                                 help='number of workers for dataloader', type=int)
-            parser.add_argument('-loss_method', default='Maria',
+            parser.add_argument('--loss_method', default='Maria',
                                 help='defines loss calculations. Maria, David, Orig.', type=str)
             parser.add_argument('--lr', default=training_config.learning_rate_pt, type=float)
             parser.add_argument('--decay_lr', default=training_config.decay_lr,

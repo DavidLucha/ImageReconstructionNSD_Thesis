@@ -1,0 +1,21 @@
+Traceback (most recent call last):
+  File "/clusterdata/uqdlucha/scripts/deepReconPyTorch/pretrain.py", line 7, in <module>
+    import pandas as pd
+  File "/scratch/qbi/uqdlucha/python/dvaegan/lib/python3.8/site-packages/pandas/__init__.py", line 48, in <module>
+    from pandas.core.api import (
+  File "/scratch/qbi/uqdlucha/python/dvaegan/lib/python3.8/site-packages/pandas/core/api.py", line 48, in <module>
+    from pandas.core.groupby import (
+  File "/scratch/qbi/uqdlucha/python/dvaegan/lib/python3.8/site-packages/pandas/core/groupby/__init__.py", line 1, in <module>
+    from pandas.core.groupby.generic import (
+  File "/scratch/qbi/uqdlucha/python/dvaegan/lib/python3.8/site-packages/pandas/core/groupby/generic.py", line 70, in <module>
+    from pandas.core.frame import DataFrame
+  File "/scratch/qbi/uqdlucha/python/dvaegan/lib/python3.8/site-packages/pandas/core/frame.py", line 157, in <module>
+    from pandas.core.generic import NDFrame
+  File "/scratch/qbi/uqdlucha/python/dvaegan/lib/python3.8/site-packages/pandas/core/generic.py", line 152, in <module>
+    from pandas.core.window import (
+  File "/scratch/qbi/uqdlucha/python/dvaegan/lib/python3.8/site-packages/pandas/core/window/__init__.py", line 1, in <module>
+    from pandas.core.window.ewm import (  # noqa:F401
+  File "/scratch/qbi/uqdlucha/python/dvaegan/lib/python3.8/site-packages/pandas/core/window/ewm.py", line 12, in <module>
+    import pandas._libs.window.aggregations as window_aggregations
+ImportError: /opt/ohpc/pub/compiler/gcc/5.4.0/lib64/libstdc++.so.6: version `GLIBCXX_3.4.29' not found (required by /scratch/qbi/uqdlucha/python/dvaegan/lib/python3.8/site-packages/pandas/_libs/window/aggregations.cpython-38-x86_64-linux-gnu.so)
+srun: error: gpunode-0-8: task 0: Exited with exit code 1
