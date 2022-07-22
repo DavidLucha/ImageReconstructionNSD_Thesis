@@ -5,8 +5,8 @@
 #SBATCH -n 1
 #SBATCH -c 1
 #SBATCH --mem=5000
-#SBATCH -o pretrain_stage1_test.txt
-#SBATCH -e pretrain_stage1_test.txt
+#SBATCH -o pretrain_stage1_test_output.txt
+#SBATCH -e pretrain_stage1_test_error.txt
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:tesla:1
 
