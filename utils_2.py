@@ -50,7 +50,7 @@ class FmriDataloader(object):
 
         voxels = self.dataset[idx]['fmri']
 
-        # Assuming image path in pickle file starts at 'image/'
+        # Assuming image path in pickle file starts at 'images/'
         # Then add the set root directory to the start
         if self.root_path is not None and self.root_path not in self.dataset[idx]['image']:
             self.dataset[idx]['image'] = self.root_path + self.dataset[idx]['image']

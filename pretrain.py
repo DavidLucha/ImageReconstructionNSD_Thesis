@@ -29,6 +29,7 @@ if __name__ == "__main__":
         numpy.random.seed(2010)
         torch.manual_seed(2010)
         torch.cuda.manual_seed(2010)
+        logging.info('set up random seeds')
 
         torch.autograd.set_detect_anomaly(True)
         timestep = time.strftime("%Y%m%d-%H%M%S")
@@ -49,9 +50,9 @@ if __name__ == "__main__":
             parser.add_argument('--run_name', default=timestep, help='sets the run name to the time shell script run',
                                 type=str)
             parser.add_argument('--data_root', default=training_config.data_root,
-                                help='sets directory of /datasets folder. Default set to D: drive.'
-                                     'If on HPC, use /scratch/qbi/uqdlucha/datasets/', type=str)
-
+                                help='sets directory of /datasets folder. Default set to scratch.'
+                                     'If on HPC, use /scratch/qbi/uqdlucha/datasets/,'
+                                     'If on home PC, us D:/Lucha_Data/datasets/', type=str)
             # Optimizing parameters | also, see lambda and margin in training_config.py
             parser.add_argument('--batch_size', default=training_config.batch_size, help='batch size for dataloader',
                                 type=int)
@@ -60,6 +61,8 @@ if __name__ == "__main__":
                                 help='number of workers for dataloader', type=int)
             parser.add_argument('--loss_method', default='Maria',
                                 help='defines loss calculations. Maria, David, Orig.', type=str)
+            parser.add_argument('--optim_method', default='RMS',
+                                help='defines method for optimizer. Options: RMS or Adam.', type=str)
             parser.add_argument('--lr', default=training_config.learning_rate_pt, type=float)
             parser.add_argument('--decay_lr', default=training_config.decay_lr,
                                 help='.98 in Maria, .75 in original VAE/GAN', type=float)
@@ -72,7 +75,7 @@ if __name__ == "__main__":
                                 help='pretrained network', type=str)
             parser.add_argument('--load_epoch', '-pretrain_epoch', default=training_config.load_epoch,
                                 help='epoch of the pretrained model', type=int)
-            parser.add_argument('--dataset', default='GOD', help='GOD, NSD', type=str)
+            parser.add_argument('--dataset', default='both', help='GOD, NSD, both', type=str)
             # Only need vox_res arg from stage 2 and 3
             parser.add_argument('--vox_res', default='1.8mm', help='1.8mm, 3mm', type=str)
             # Probably only needed stage 2/3 (though do we want to change stage 1 - depends on whether we do the full Ren...
@@ -92,14 +95,8 @@ if __name__ == "__main__":
         CWD = os.getcwd()
         OUTPUT_PATH = os.path.join(args.data_root, 'output/')
 
-        # Load training data for GOD and NSD, default is NSD
-        TRAIN_DATA_PATH = os.path.join(args.data_root, training_config.nsd_s1_train_imgs)
-        VALID_DATA_PATH = os.path.join(args.data_root, training_config.nsd_s1_valid_imgs)
-
-        if args.dataset == 'GOD':
-            TRAIN_DATA_PATH = os.path.join(args.data_root, training_config.god_pretrain_imgs)
-            VALID_DATA_PATH = os.path.join(args.data_root, training_config.god_s1_valid_imgs)
-            # TODO: Change this. Let's make this a subset of a larger pre-training batch.
+        TRAIN_DATA_PATH = os.path.join(args.data_root, training_config.god_pretrain_imgs)
+        VALID_DATA_PATH = os.path.join(args.data_root, 'both/images/valid/')
 
         # Create directory for results
         stage_num = 'pretrain'
@@ -120,15 +117,13 @@ if __name__ == "__main__":
         LOGGING SETUP
         """
         # Info logging
-        logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
+        logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
         logger = logging.getLogger()
-        pil_logger = logging.getLogger('PIL')
-        pil_logger.setLevel(logging.INFO)
         file_handler = logging.FileHandler(os.path.join(LOG_PATH, 'log.txt'))
         handler_formatting = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         file_handler.setFormatter(handler_formatting)
         # logger = logging.getLogger()
-        file_handler.setLevel(logging.DEBUG)
+        file_handler.setLevel(logging.INFO)
         logger.addHandler(file_handler)
 
         # Check available gpu
@@ -140,12 +135,7 @@ if __name__ == "__main__":
         if device == 'cpu':
             raise Exception()
 
-        logging.info('set up random seeds')
-
-        torch.manual_seed(2010)
-
         # Save arguments
-        # CURRENTLY NOT WORKING
         with open(os.path.join(SAVE_PATH, 'config.txt'), 'w') as f:
             json.dump(args.__dict__, f, indent=2)
 
@@ -157,47 +147,36 @@ if __name__ == "__main__":
         train_data = TRAIN_DATA_PATH
         valid_data = VALID_DATA_PATH
 
-        if args.dataset == 'GOD':
-            # Load data
-            # For pretraining, images are of different aspect ratios. We apply a resize to shorter side of the image \
-            # To maintain the aspect ratio of the original image. Then apply a random crop and horizontal flip.
-            training_data = ImageNetDataloader(train_data, pickle=False,
-                                           transform=transforms.Compose([transforms.Resize(training_config.image_size),
-                                                                         transforms.RandomCrop((training_config.image_size,
-                                                                                                training_config.image_size)),
-                                                                         transforms.RandomHorizontalFlip(),
-                                                                         transforms.ToTensor(),
-                                                                         GreyToColor(training_config.image_size),
-                                                                         transforms.Normalize(training_config.mean,
-                                                                                              training_config.std)
-                                                                         ]))
+        # Load data
+        # For pretraining, images are of different aspect ratios. We apply a resize to shorter side of the image \
+        # To maintain the aspect ratio of the original image. Then apply a random crop and horizontal flip.
+        training_data = ImageNetDataloader(train_data, pickle=False,
+                                       transform=transforms.Compose([transforms.Resize(training_config.image_size),
+                                                                     transforms.RandomCrop((training_config.image_size,
+                                                                                            training_config.image_size)),
+                                                                     transforms.RandomHorizontalFlip(),
+                                                                     transforms.ToTensor(),
+                                                                     GreyToColor(training_config.image_size),
+                                                                     transforms.Normalize(training_config.mean,
+                                                                                          training_config.std)
+                                                                     ]))
 
-            # We then apply CenterCrop and don't random flip to ensure that validation reconstructions match the \
-            # ground truth image grid.
-            validation_data = ImageNetDataloader(valid_data, pickle=False,
-                                           transform=transforms.Compose([transforms.Resize(training_config.image_size),
-                                                                         transforms.CenterCrop((training_config.image_size,
-                                                                                                training_config.image_size)),
-                                                                         transforms.ToTensor(),
-                                                                         GreyToColor(training_config.image_size),
-                                                                         transforms.Normalize(training_config.mean,
-                                                                                              training_config.std)
-                                                                         ]))
+        # We then apply CenterCrop and don't random flip to ensure that validation reconstructions match the \
+        # ground truth image grid.
+        validation_data = ImageNetDataloader(valid_data, pickle=False,
+                                       transform=transforms.Compose([transforms.Resize(training_config.image_size),
+                                                                     transforms.CenterCrop((training_config.image_size,
+                                                                                            training_config.image_size)),
+                                                                     transforms.ToTensor(),
+                                                                     GreyToColor(training_config.image_size),
+                                                                     transforms.Normalize(training_config.mean,
+                                                                                          training_config.std)
+                                                                     ]))
 
-            dataloader_train = DataLoader(training_data, batch_size=args.batch_size,
-                                          shuffle=True, num_workers=args.num_workers)
-            dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size,
-                                          shuffle=False, num_workers=args.num_workers)
-
-        # TODO: NSD Dataloader
-        elif args.dataset == 'NSD':
-            """
-            Insert here, if needed.
-            """
-
-        else:
-            logging.info('Wrong dataset')
-
+        dataloader_train = DataLoader(training_data, batch_size=args.batch_size,
+                                      shuffle=True, num_workers=args.num_workers)
+        dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size,
+                                      shuffle=False, num_workers=args.num_workers)
 
         """# Test dataloader and show grid
         print(plt.style.available)
@@ -292,9 +271,7 @@ if __name__ == "__main__":
         )
 
         # An optimizer and schedulers for each of the sub-networks, so we can selectively backprop
-        # TODO: Change LR to args for stages | test RMS vs Adam
-        # TODO: Change LR to args for stages
-        optim_method = 'RMS'  # RMS or Adam or SGD (Momentum)
+        optim_method = args.optim_method  # RMS or Adam or SGD (Momentum)
         if optim_method == 'RMS':
             optimizer_encoder = torch.optim.RMSprop(params=model.encoder.parameters(), lr=lr,
                                                     alpha=0.9,
@@ -359,15 +336,8 @@ if __name__ == "__main__":
                 for batch_idx, data_batch in enumerate(dataloader_train):
                     model.train()
 
-                    if args.dataset == 'GOD':
-                        batch_size = len(data_batch)
-                        x = Variable(data_batch, requires_grad=False).float().to(device)
-
-                    # elif args.dataset == 'NSD':
-                    #     batch_size = len(data_batch[0])
-                    #     x = Variable(data_batch[0], requires_grad=False).float().to(device)
-                    # else:
-                    #     logging.info('Wrong dataset') #ingo
+                    batch_size = len(data_batch)
+                    x = Variable(data_batch, requires_grad=False).float().to(device)
 
                     x_tilde, disc_class, disc_layer, mus, log_variances = model(x)
 
@@ -554,15 +524,8 @@ if __name__ == "__main__":
 
                 for batch_idx, data_batch in enumerate(dataloader_valid):
 
-                    if args.dataset == 'GOD':
-                        batch_size = len(data_batch)
-                        data_batch = Variable(data_batch, requires_grad=False).float().to(device)
-
-                    elif args.dataset == 'NSD':
-                        batch_size = len(data_batch[0])
-                        data_batch = Variable(data_batch[0], requires_grad=False).float().to(device)
-                    else:
-                        logging.info('Wrong dataset') #ingo
+                    batch_size = len(data_batch)
+                    data_batch = Variable(data_batch, requires_grad=False).float().to(device)
 
                     model.eval()
                     data_in = Variable(data_batch, requires_grad=False).float().to(device)
@@ -719,6 +682,7 @@ if __name__ == "__main__":
                 plt.savefig(plot_dir)
                 logging.info("Plots are saved")
                 # plt.show()
+                plt.close('all')
         exit(0)
     except Exception:
         logger.error("Fatal error", exc_info=True)
