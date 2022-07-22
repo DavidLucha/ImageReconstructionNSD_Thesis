@@ -216,7 +216,7 @@ if __name__ == "__main__":
 
         # Load Stage 1 network weights
         model_dir = os.path.join(OUTPUT_PATH, 'both/stage_1', args.pretrained_net,
-                                   'stage_1' + args.pretrained_net + '_{}.pth'.format(args.load_epoch))
+                                   'stage_1_vaegan_' + args.pretrained_net + '_{}.pth'.format(args.load_epoch))
         logging.info('Loaded network is:', model_dir)
         # TODO: Change 'pretrain' to stage 1 when it's working | We don't know yet
 
@@ -253,7 +253,7 @@ if __name__ == "__main__":
         if args.network_checkpoint is not None:
             net_checkpoint_path = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, SUBJECT_PATH,
                                                'stage_2', args.network_checkpoint,
-                                               'stage_2_' + args.network_checkpoint + '.pth')
+                                               'stage_2_vaegan_' + args.network_checkpoint + '.pth')
             print(net_checkpoint_path)
 
         # Load and show results for checkpoint

@@ -230,7 +230,7 @@ if __name__ == "__main__":
         # Set checkpoint path
         if args.network_checkpoint is not None:
             net_checkpoint_path = os.path.join(OUTPUT_PATH, args.dataset, 'pretrain', args.network_checkpoint,
-                                       'pretrained_' + args.network_checkpoint + '.pth')
+                                       'pretrained_vaegan_' + args.network_checkpoint + '.pth')
             print(net_checkpoint_path)
 
         # Load and show results
