@@ -122,7 +122,7 @@ if __name__ == "__main__":
         # Create directory for results
         stage_num = 'stage_2'
         SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, SUBJECT_PATH, stage_num,
-                                 'vaegan_{}'.format(args.run_name))
+                                 args.run_name)
         if not os.path.exists(SAVE_PATH):
             os.makedirs(SAVE_PATH)
 

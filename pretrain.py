@@ -100,7 +100,7 @@ if __name__ == "__main__":
 
         # Create directory for results
         stage_num = 'pretrain'
-        SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, stage_num, 'vaegan_{}'.format(args.run_name))
+        SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, stage_num, args.run_name)
         if not os.path.exists(SAVE_PATH):
             os.makedirs(SAVE_PATH)
 
