@@ -56,7 +56,8 @@ std = [0.5, 0.5, 0.5]
 """____________________Data Config___________________________"""
 
 LOGS_PATH = 'logs/'
-data_root = 'D:/Lucha_Data/datasets/'
+data_root = '/scratch/qbi/uqdlucha/datasets/'
+# data_root for home: 'D:/Lucha_Data/datasets/'
 # save_training_results = ''
 TRAINED_NET_ROOT = ''
 
@@ -73,15 +74,15 @@ god_valid_data = 'GOD/GOD_SubjectZ_valid_normed_avg.pickle' # Average
 
 # NSD Data
 # Change this for NSD tests
-nsd_mode = '1.8mm/'  # 3mm | 5S_Small etc.
+# nsd_mode = '1.8mm/'  # 3mm | 5S_Small etc.
 
 # TODO: We will have to change imgs path depending on test/how we run sample size comparison
 # For Stage 1
 nsd_s1_train_imgs = 'NSD/images/train/'  # add + nsd_mode
 nsd_s1_valid_imgs = 'NSD/images/valid/'
-# TODO: save in /subject0/ format
+# TODO: Rename these to reflect output
 # For Stage 2 and 3
-nsd_train_data = 'NSD/' + nsd_mode + 'NSD_SubjectZ_train.pickle'
-nsd_valid_data = 'NSD/' + nsd_mode + 'NSD_SubjectZ_train.pickle'
+# nsd_train_data = 'NSD_SubjectZ_train.pickle'
+# nsd_valid_data = 'NSD_SubjectZ_train.pickle'
 
 
