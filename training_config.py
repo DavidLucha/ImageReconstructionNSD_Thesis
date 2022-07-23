@@ -21,7 +21,7 @@ num_workers = 8  # was 4, then 8 for good
 batch_size = 64  # according to Ren code = 16
 # Maria loss functions require 64 (sum loss)
 
-learning_rate_pt = 0.0003
+learning_rate_pt = 0.003
 # NOTE: Original VAE/GAE implementation uses 3e-4 but is dependent on batch size (64)
 learning_rate_s1 = 0.0001 # TODO: Change after loss functions change .0003
 # Stage 1 lr should be .003 (according to Ren) - but too drastic right now given the sum loss (use 0.0001)

@@ -176,7 +176,9 @@ class Discriminator(nn.Module):
                     ten, layer_ten = lay(ten, True)
                     # we need the layer representations just for the original and reconstructed,
                     # flatten, because it's a convolutional shape
-                    layer_ten = layer_ten.view(len(layer_ten), -1)
+                    # layer_ten = layer_ten.view(len(layer_ten), -1)
+                    # We've removed this because Ren just takes the conv.
+                    # TODO: Check this
                     return layer_ten
                 else:
                     ten = lay(ten)
@@ -349,22 +351,26 @@ class VaeGan(nn.Module):
     def ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, fin_dis_real, fin_dis_pred,
                  hid_dis_cog=None, fin_dis_cog=None, stage=1, device='cuda'):
         # set Ren params
+        # TODO: Switch scale factors on
+        # TODO: Test without
         d_scale_factor = 0.25
         g_scale_factor = 1 - 0.75 / 2  # 0.625
+        # d_scale_factor = 0
+        # g_scale_factor = 0
         BCE = nn.BCELoss().to(device)
-        MSE = nn.MSELoss().to(device)
+        # MSE = nn.MSELoss().to(device)
 
         # NEED NLE, KL, BCE_DIS_ORIGINAL, BCE_DIS_PREDICTED
         # reconstruction error, not used for the loss but useful to evaluate quality
-        nle = 0.5 * (x.view(len(x), -1) - x_tilde.view(len(x_tilde), -1)) ** 2
+        # nle = 0.5 * (x.view(len(x), -1) - x_tilde.view(len(x_tilde), -1)) ** 2
 
         # kl-divergence
-        # kl = -0.5 * torch.sum(1.0 + log_variances - mus.pow(2.0) - log_variances.exp()) # SUM ISSUE
-        kl = -0.5 * torch.mean(1.0 + log_variances - mus.pow(2.0) - log_variances.exp())
+        kl = -0.5 * torch.sum(1.0 + log_variances - mus.pow(2.0) - log_variances.exp()) # SUM ISSUE
+        # kl = -0.5 * torch.mean(1.0 + log_variances - mus.pow(2.0) - log_variances.exp())
 
         # bce for decoder and discriminator for original and reconstructed
-        bce_dis_original = -torch.log(fin_dis_real)  #  + 1e-3
-        bce_dis_predicted = -torch.log(1 - fin_dis_pred)  #  + 1e-3
+        # bce_dis_original = -torch.log(fin_dis_real)  #  + 1e-3
+        # bce_dis_predicted = -torch.log(1 - fin_dis_pred)  #  + 1e-3
 
         """
         What do we need for Ren:
@@ -414,10 +420,11 @@ class VaeGan(nn.Module):
             dec_fake_pred_loss = BCE(fin_dis_pred,
                                      Variable((torch.ones_like(fin_dis_pred.data) - g_scale_factor).cuda()))
 
-            # feature_loss_pred = torch.mean(torch.sum(NLLNormal(hid_dis_pred, hid_dis_real), [1, 2, 3]))
+            # Hidden vis recon vs hidden real
+            feature_loss_pred = torch.mean(torch.sum(NLLNormal(hid_dis_pred, hid_dis_real), [1, 2, 3]))
             # feature_loss_pred = NLLNormal(hid_dis_pred, hid_dis_real)
             # feature_loss_pred = torch.mean(torch.sum(NLLNormal(hid_dis_pred, hid_dis_real)))
-            feature_loss_pred = MSE(hid_dis_pred, hid_dis_real) # As calculated by Maria | Not using the NLL
+            # feature_loss_pred = MSE(hid_dis_pred, hid_dis_real) # As calculated by Maria | Not using the NLL
 
             # loss_encoder = (kl / (training_config.latent_dim * training_config.batch_size)) - (feature_loss_pred / (
             #         4 * 4 * 64))  # 1024
@@ -427,7 +434,7 @@ class VaeGan(nn.Module):
             # loss_decoder = dec_fake_pred_loss - training_config.lambda_mse * feature_loss_pred
             # loss_discriminator = dis_fake_pred_loss + dis_real_loss
 
-            return kl, feature_loss_pred, dis_fake_pred_loss, dis_real_loss, dec_fake_pred_loss
+            return kl, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dec_fake_pred_loss
             # return nle, kl, bce_dis_original, bce_dis_predicted, loss_encoder, loss_decoder, loss_discriminator, feature_loss_pred
 
         # Stage 2 Loss

@@ -66,6 +66,10 @@ if __name__ == "__main__":
             parser.add_argument('--lr', default=training_config.learning_rate_pt, type=float)
             parser.add_argument('--decay_lr', default=training_config.decay_lr,
                                 help='.98 in Maria, .75 in original VAE/GAN', type=float)
+            parser.add_argument('--adam_beta', default=0.9,
+                                help='sets the first value of the adam optimizer', type=float)
+            parser.add_argument('--lambda_loss', default=1e-6,
+                                help='sets the weighting of the reconstruction loss', type=float)
 
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
@@ -290,13 +294,15 @@ if __name__ == "__main__":
                                                           momentum=0, centered=False)
 
         if optim_method == 'Adam':
-            optimizer_encoder = torch.optim.Adam(params=model.encoder.parameters(), lr=lr,
-                                                 eps=1e-8, weight_decay=training_config.weight_decay)
-            optimizer_decoder = torch.optim.Adam(params=model.decoder.parameters(), lr=lr,
-                                                 eps=1e-8, weight_decay=training_config.weight_decay)
-            optimizer_discriminator = torch.optim.Adam(params=model.discriminator.parameters(),
-                                                       lr=lr, eps=1e-8,
-                                                       weight_decay=training_config.weight_decay)
+            beta_1 = args.adam_beta
+            # todo: make adam_beta arg
+            eps = 1e-8
+            optimizer_encoder = torch.optim.Adam(params=model.encoder.parameters(), lr=lr, eps=eps,
+                                                 betas=(beta_1, 0.999), weight_decay=training_config.weight_decay)
+            optimizer_decoder = torch.optim.Adam(params=model.decoder.parameters(), lr=lr, eps=eps,
+                                                 betas=(beta_1, 0.999), weight_decay=training_config.weight_decay)
+            optimizer_discriminator = torch.optim.Adam(params=model.discriminator.parameters(), lr=lr, eps=eps,
+                                                       betas=(beta_1, 0.999),  weight_decay=training_config.weight_decay)
 
 
         # Initialize schedulers for learning rate
@@ -358,6 +364,7 @@ if __name__ == "__main__":
                     # Selectively disable the decoder of the discriminator if they are unbalanced
                     train_dis = True
                     train_dec = True
+                    equilibrium_game = True
 
                     loss_method = args.loss_method # 'Maria', 'Orig', 'Ren'
 
@@ -421,33 +428,37 @@ if __name__ == "__main__":
                         loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
 
                     if loss_method == 'Ren':
+                        lambda_loss = args.lambda_loss
+                        equilibrium_game = False
                         # Ren Loss Function
-                        kl, feature_loss_pred, dis_fake_pred_loss, dis_real_loss, dec_fake_pred_loss = \
+                        kl, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dec_fake_pred_loss = \
                             VaeGan.ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, fin_dis_real,
-                                            fin_dis_pred, hid_dis_sampled, fin_dis_sampled, stage=stage, device=device)
+                                            fin_dis_pred, stage=stage, device=device)
 
-                        print(kl, feature_loss_pred, dis_fake_pred_loss, dis_real_loss)
+                        # print(kl, feature_loss_pred, dis_fake_pred_loss, dis_real_loss)
 
-                        loss_encoder = kl + feature_loss_pred # GOOD | but Ren does some further division
-                        loss_discriminator = dis_fake_pred_loss + dis_real_loss  # could add sampled term
-                        loss_decoder = (1 - training_config.lambda_mse) * dec_fake_pred_loss - training_config.lambda_mse * feature_loss_pred
-
+                        loss_encoder = (kl / (training_config.latent_dim * batch_size)) - feature_loss_pred / (4 * 4 * 64)
+                        loss_discriminator = dis_fake_pred_loss + dis_real_loss
+                        loss_decoder = dec_fake_pred_loss - lambda_loss * feature_loss_pred
 
                         # Register mean values for logging
-                        loss_encoder_mean = torch.mean(loss_encoder).data.cpu().numpy()
-                        loss_discriminator_mean = loss_discriminator.data.cpu().numpy()  # / batch_size
-                        loss_decoder_mean = loss_decoder.item()  # .cpu().numpy()/ batch_size
+                        loss_encoder_mean = loss_encoder
+                        loss_discriminator_mean = loss_discriminator
+                        loss_decoder_mean = loss_decoder
+                        # loss_encoder_mean = torch.mean(loss_encoder).data.cpu().numpy()
+                        # loss_discriminator_mean = loss_discriminator.data.cpu().numpy()  # / batch_size
+                        # loss_decoder_mean = loss_decoder.item()  # .cpu().numpy()/ batch_size
 
-
-                    if torch.mean(bce_dis_original).item() < equilibrium - margin or torch.mean(
-                            bce_dis_predicted).item() < equilibrium - margin:
-                        train_dis = False
-                    if torch.mean(bce_dis_original).item() > equilibrium + margin or torch.mean(
-                            bce_dis_predicted).item() > equilibrium + margin:
-                        train_dec = False
-                    if train_dec is False and train_dis is False:
-                        train_dis = True
-                        train_dec = True
+                    if equilibrium_game:
+                        if torch.mean(bce_dis_original).item() < equilibrium - margin or torch.mean(
+                                bce_dis_predicted).item() < equilibrium - margin:
+                            train_dis = False
+                        if torch.mean(bce_dis_original).item() > equilibrium + margin or torch.mean(
+                                bce_dis_predicted).item() > equilibrium + margin:
+                            train_dec = False
+                        if train_dec is False and train_dis is False:
+                            train_dis = True
+                            train_dec = True
 
                     # BACKPROP
                     # Backpropagation below ensures same results as if running optimizers in isolation
