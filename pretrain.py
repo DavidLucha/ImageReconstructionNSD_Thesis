@@ -431,7 +431,7 @@ if __name__ == "__main__":
                         lambda_loss = args.lambda_loss
                         equilibrium_game = False
                         # Ren Loss Function
-                        kl, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dec_fake_pred_loss = \
+                        nle, kl, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dec_fake_pred_loss = \
                             VaeGan.ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, fin_dis_real,
                                             fin_dis_pred, stage=stage, device=device)
 
@@ -445,6 +445,7 @@ if __name__ == "__main__":
                         loss_encoder_mean = loss_encoder
                         loss_discriminator_mean = loss_discriminator
                         loss_decoder_mean = loss_decoder
+                        loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
                         # loss_encoder_mean = torch.mean(loss_encoder).data.cpu().numpy()
                         # loss_discriminator_mean = loss_discriminator.data.cpu().numpy()  # / batch_size
                         # loss_decoder_mean = loss_decoder.item()  # .cpu().numpy()/ batch_size

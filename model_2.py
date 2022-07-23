@@ -362,7 +362,7 @@ class VaeGan(nn.Module):
 
         # NEED NLE, KL, BCE_DIS_ORIGINAL, BCE_DIS_PREDICTED
         # reconstruction error, not used for the loss but useful to evaluate quality
-        # nle = 0.5 * (x.view(len(x), -1) - x_tilde.view(len(x_tilde), -1)) ** 2
+        nle = 0.5 * (x.view(len(x), -1) - x_tilde.view(len(x_tilde), -1)) ** 2
 
         # kl-divergence
         kl = -0.5 * torch.sum(1.0 + log_variances - mus.pow(2.0) - log_variances.exp()) # SUM ISSUE
@@ -434,7 +434,7 @@ class VaeGan(nn.Module):
             # loss_decoder = dec_fake_pred_loss - training_config.lambda_mse * feature_loss_pred
             # loss_discriminator = dis_fake_pred_loss + dis_real_loss
 
-            return kl, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dec_fake_pred_loss
+            return nle, kl, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dec_fake_pred_loss
             # return nle, kl, bce_dis_original, bce_dis_predicted, loss_encoder, loss_decoder, loss_discriminator, feature_loss_pred
 
         # Stage 2 Loss
