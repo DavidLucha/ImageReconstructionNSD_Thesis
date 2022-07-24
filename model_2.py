@@ -359,7 +359,7 @@ class VaeGan(nn.Module):
         # g_scale_factor = 0
         BCE = nn.BCELoss().to(device)
         # MSE = nn.MSELoss().to(device)
-        GNLLLoss = torch.nn.GaussianNLLLoss(full=True, reduction='none')
+        # GNLLLoss = torch.nn.GaussianNLLLoss(full=True, reduction='none')
 
         # NEED NLE, KL, BCE_DIS_ORIGINAL, BCE_DIS_PREDICTED
         # reconstruction error, not used for the loss but useful to evaluate quality
@@ -422,15 +422,16 @@ class VaeGan(nn.Module):
                                      Variable((torch.ones_like(fin_dis_pred.data) - g_scale_factor).cuda()))
 
             # Hidden vis recon vs hidden real
-            feature_loss_pred_ren = torch.mean(torch.sum(NLLNormal(hid_dis_pred, hid_dis_real), [1, 2, 3]))
-            var = torch.ones_like(hid_dis_pred)
-            feature_loss_pred_torch = -GNLLLoss(hid_dis_pred, hid_dis_real, var)
+            feature_loss_pred = torch.mean(torch.sum(NLLNormal(hid_dis_pred, hid_dis_real), [1, 2, 3]))
+            # Testing Gaussian loss thing (doesn't work)
+            # var = torch.ones_like(hid_dis_pred)
+            # feature_loss_pred_torch = -GNLLLoss(hid_dis_pred, hid_dis_real, var)
             # print('Are NLL loss calculations the same?', torch.all(feature_loss_pred_ren.eq(feature_loss_pred_GNLL)))
-            if torch.all(feature_loss_pred_ren.eq(feature_loss_pred_torch)):
-                print('NLL Tensors match.')
-                feature_loss_pred = feature_loss_pred_torch
-            else:
-                raise Exception('NLL loss does not match')
+            # if torch.all(feature_loss_pred_ren.eq(feature_loss_pred_torch)):
+            #     print('NLL Tensors match.')
+            #     feature_loss_pred = feature_loss_pred_torch
+            # else:
+            #     raise Exception('NLL loss does not match')
             # feature_loss_pred = NLLNormal(hid_dis_pred, hid_dis_real)
             # feature_loss_pred = torch.mean(torch.sum(NLLNormal(hid_dis_pred, hid_dis_real)))
             # feature_loss_pred = MSE(hid_dis_pred, hid_dis_real) # As calculated by Maria | Not using the NLL
