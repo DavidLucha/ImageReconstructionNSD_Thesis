@@ -70,6 +70,8 @@ if __name__ == "__main__":
                                 help='sets the first value of the adam optimizer', type=float)
             parser.add_argument('--lambda_loss', default=1e-6,
                                 help='sets the weighting of the reconstruction loss', type=float)
+            parser.add_argument('--equilibrium_game', default=True, type=bool,
+                                help='Sets whether to engage the margin/equilibrium game for decoder/disc updates')
 
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
@@ -364,7 +366,7 @@ if __name__ == "__main__":
                     # Selectively disable the decoder of the discriminator if they are unbalanced
                     train_dis = True
                     train_dec = True
-                    equilibrium_game = True
+                    # equilibrium_game = True
 
                     loss_method = args.loss_method # 'Maria', 'Orig', 'Ren'
 
@@ -429,7 +431,7 @@ if __name__ == "__main__":
 
                     if loss_method == 'Ren':
                         lambda_loss = args.lambda_loss
-                        equilibrium_game = False
+                        # equilibrium_game = False
                         # Ren Loss Function
                         nle, kl, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dec_fake_pred_loss = \
                             VaeGan.ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, fin_dis_real,
@@ -449,6 +451,8 @@ if __name__ == "__main__":
                         # loss_encoder_mean = torch.mean(loss_encoder).data.cpu().numpy()
                         # loss_discriminator_mean = loss_discriminator.data.cpu().numpy()  # / batch_size
                         # loss_decoder_mean = loss_decoder.item()  # .cpu().numpy()/ batch_size
+
+                    equilibrium_game = args.equilibrium_game
 
                     if equilibrium_game:
                         if torch.mean(bce_dis_original).item() < equilibrium - margin or torch.mean(
