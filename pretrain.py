@@ -70,8 +70,13 @@ if __name__ == "__main__":
                                 help='sets the first value of the adam optimizer', type=float)
             parser.add_argument('--lambda_loss', default=1e-6,
                                 help='sets the weighting of the reconstruction loss', type=float)
-            parser.add_argument('--equilibrium_game', default=True, type=bool,
-                                help='Sets whether to engage the margin/equilibrium game for decoder/disc updates')
+            parser.add_argument('--equilibrium_game', default='y', type=str,
+                                 help='Sets whether to engage the equilibrium game for decoder/disc updates (y/n)')
+            parser.add_argument('--d_scale', default=0.25,
+                                help='sets the d value of scale for Ren loss', type=float)
+            parser.add_argument('--g_scale', default=0.625,
+                                help='sets the g value of scale for Ren loss', type=float)
+
 
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
@@ -431,22 +436,27 @@ if __name__ == "__main__":
 
                     if loss_method == 'Ren':
                         lambda_loss = args.lambda_loss
+                        d_scale = args.d_scale
+                        g_scale = args.g_scale
                         # equilibrium_game = False
                         # Ren Loss Function
                         nle, kl, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dec_fake_pred_loss = \
                             VaeGan.ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, fin_dis_real,
-                                            fin_dis_pred, stage=stage, device=device)
+                                            fin_dis_pred, stage=stage, device=device, d_scale=d_scale, g_scale=g_scale)
 
                         # print(kl, feature_loss_pred, dis_fake_pred_loss, dis_real_loss)
+                        bce_dis_original = dis_real_loss.clone().detach()
+                        bce_dis_predicted = dis_fake_pred_loss.clone().detach()
 
                         loss_encoder = (kl / (training_config.latent_dim * batch_size)) - feature_loss_pred / (4 * 4 * 64)
                         loss_discriminator = dis_fake_pred_loss + dis_real_loss
                         loss_decoder = dec_fake_pred_loss - lambda_loss * feature_loss_pred
 
                         # Register mean values for logging
-                        loss_encoder_mean = loss_encoder.detach().item()
-                        loss_discriminator_mean = loss_discriminator.detach().item()
-                        loss_decoder_mean = loss_decoder.detach().item()
+                        # .item() takes an average
+                        loss_encoder_mean = loss_encoder.data.cpu().numpy()
+                        loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
+                        loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
                         loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
                         # loss_encoder_mean = torch.mean(loss_encoder).data.cpu().numpy()
                         # loss_discriminator_mean = loss_discriminator.data.cpu().numpy()  # / batch_size
@@ -454,7 +464,7 @@ if __name__ == "__main__":
 
                     equilibrium_game = args.equilibrium_game
 
-                    if equilibrium_game:
+                    if equilibrium_game == 'y':
                         if torch.mean(bce_dis_original).item() < equilibrium - margin or torch.mean(
                                 bce_dis_predicted).item() < equilibrium - margin:
                             train_dis = False

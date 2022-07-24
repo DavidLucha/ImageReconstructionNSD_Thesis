@@ -349,12 +349,14 @@ class VaeGan(nn.Module):
 
     @staticmethod
     def ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, fin_dis_real, fin_dis_pred,
-                 hid_dis_cog=None, fin_dis_cog=None, stage=1, device='cuda'):
+                 hid_dis_cog=None, fin_dis_cog=None, stage=1, device='cuda', d_scale=0.25, g_scale=0.625):
         # set Ren params
         # TODO: Switch scale factors on
         # TODO: Test without
-        d_scale_factor = 0.25
-        g_scale_factor = 1 - 0.75 / 2  # 0.625
+        # d_scale_factor = 0.25
+        # g_scale_factor = 1 - 0.75 / 2  # 0.625
+        d_scale_factor = d_scale
+        g_scale=factor = g_scale
         # d_scale_factor = 0
         # g_scale_factor = 0
         BCE = nn.BCELoss().to(device)
