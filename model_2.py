@@ -356,7 +356,7 @@ class VaeGan(nn.Module):
         # d_scale_factor = 0.25
         # g_scale_factor = 1 - 0.75 / 2  # 0.625
         d_scale_factor = d_scale
-        g_scale=factor = g_scale
+        g_scale_factor = g_scale
         # d_scale_factor = 0
         # g_scale_factor = 0
         BCE = nn.BCELoss().to(device)
