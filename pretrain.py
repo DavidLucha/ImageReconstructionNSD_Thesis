@@ -442,9 +442,9 @@ if __name__ == "__main__":
                         loss_decoder = dec_fake_pred_loss - lambda_loss * feature_loss_pred
 
                         # Register mean values for logging
-                        loss_encoder_mean = loss_encoder
-                        loss_discriminator_mean = loss_discriminator
-                        loss_decoder_mean = loss_decoder
+                        loss_encoder_mean = loss_encoder.detach().item()
+                        loss_discriminator_mean = loss_discriminator.detach().item()
+                        loss_decoder_mean = loss_decoder.detach().item()
                         loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
                         # loss_encoder_mean = torch.mean(loss_encoder).data.cpu().numpy()
                         # loss_discriminator_mean = loss_discriminator.data.cpu().numpy()  # / batch_size
