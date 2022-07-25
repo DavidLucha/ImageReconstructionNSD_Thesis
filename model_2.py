@@ -372,8 +372,8 @@ class VaeGan(nn.Module):
         # kl = -0.5 * torch.mean(1.0 + log_variances - mus.pow(2.0) - log_variances.exp())
 
         # bce for decoder and discriminator for original and reconstructed
-        # bce_dis_original = -torch.log(fin_dis_real)  #  + 1e-3
-        # bce_dis_predicted = -torch.log(1 - fin_dis_pred)  #  + 1e-3
+        bce_dis_original = -torch.log(fin_dis_real + 1e-3)
+        bce_dis_predicted = -torch.log(1 - fin_dis_pred + 1e-3)
 
         """
         What do we need for Ren:
@@ -446,7 +446,7 @@ class VaeGan(nn.Module):
             # loss_decoder = dec_fake_pred_loss - training_config.lambda_mse * feature_loss_pred
             # loss_discriminator = dis_fake_pred_loss + dis_real_loss
 
-            return nle, kl, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dec_fake_pred_loss
+            return bce_dis_original, bce_dis_predicted, nle, kl, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dec_fake_pred_loss
             # return nle, kl, bce_dis_original, bce_dis_predicted, loss_encoder, loss_decoder, loss_discriminator, feature_loss_pred
 
         # Stage 2 Loss

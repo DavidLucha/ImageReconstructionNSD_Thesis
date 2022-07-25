@@ -440,13 +440,13 @@ if __name__ == "__main__":
                         g_scale = args.g_scale
                         # equilibrium_game = False
                         # Ren Loss Function
-                        nle, kl, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dec_fake_pred_loss = \
+                        bce_dis_original, bce_dis_predicted, nle, kl, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dec_fake_pred_loss = \
                             VaeGan.ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, fin_dis_real,
                                             fin_dis_pred, stage=stage, device=device, d_scale=d_scale, g_scale=g_scale)
 
                         # print(kl, feature_loss_pred, dis_fake_pred_loss, dis_real_loss)
-                        bce_dis_original = dis_real_loss.clone().detach()
-                        bce_dis_predicted = dis_fake_pred_loss.clone().detach()
+                        # bce_dis_original = dis_real_loss.clone().detach()
+                        # bce_dis_predicted = dis_fake_pred_loss.clone().detach()
 
                         loss_encoder = (kl / (training_config.latent_dim * batch_size)) - feature_loss_pred / (4 * 4 * 64)
                         loss_discriminator = dis_fake_pred_loss + dis_real_loss
