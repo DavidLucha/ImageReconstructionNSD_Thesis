@@ -22,11 +22,11 @@ source activate /scratch/qbi/uqdlucha/python/dvaegan
 
 RUN_NAME=$(date +%Y%m%d-%H%M%S)
 
-# Study 1
-# Pretrain one network. Used in both GOD and NSD.
-# echo "Running pretrain at $(date +%Y%m%d-%H%M%S)"
-# srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/pretrain.py --num_workers 2 --epochs 40 --dataset both --run_name 02_$RUN_NAME --gamma 0.2 --loss_method Ren --optim_method Adam --equilibrium_game n --message "gamma at 0.2, nw 2"
-# echo "Pretrain complete at $(date +%Y%m%d-%H%M%S)"
+Study 1
+Pretrain one network. Used in both GOD and NSD.
+echo "Running pretrain at $(date +%Y%m%d-%H%M%S)"
+srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/pretrain.py --num_workers 2 --epochs 40 --dataset both --run_name 02_$RUN_NAME --gamma 0.2 --loss_method Ren --optim_method Adam --equilibrium_game n --message "gamma at 0.2, nw 2"
+echo "Pretrain complete at $(date +%Y%m%d-%H%M%S)"
 
 echo "Running pretrain at $(date +%Y%m%d-%H%M%S)"
 srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/pretrain.py --num_workers 1 --epochs 20 --dataset both --run_name 04_$RUN_NAME --gamma 0.5 --loss_method Ren --optim_method Adam --equilibrium_game n --message "gamma at 0.5, nw 1"

@@ -77,7 +77,8 @@ if __name__ == "__main__":
             parser.add_argument('--g_scale', default=0.625,
                                 help='sets the g value of scale for Ren loss', type=float)
             parser.add_argument('--gamma', default=1.0,
-                                help='sets the weighting of KL divergence in encoder loss', type=float)
+                                help='sets the weighting of KL divergence in encoder loss (Ren) or'
+                                     'the weight of MSE_1 in encoder loss (David: 1 vs 5)', type=float)
 
 
 
@@ -346,10 +347,12 @@ if __name__ == "__main__":
         batch_number = len(dataloader_train)
         step_index = 0
         epochs_n = args.epochs
+        epoch_times = []
 
         for idx_epoch in range(epochs_n):
 
             try:
+                time_1 = time.time()
 
                 # For each batch
                 for batch_idx, data_batch in enumerate(dataloader_train):
@@ -385,11 +388,17 @@ if __name__ == "__main__":
                                                                      hid_dis_pred, hid_dis_sampled,
                                                                      fin_dis_real, fin_dis_pred,
                                                                      fin_dis_sampled, mus, log_variances)
-
+                        # if batch_idx == 0:
+                        #     logging.info("kl is:", kl, kl.size())
+                        #     logging.info("mse is: ", mse_1, mse_1.size())
                         loss_encoder = torch.sum(kl) + torch.sum(mse_1)
+                        # kl_rat = torch.sum(kl)/loss_encoder
+                        # mse_rat = torch.sum(mse_1)/loss_encoder  # Roughly 98-99%, sometimes 95~, rarely 75%~
+                        # logging.info("Sum of KL is {}, and makes up {} of encoder loss; {}".format(torch.sum(kl), kl_rat, loss_encoder)) # 64
+                        # logging.info("Sum of MSE is {}, and makes up {} of encoder loss; {}".format(torch.sum(mse_1), mse_rat, loss_encoder)) # 64 * 7 * 7
                         loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
                             bce_dis_sampled)
-                        loss_decoder = torch.sum(training_config.lambda_mse * mse_1) - (1.0 - training_config.lambda_mse) * loss_discriminator
+                        loss_decoder = torch.sum(lambda_mse * mse_1) - (1.0 - lambda_mse) * loss_discriminator
 
                         # Register mean values for logging
                         loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
@@ -404,12 +413,13 @@ if __name__ == "__main__":
                                                                      fin_dis_real, fin_dis_pred,
                                                                      fin_dis_sampled, mus, log_variances)
 
-                        loss_encoder = torch.sum(kl) + torch.sum(mse_1)
+                        # Loss from torch vaegan loss
+                        mse_gamma = args.gamma # Change to 1 or 5
+                        loss_encoder = torch.sum(mse_1) * mse_gamma + torch.sum(kl)
                         loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
                             bce_dis_sampled)
-                        bce_g_tilde_loss = -torch.log(0.375 - fin_dis_pred + 1e-3)
-                        loss_decoder = torch.sum(bce_g_tilde_loss) - torch.sum(training_config.lambda_mse * mse_1)
-                        # loss_decoder = torch.sum(training_config.lambda_mse * mse_1) - (1.0 - training_config.lambda_mse) * loss_discriminator
+                        loss_decoder = torch.sum(bce_gen_sampled) + torch.sum(bce_gen_recon)
+                        loss_decoder = torch.sum(lambda_mse * mse_1) + (1.0 - lambda_mse) * loss_decoder
 
                         # Register mean values for logging
                         loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
@@ -451,8 +461,54 @@ if __name__ == "__main__":
                         # bce_dis_original = dis_real_loss.clone().detach()
                         # bce_dis_predicted = dis_fake_pred_loss.clone().detach()
                         gamma = args.gamma
-                        logging.info('Gamma is: {}'.format(gamma))
+
                         loss_encoder = ((kl / (training_config.latent_dim * batch_size)) * gamma) - feature_loss_pred / (4 * 4 * 64)
+                        loss_discriminator = dis_fake_pred_loss + dis_real_loss
+                        loss_decoder = dec_fake_pred_loss - lambda_loss * feature_loss_pred
+
+                        # Register mean values for logging
+                        # .item() takes an average
+                        loss_encoder_mean = loss_encoder.data.cpu().numpy()
+                        loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
+                        loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
+                        loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
+                        # loss_encoder_mean = torch.mean(loss_encoder).data.cpu().numpy()
+                        # loss_discriminator_mean = loss_discriminator.data.cpu().numpy()  # / batch_size
+                        # loss_decoder_mean = loss_decoder.item()  # .cpu().numpy()/ batch_size
+
+                    if loss_method == 'Ren_Alt':
+                        lambda_loss = args.lambda_loss
+                        d_scale = args.d_scale
+                        g_scale = args.g_scale
+                        # equilibrium_game = False
+                        # Ren Loss Function
+                        bce_dis_original, bce_dis_predicted, nle, kl, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dec_fake_pred_loss = \
+                            VaeGan.ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred,
+                                            fin_dis_real,
+                                            fin_dis_pred, stage=stage, device=device, d_scale=d_scale,
+                                            g_scale=g_scale)
+
+                        # print(kl, feature_loss_pred, dis_fake_pred_loss, dis_real_loss)
+                        # bce_dis_original = dis_real_loss.clone().detach()
+                        # bce_dis_predicted = dis_fake_pred_loss.clone().detach()
+                        gamma = args.gamma
+                        # logging.info('Gamma is: {}'.format(gamma))
+                        # if batch_idx == 0:
+                        #     logging.info("kl is:", kl, kl.size())
+                        #     logging.info("feature loss is: ", feature_loss_pred, feature_loss_pred.size())
+                        # loss_encoder = ((kl / batch_size) * gamma) - feature_loss_pred / (7 * 7 * 64)
+                        loss_encoder = ((kl / (batch_size * training_config.latent_dim)) * 1) - feature_loss_pred / (7 * 7 * 64 * gamma)
+                        # TODO: Test doing 7 * 7 * 256 * 64
+                        # TODO: Replace above * 1 with gamma and remove gamma from feature loss brackets
+                        # p1 = ((kl / (batch_size * training_config.latent_dim)) * gamma)
+                        # p2 = feature_loss_pred / (7 * 7 * 64)
+                        # logging.info("KL portion is {}, and makes up {} of encoder loss; {}".format(p1,
+                        #                                                                             p1 / loss_encoder,
+                        #                                                                             loss_encoder))
+                        # logging.info(
+                        #     "Feature loss portion is {}, and makes up {} of encoder loss; {}".format(torch.sum(p2),
+                        #                                                                              p2 / loss_encoder,
+                        #                                                                              loss_encoder))
                         loss_discriminator = dis_fake_pred_loss + dis_real_loss
                         loss_decoder = dec_fake_pred_loss - lambda_loss * feature_loss_pred
 
@@ -682,6 +738,15 @@ if __name__ == "__main__":
 
                 results_to_save = pd.DataFrame(results)
                 results_to_save.to_csv(SAVE_SUB_PATH.replace(".pth", "_results.csv"), index=False)
+
+                # Calculates average epoch duration
+                time_2 = time.time()
+                time_diff = time_2 - time_1  # in seconds
+                epoch_times.append(time_diff)
+                avg_time = (sum(epoch_times) / len(epoch_times)) / 60
+                logging.info('Duration of epoch {} was: {:.2f} minutes.'
+                             '\nAverage epoch duration is {} minutes.'.format(idx_epoch,
+                                                                              epoch_times[idx_epoch] / 60, int(avg_time)))
 
             except KeyboardInterrupt as e:
                  logging.info(e, 'Saving plots')

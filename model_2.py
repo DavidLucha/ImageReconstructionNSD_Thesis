@@ -314,6 +314,11 @@ class VaeGan(nn.Module):
 
         # kl-divergence
         kl = -0.5 * torch.sum(-variances.exp() - torch.pow(mus, 2) + variances + 1, 1)
+        # print("axis then sum", kl, kl.size())
+        # print("then, sum that", torch.sum(kl), torch.sum(kl).size())
+        # kl_meth_2 = -0.5 * torch.sum(-variances.exp() - torch.pow(mus, 2) + variances + 1)
+        # print("sum with no axis", kl_meth_2, kl_meth_2.size())
+
         # loss_KL = -0.5* torch.mean( 1.0 + logvar - mean.pow(2.0) - logvar.exp() )
 
         # mse between intermediate layers
@@ -369,6 +374,8 @@ class VaeGan(nn.Module):
 
         # kl-divergence
         kl = -0.5 * torch.sum(1.0 + log_variances - mus.pow(2.0) - log_variances.exp()) # SUM ISSUE
+        # kl_latent = (1.0 + log_variances - mus.pow(2.0) - log_variances.exp())
+        # print("kl latent:", kl_latent.size())
         # kl = -0.5 * torch.mean(1.0 + log_variances - mus.pow(2.0) - log_variances.exp())
 
         # bce for decoder and discriminator for original and reconstructed
@@ -424,7 +431,13 @@ class VaeGan(nn.Module):
                                      Variable((torch.ones_like(fin_dis_pred.data) - g_scale_factor).cuda()))
 
             # Hidden vis recon vs hidden real
+            # NLL_out = NLLNormal(hid_dis_pred, hid_dis_real)
+            # print("NLL output is:", NLL_out, NLL_out.size())
+            # feature_loss_sum = torch.sum(NLL_out, [1, 2, 3])
+            # print("feature loss sum:", feature_loss_sum, feature_loss_sum.size())
+            # feature_loss_pred = torch.mean(feature_loss_sum)
             feature_loss_pred = torch.mean(torch.sum(NLLNormal(hid_dis_pred, hid_dis_real), [1, 2, 3]))
+            # print("feature loss:", feature_loss_pred, feature_loss_pred.size())
             # Testing Gaussian loss thing (doesn't work)
             # var = torch.ones_like(hid_dis_pred)
             # feature_loss_pred_torch = -GNLLLoss(hid_dis_pred, hid_dis_real, var)
