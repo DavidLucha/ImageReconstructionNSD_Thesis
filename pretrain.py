@@ -76,6 +76,9 @@ if __name__ == "__main__":
                                 help='sets the d value of scale for Ren loss', type=float)
             parser.add_argument('--g_scale', default=0.625,
                                 help='sets the g value of scale for Ren loss', type=float)
+            parser.add_argument('--gamma', default=1.0,
+                                help='sets the weighting of KL divergence in encoder loss', type=float)
+
 
 
             # Pretrained/checkpoint network components
@@ -447,8 +450,9 @@ if __name__ == "__main__":
                         # print(kl, feature_loss_pred, dis_fake_pred_loss, dis_real_loss)
                         # bce_dis_original = dis_real_loss.clone().detach()
                         # bce_dis_predicted = dis_fake_pred_loss.clone().detach()
-
-                        loss_encoder = (kl / (training_config.latent_dim * batch_size)) - feature_loss_pred / (4 * 4 * 64)
+                        gamma = args.gamma
+                        logging.info('Gamma is: {}'.format(gamma))
+                        loss_encoder = ((kl / (training_config.latent_dim * batch_size)) * gamma) - feature_loss_pred / (4 * 4 * 64)
                         loss_discriminator = dis_fake_pred_loss + dis_real_loss
                         loss_decoder = dec_fake_pred_loss - lambda_loss * feature_loss_pred
 
