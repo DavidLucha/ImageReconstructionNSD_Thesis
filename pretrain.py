@@ -528,8 +528,8 @@ if __name__ == "__main__":
 
                     if loss_method == 'Ren_Alt':
                         lambda_loss = args.lambda_loss
-                        # d_scale = args.d_scale
-                        # g_scale = args.g_scale
+                        d_scale = args.d_scale
+                        g_scale = args.g_scale
                         # equilibrium_game = False
                         # Ren Loss Function
                         bce_dis_original, bce_dis_predicted, nle, kl, mse, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dec_fake_pred_loss = \
