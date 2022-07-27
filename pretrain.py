@@ -325,29 +325,6 @@ if __name__ == "__main__":
             lr_encoder = ExponentialLR(optimizer_encoder, gamma=args.decay_lr)
             lr_decoder = ExponentialLR(optimizer_decoder, gamma=args.decay_lr)
 
-        if optim_method == 'Combined':
-            # encdec_params = list(model.encoder.parameters()) + list(model.decoder.parameters())
-            optimizer_encdec = torch.optim.RMSprop(params=encdec_params, lr=lr,
-                                                    alpha=0.9,
-                                                    eps=1e-8, weight_decay=training_config.weight_decay, momentum=0,
-                                                    centered=False)
-            optimizer_discriminator = torch.optim.RMSprop(params=model.discriminator.parameters(),
-                                                          lr=lr,
-                                                          alpha=0.9, eps=1e-8,
-                                                          weight_decay=training_config.weight_decay,
-                                                          momentum=0, centered=False)
-            # beta_1 = args.adam_beta
-            # todo: make adam_beta arg
-            # eps = 1e-8
-
-            # optimizer_encdec = torch.optim.Adam(params=encdec_params, lr=lr, eps=eps,
-            #                                      betas=(beta_1, 0.999), weight_decay=training_config.weight_decay)
-            # optimizer_discriminator = torch.optim.Adam(params=model.discriminator.parameters(), lr=lr, eps=eps,
-            #                                            betas=(beta_1, 0.999),  weight_decay=training_config.weight_decay)
-            lr_encdec = ExponentialLR(optimizer_encdec, gamma=args.decay_lr)
-
-
-
         # Initialize schedulers for learning rate
         lr_discriminator = ExponentialLR(optimizer_discriminator, gamma=args.decay_lr)
 
@@ -578,6 +555,10 @@ if __name__ == "__main__":
 
                     equilibrium_game = args.equilibrium_game
 
+                    # print('#\n#\n#\n#\n#\n Before training: #\n#\n#\n#\n#\n')
+                    # for name, param in model.named_parameters():
+                    #     print('\n\n PRE-TRAINING \n\n', name, param)
+
                     if equilibrium_game == 'y':
                         if torch.mean(bce_dis_original).item() < equilibrium - margin or torch.mean(
                                 bce_dis_predicted).item() < equilibrium - margin:
@@ -610,59 +591,19 @@ if __name__ == "__main__":
 
                     if args.backprop_method == 'new':
                         # BACKPROP
-                        # Backpropagation below ensures same results as if running optimizers in isolation
-                        # And works in PyTorch==1.10 (allows for other important functions)
-                        if args.optim_method == 'Combined':
-                            loss_encoder.backward(retain_graph=True, inputs=encdec_params)
-                            optimizer_encdec.step()
+                        # Using the logic from Ren's paper, encoder and decoder updated using the same loss.
+                        # As such, not using the equilibrium game.
+                        model.encoder.zero_grad()
+                        model.decoder.zero_grad()
+                        loss_encoder.backward(retain_graph=True, inputs=encdec_params)
+                        optimizer_encoder.step()
+                        optimizer_decoder.step()
 
-                            model.discriminator.zero_grad()
-                            loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
-                            optimizer_discriminator.step()
-                        else:
-                            if train_dec:
-                                # params = list(model.encoder.parameters()) + list(model.decoder.parameters())
-                                # torch.optim.SGD(params, lr=0.01)
-                                loss_encoder.backward(retain_graph=True, inputs=encdec_params)
-                                optimizer_encoder.step()
-                                optimizer_decoder.step()
-                            else:
-                                loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
-                                optimizer_encoder.step()
-
-                            if train_dis:
-                                model.discriminator.zero_grad()
-                                loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
-                                optimizer_discriminator.step()
+                        model.discriminator.zero_grad()
+                        loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
+                        optimizer_discriminator.step()
 
                         model.zero_grad()
-                        # loss_encoder.backward(retain_graph=True, inputs=encdec_params)
-                        # optimizer_encoder.step()
-                        # optimizer_decoder.step()
-                        # loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
-                        # optimizer_encoder.step()
-
-                        # model.discriminator.zero_grad()
-                        # loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
-                        # optimizer_discriminator.step()
-
-                        # model.zero_grad()
-                        """if train_dec:
-                            params = list(model.encoder.parameters()) + list(model.decoder.parameters())
-                            # torch.optim.SGD(params, lr=0.01)
-                            loss_encoder.backward(retain_graph=True, inputs=params)
-                            optimizer_encoder.step()
-                            optimizer_decoder.step()
-                        else:
-                            loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
-                            optimizer_encoder.step()
-
-                        if train_dis:
-                            model.discriminator.zero_grad()
-                            loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
-                            optimizer_discriminator.step()
-
-                        model.zero_grad()"""
 
                     logging.info(
                         f'Epoch  {idx_epoch} {batch_idx + 1:3.0f} / {100 * (batch_idx + 1) / len(dataloader_train):2.3f}%, '
@@ -679,11 +620,8 @@ if __name__ == "__main__":
                     step_index += 1
 
                 # EPOCH END
-                if args.optim_method == 'Combined':
-                    lr_encdec.step()
-                else:
-                    lr_encoder.step()
-                    lr_decoder.step()
+                lr_encoder.step()
+                lr_decoder.step()
                 lr_discriminator.step()
 
                 margin *= training_config.decay_margin
