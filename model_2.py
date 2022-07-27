@@ -364,7 +364,7 @@ class VaeGan(nn.Module):
         g_scale_factor = g_scale
         # d_scale_factor = 0
         # g_scale_factor = 0
-        BCE = nn.BCELoss().to(device)
+        BCE = nn.BCELoss(reduction='none').to(device)
         # MSE = nn.MSELoss().to(device)
         # GNLLLoss = torch.nn.GaussianNLLLoss(full=True, reduction='none')
 

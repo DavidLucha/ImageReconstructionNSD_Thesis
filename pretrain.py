@@ -407,7 +407,13 @@ if __name__ == "__main__":
                         # logging.info("Sum of MSE is {}, and makes up {} of encoder loss; {}".format(torch.sum(mse_1), mse_rat, loss_encoder)) # 64 * 7 * 7
                         loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
                             bce_dis_sampled)
-                        loss_decoder = torch.sum(lambda_mse * mse_1) - (1.0 - lambda_mse) * loss_discriminator
+                        # todo: Check this positive decoder thing. Does it impact performance?
+                        loss_decoder = abs(torch.sum(lambda_mse * mse_1) - (1.0 - lambda_mse) * loss_discriminator)
+                        logging.info('Encoder loss: {} \nDecoder loss: {} \nDiscriminator loss: {}'.format(loss_encoder,
+                                                                                                    loss_decoder,
+                                                                                                    loss_discriminator))
+                        # Enc: Massive
+                        # Dec and Disc same ~60-80 (dec is negative)
 
                         # Register mean values for logging
                         loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
@@ -430,6 +436,7 @@ if __name__ == "__main__":
                         loss_decoder = torch.sum(bce_gen_sampled) + torch.sum(bce_gen_recon)
                         loss_decoder = torch.sum(lambda_mse * mse_1) + (1.0 - lambda_mse) * loss_decoder
 
+
                         # Register mean values for logging
                         loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
                         loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
@@ -443,12 +450,21 @@ if __name__ == "__main__":
                                                                      fin_dis_real, fin_dis_pred,
                                                                      fin_dis_sampled, mus, log_variances)
 
-                        # Loss from torch vaegan loss
+                        # Set up like enc is VAE and decoder as traditional GAN generator, dis as normal
+                        # No sampling error
                         mse_gamma = args.gamma # Change to 1 or 5
                         loss_encoder = torch.sum(mse_1) * mse_gamma + torch.sum(kl)
                         loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) # + torch.sum(bce_dis_sampled)
                         loss_decoder = torch.sum(bce_gen_recon) # torch.sum(bce_gen_sampled) +
                         loss_decoder = torch.sum(lambda_mse * mse_1) + (1.0 - lambda_mse) * loss_decoder
+
+                        logging.info('Encoder loss: {} \nDecoder loss: {} \nDiscriminator loss: {}'.format(loss_encoder,
+                                                                                                    loss_decoder,
+                                                                                                    loss_discriminator))
+
+                        # enc would be the same
+                        # dec is larger 80-120~
+                        # disc is smaller 400-55
 
                         # Register mean values for logging
                         loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
@@ -517,31 +533,20 @@ if __name__ == "__main__":
                                             fin_dis_pred, stage=stage, device=device, d_scale=d_scale,
                                             g_scale=g_scale)
 
-                        # print(kl, feature_loss_pred, dis_fake_pred_loss, dis_real_loss)
-                        # bce_dis_original = dis_real_loss.clone().detach()
-                        # bce_dis_predicted = dis_fake_pred_loss.clone().detach()
                         kl_weight = args.klw
                         gamma = args.gamma
-                        # logging.info('Gamma is: {}'.format(gamma))
-                        # if batch_idx == 0:
-                        #     logging.info("kl is:", kl, kl.size())
-                        #     logging.info("feature loss is: ", feature_loss_pred, feature_loss_pred.size())
+
                         # loss_encoder = ((kl / batch_size) * gamma) - feature_loss_pred / (7 * 7 * 64)
                         loss_encoder = torch.sum(kl) * kl_weight + torch.sum(mse) * gamma
                         # Feature loss is a negative.
-                        # TODO: Test doing 7 * 7 * 256 * 64
-                        # TODO: Replace above * 1 with gamma and remove gamma from feature loss brackets
-                        # p1 = ((kl / (batch_size * training_config.latent_dim)) * gamma)
-                        # p2 = feature_loss_pred / (7 * 7 * 64)
-                        # logging.info("KL portion is {}, and makes up {} of encoder loss; {}".format(p1,
-                        #                                                                             p1 / loss_encoder,
-                        #                                                                             loss_encoder))
-                        # logging.info(
-                        #     "Feature loss portion is {}, and makes up {} of encoder loss; {}".format(torch.sum(p2),
-                        #                                                                              p2 / loss_encoder,
-                        #                                                                              loss_encoder))
+
                         loss_discriminator = torch.sum(dis_fake_pred_loss) + torch.sum(dis_real_loss)
-                        loss_decoder = torch.sum(dec_fake_pred_loss) + torch.sum(mse) * gamma
+                        loss_decoder = torch.sum(dec_fake_pred_loss) # + torch.sum(mse) * gamma
+
+                        logging.info('Encoder loss: {} \nDecoder loss: {} '
+                              '\nDiscriminator loss: {} \nOld Discriminator loss {} '.format(loss_encoder,
+                                                                                             loss_decoder,
+                                                                                             loss_discriminator))
 
                         # Register mean values for logging
                         # .item() takes an average
