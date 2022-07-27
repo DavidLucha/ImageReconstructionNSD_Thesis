@@ -373,7 +373,10 @@ class VaeGan(nn.Module):
         nle = 0.5 * (x.view(len(x), -1) - x_tilde.view(len(x_tilde), -1)) ** 2
 
         # kl-divergence
-        kl = -0.5 * torch.sum(1.0 + log_variances - mus.pow(2.0) - log_variances.exp()) # SUM ISSUE
+        kl = -0.5 * torch.sum(1.0 + log_variances - mus.pow(2.0) - log_variances.exp(), 1) # SUM ISSUE
+        # kl_avg should be ...
+        # kl_ori = -0.5 * torch.sum(1.0 + log_variances - mus.pow(2.0) - log_variances.exp())
+        # kl_1_step = -0.5 * torch.mean(1.0 + log_variances - mus.pow(2.0) - log_variances.exp())
         # kl_latent = (1.0 + log_variances - mus.pow(2.0) - log_variances.exp())
         # print("kl latent:", kl_latent.size())
         # kl = -0.5 * torch.mean(1.0 + log_variances - mus.pow(2.0) - log_variances.exp())
@@ -437,6 +440,7 @@ class VaeGan(nn.Module):
             # print("feature loss sum:", feature_loss_sum, feature_loss_sum.size())
             # feature_loss_pred = torch.mean(feature_loss_sum)
             feature_loss_pred = torch.mean(torch.sum(NLLNormal(hid_dis_pred, hid_dis_real), [1, 2, 3]))
+            mse = torch.sum(0.5 * (hid_dis_real - hid_dis_pred) ** 2, 1)
             # print("feature loss:", feature_loss_pred, feature_loss_pred.size())
             # Testing Gaussian loss thing (doesn't work)
             # var = torch.ones_like(hid_dis_pred)
@@ -459,7 +463,7 @@ class VaeGan(nn.Module):
             # loss_decoder = dec_fake_pred_loss - training_config.lambda_mse * feature_loss_pred
             # loss_discriminator = dis_fake_pred_loss + dis_real_loss
 
-            return bce_dis_original, bce_dis_predicted, nle, kl, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dec_fake_pred_loss
+            return bce_dis_original, bce_dis_predicted, nle, kl, mse, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dec_fake_pred_loss
             # return nle, kl, bce_dis_original, bce_dis_predicted, loss_encoder, loss_decoder, loss_discriminator, feature_loss_pred
 
         # Stage 2 Loss

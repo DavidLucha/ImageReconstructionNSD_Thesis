@@ -113,7 +113,7 @@ if __name__ == "__main__":
         """
         # Get current working directory
         CWD = os.getcwd()
-        OUTPUT_PATH = os.path.join(args.data_root, 'output/')
+        OUTPUT_PATH = os.path.join(args.data_root, '../output/')
 
         TRAIN_DATA_PATH = os.path.join(args.data_root, training_config.god_pretrain_imgs)
         VALID_DATA_PATH = os.path.join(args.data_root, 'both/images/valid/')
@@ -308,8 +308,6 @@ if __name__ == "__main__":
                                                           lr=lr,
                                                           alpha=0.9, eps=1e-8, weight_decay=training_config.weight_decay,
                                                           momentum=0, centered=False)
-            lr_encoder = ExponentialLR(optimizer_encoder, gamma=args.decay_lr)
-            lr_decoder = ExponentialLR(optimizer_decoder, gamma=args.decay_lr)
 
         if optim_method == 'Adam':
             beta_1 = args.adam_beta
@@ -321,34 +319,23 @@ if __name__ == "__main__":
                                                  betas=(beta_1, 0.999), weight_decay=training_config.weight_decay)
             optimizer_discriminator = torch.optim.Adam(params=model.discriminator.parameters(), lr=lr, eps=eps,
                                                        betas=(beta_1, 0.999),  weight_decay=training_config.weight_decay)
-            lr_encoder = ExponentialLR(optimizer_encoder, gamma=args.decay_lr)
-            lr_decoder = ExponentialLR(optimizer_decoder, gamma=args.decay_lr)
 
         if optim_method == 'Combined':
-            encdec_params = list(model.encoder.parameters()) + list(model.decoder.parameters())
-            optimizer_encdec = torch.optim.RMSprop(params=encdec_params, lr=lr,
-                                                    alpha=0.9,
-                                                    eps=1e-8, weight_decay=training_config.weight_decay, momentum=0,
-                                                    centered=False)
-            optimizer_discriminator = torch.optim.RMSprop(params=model.discriminator.parameters(),
-                                                          lr=lr,
-                                                          alpha=0.9, eps=1e-8,
-                                                          weight_decay=training_config.weight_decay,
-                                                          momentum=0, centered=False)
-            # beta_1 = args.adam_beta
+            beta_1 = args.adam_beta
             # todo: make adam_beta arg
-            # eps = 1e-8
-
-            # optimizer_encdec = torch.optim.Adam(params=encdec_params, lr=lr, eps=eps,
-            #                                      betas=(beta_1, 0.999), weight_decay=training_config.weight_decay)
-            # optimizer_discriminator = torch.optim.Adam(params=model.discriminator.parameters(), lr=lr, eps=eps,
-            #                                            betas=(beta_1, 0.999),  weight_decay=training_config.weight_decay)
-            lr_encdec = ExponentialLR(optimizer_encdec, gamma=args.decay_lr)
+            eps = 1e-8
+            encdec_params = list(model.encoder.parameters()) + list(model.decoder.parameters())
+            optimizer_encdec = torch.optim.Adam(params=encdec_params, lr=lr, eps=eps,
+                                                 betas=(beta_1, 0.999), weight_decay=training_config.weight_decay)
+            optimizer_discriminator = torch.optim.Adam(params=model.discriminator.parameters(), lr=lr, eps=eps,
+                                                       betas=(beta_1, 0.999),  weight_decay=training_config.weight_decay)
 
 
 
         # Initialize schedulers for learning rate
-        lr_discriminator = ExponentialLR(optimizer_discriminator, gamma=args.decay_lr)
+        # lr_encoder = ExponentialLR(optimizer_encoder, gamma=args.decay_lr)
+        # lr_decoder = ExponentialLR(optimizer_decoder, gamma=args.decay_lr)
+        # lr_discriminator = ExponentialLR(optimizer_discriminator, gamma=args.decay_lr)
 
         # Metrics
         pearson_correlation = PearsonCorrelation()
@@ -411,121 +398,6 @@ if __name__ == "__main__":
                     model.zero_grad()
 
                     loss_method = args.loss_method # 'Maria', 'Orig', 'Ren'
-
-                    # VAE/GAN loss
-                    if loss_method == 'Maria':
-                        nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
-                        bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
-                                                                     hid_dis_pred, hid_dis_sampled,
-                                                                     fin_dis_real, fin_dis_pred,
-                                                                     fin_dis_sampled, mus, log_variances)
-                        # if batch_idx == 0:
-                        #     logging.info("kl is:", kl, kl.size())
-                        #     logging.info("mse is: ", mse_1, mse_1.size())
-                        loss_encoder = torch.sum(kl) + torch.sum(mse_1)
-                        # kl_rat = torch.sum(kl)/loss_encoder
-                        # mse_rat = torch.sum(mse_1)/loss_encoder  # Roughly 98-99%, sometimes 95~, rarely 75%~
-                        # logging.info("Sum of KL is {}, and makes up {} of encoder loss; {}".format(torch.sum(kl), kl_rat, loss_encoder)) # 64
-                        # logging.info("Sum of MSE is {}, and makes up {} of encoder loss; {}".format(torch.sum(mse_1), mse_rat, loss_encoder)) # 64 * 7 * 7
-                        loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
-                            bce_dis_sampled)
-                        loss_decoder = torch.sum(lambda_mse * mse_1) - (1.0 - lambda_mse) * loss_discriminator
-
-                        # Register mean values for logging
-                        loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
-                        loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
-                        loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
-                        loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
-
-                    if loss_method == 'David':
-                        nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
-                        bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
-                                                                     hid_dis_pred, hid_dis_sampled,
-                                                                     fin_dis_real, fin_dis_pred,
-                                                                     fin_dis_sampled, mus, log_variances)
-
-                        # Loss from torch vaegan loss
-                        mse_gamma = args.gamma # Change to 1 or 5
-                        loss_encoder = torch.sum(mse_1) * mse_gamma + torch.sum(kl)
-                        loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
-                            bce_dis_sampled)
-                        loss_decoder = torch.sum(bce_gen_sampled) + torch.sum(bce_gen_recon)
-                        loss_decoder = torch.sum(lambda_mse * mse_1) + (1.0 - lambda_mse) * loss_decoder
-
-                        # Register mean values for logging
-                        loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
-                        loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
-                        loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
-                        loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
-
-                    if loss_method == 'David_Alt':
-                        nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
-                        bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
-                                                                     hid_dis_pred, hid_dis_sampled,
-                                                                     fin_dis_real, fin_dis_pred,
-                                                                     fin_dis_sampled, mus, log_variances)
-
-                        # Loss from torch vaegan loss
-                        mse_gamma = args.gamma # Change to 1 or 5
-                        loss_encoder = torch.sum(mse_1) * mse_gamma + torch.sum(kl)
-                        loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) # + torch.sum(bce_dis_sampled)
-                        loss_decoder = torch.sum(bce_gen_recon) # torch.sum(bce_gen_sampled) +
-                        loss_decoder = torch.sum(lambda_mse * mse_1) + (1.0 - lambda_mse) * loss_decoder
-
-                        # Register mean values for logging
-                        loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
-                        loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
-                        loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
-                        loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
-
-                    if loss_method == 'Orig':
-                        nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
-                        bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
-                                                                     hid_dis_pred, hid_dis_sampled,
-                                                                     fin_dis_real, fin_dis_pred,
-                                                                     fin_dis_sampled, mus, log_variances)
-
-                        # Loss from torch vaegan loss
-                        loss_encoder = torch.sum(mse_1) + torch.sum(mse_2) + torch.sum(kl)
-                        loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(bce_dis_sampled)
-                        loss_decoder = torch.sum(bce_gen_sampled) + torch.sum(bce_gen_recon)
-                        loss_decoder = torch.sum(lambda_mse / 2 * mse_1) + torch.sum(lambda_mse / 2 * mse_2) + (
-                                    1.0 - lambda_mse) * loss_decoder
-
-                        # Register mean values for logging
-                        loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
-                        loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
-                        loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
-                        loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
-
-                    if loss_method == 'Ren':
-                        lambda_loss = args.lambda_loss
-                        d_scale = args.d_scale
-                        g_scale = args.g_scale
-                        # equilibrium_game = False
-                        # Ren Loss Function
-                        bce_dis_original, bce_dis_predicted, nle, kl, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dec_fake_pred_loss = \
-                            VaeGan.ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, fin_dis_real,
-                                            fin_dis_pred, stage=stage, device=device, d_scale=d_scale, g_scale=g_scale)
-
-                        # print(kl, feature_loss_pred, dis_fake_pred_loss, dis_real_loss)
-                        # bce_dis_original = dis_real_loss.clone().detach()
-                        # bce_dis_predicted = dis_fake_pred_loss.clone().detach()
-                        gamma = args.gamma
-
-                        loss_encoder = ((kl / (training_config.latent_dim * batch_size)) * gamma) - feature_loss_pred / (4 * 4 * 64)
-                        loss_discriminator = dis_fake_pred_loss + dis_real_loss
-                        loss_decoder = dec_fake_pred_loss - lambda_loss * feature_loss_pred
-
-                        # Register mean values for logging
-                        # .item() takes an average
-                        loss_encoder_mean = loss_encoder.data.cpu().numpy()
-                        loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
-                        loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
-                        loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
-                        # loss_encoder_mean = torch.mean(loss_encoder).data.cpu().numpy()
-                        # loss_discriminator_mean = loss_discriminator.data.cpu().numpy()  # / batch_size
-                        # loss_decoder_mean = loss_decoder.item()  # .cpu().numpy()/ batch_size
 
                     if loss_method == 'Ren_Alt':
                         lambda_loss = args.lambda_loss
@@ -611,41 +483,29 @@ if __name__ == "__main__":
                         # BACKPROP
                         # Backpropagation below ensures same results as if running optimizers in isolation
                         # And works in PyTorch==1.10 (allows for other important functions)
-                        if args.optim_method == 'Combined':
-                            loss_encoder.backward(retain_graph=True, inputs=encdec_params)
-                            optimizer_encdec.step()
-
-                            model.discriminator.zero_grad()
-                            loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
-                            optimizer_discriminator.step()
-                        else:
-                            if train_dec:
-                                # params = list(model.encoder.parameters()) + list(model.decoder.parameters())
-                                # torch.optim.SGD(params, lr=0.01)
-                                loss_encoder.backward(retain_graph=True, inputs=encdec_params)
-                                optimizer_encoder.step()
-                                optimizer_decoder.step()
-                            else:
-                                loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
-                                optimizer_encoder.step()
-
-                            if train_dis:
-                                model.discriminator.zero_grad()
-                                loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
-                                optimizer_discriminator.step()
-
-                        model.zero_grad()
-                        # loss_encoder.backward(retain_graph=True, inputs=encdec_params)
+                        criterion_enc = nn.MSELoss()
+                        criterion_dis = nn.BCELoss()
+                        lr_enc_finder = LRFinder(model, optimizer_encdec, criterion_enc, device=device)
+                        lr_dis_finder = LRFinder(model, optimizer_discriminator, criterion_dis, device=device)
+                        lr_enc_finder.range_test(dataloader_train, end_lr=100, num_iter=100)
+                        lr_enc_finder.plot()
+                        lr_enc_finder.reset()
+                        lr_dis_finder.range_test(dataloader_train, end_lr=100, num_iter=100)
+                        lr_dis_finder.plot()
+                        lr_dis_finder.reset()
+                        # print(list(model.encoder.parameters()))
+                        loss_encoder.backward(retain_graph=True, inputs=encdec_params)
+                        optimizer_encdec.step()
                         # optimizer_encoder.step()
                         # optimizer_decoder.step()
                         # loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
                         # optimizer_encoder.step()
 
-                        # model.discriminator.zero_grad()
-                        # loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
-                        # optimizer_discriminator.step()
+                        model.discriminator.zero_grad()
+                        loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
+                        optimizer_discriminator.step()
 
-                        # model.zero_grad()
+                        model.zero_grad()
                         """if train_dec:
                             params = list(model.encoder.parameters()) + list(model.decoder.parameters())
                             # torch.optim.SGD(params, lr=0.01)
@@ -678,13 +538,9 @@ if __name__ == "__main__":
                     step_index += 1
 
                 # EPOCH END
-                if args.optim_method == 'Combined':
-                    lr.encdec.step()
-                else:
-                    lr_encoder.step()
-                    lr_decoder.step()
-                lr_discriminator.step()
-
+                # lr_encoder.step()
+                # lr_decoder.step()
+                # lr_discriminator.step()
                 margin *= training_config.decay_margin
                 equilibrium *= training_config.decay_equilibrium
 
@@ -893,8 +749,8 @@ if __name__ == "__main__":
                 plot_dir = os.path.join(plots_dir, 'ER_loss')
                 plt.savefig(plot_dir)
                 logging.info("Plots are saved")
-                # plt.show()
-                plt.close('all')
+                plt.show()
+                # plt.close('all')
         exit(0)
     except Exception:
         logger.error("Fatal error", exc_info=True)
