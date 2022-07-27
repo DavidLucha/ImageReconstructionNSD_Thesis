@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH -N 1
-#SBATCH --job-pretrain_david_alt_test
+#SBATCH --job-name=pretrain_david_alt_test
 #SBATCH -n 1
 #SBATCH -c 1
 #SBATCH --mem=10000
