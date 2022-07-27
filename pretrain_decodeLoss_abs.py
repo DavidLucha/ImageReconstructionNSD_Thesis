@@ -408,7 +408,7 @@ if __name__ == "__main__":
                         loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
                             bce_dis_sampled)
                         # todo: Check this positive decoder thing. Does it impact performance?
-                        loss_decoder = torch.sum(lambda_mse * mse_1) - (1.0 - lambda_mse) * loss_discriminator
+                        loss_decoder = abs(torch.sum(lambda_mse * mse_1) - (1.0 - lambda_mse) * loss_discriminator)
                         logging.info('Encoder loss: {} \nDecoder loss: {} \nDiscriminator loss: {}'.format(loss_encoder,
                                                                                                     loss_decoder,
                                                                                                     loss_discriminator))
