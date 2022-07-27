@@ -17,7 +17,6 @@ from torchvision.utils import make_grid
 from torch.utils.data import DataLoader, ConcatDataset
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import ExponentialLR
-from torch_lr_finder import LRFinder
 
 import training_config
 from model_2 import VaeGan
