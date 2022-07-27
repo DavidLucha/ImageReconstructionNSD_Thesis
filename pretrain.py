@@ -680,7 +680,7 @@ if __name__ == "__main__":
 
                 # EPOCH END
                 if args.optim_method == 'Combined':
-                    lr.encdec.step()
+                    lr_encdec.step()
                 else:
                     lr_encoder.step()
                     lr_decoder.step()
