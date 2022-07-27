@@ -294,6 +294,8 @@ if __name__ == "__main__":
 
         # An optimizer and schedulers for each of the sub-networks, so we can selectively backprop
         optim_method = args.optim_method  # RMS or Adam or SGD (Momentum)
+        encdec_params = list(model.encoder.parameters()) + list(model.decoder.parameters())
+
         if optim_method == 'RMS':
             optimizer_encoder = torch.optim.RMSprop(params=model.encoder.parameters(), lr=lr,
                                                     alpha=0.9,
@@ -324,7 +326,7 @@ if __name__ == "__main__":
             lr_decoder = ExponentialLR(optimizer_decoder, gamma=args.decay_lr)
 
         if optim_method == 'Combined':
-            encdec_params = list(model.encoder.parameters()) + list(model.decoder.parameters())
+            # encdec_params = list(model.encoder.parameters()) + list(model.decoder.parameters())
             optimizer_encdec = torch.optim.RMSprop(params=encdec_params, lr=lr,
                                                     alpha=0.9,
                                                     eps=1e-8, weight_decay=training_config.weight_decay, momentum=0,
