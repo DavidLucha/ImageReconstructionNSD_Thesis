@@ -72,10 +72,10 @@ if __name__ == "__main__":
                                 help='sets the weighting of the reconstruction loss', type=float)
             parser.add_argument('--equilibrium_game', default='y', type=str,
                                  help='Sets whether to engage the equilibrium game for decoder/disc updates (y/n)')
-            parser.add_argument('--d_scale', default=0.25,
-                                help='sets the d value of scale for Ren loss', type=float)
-            parser.add_argument('--g_scale', default=0.625,
-                                help='sets the g value of scale for Ren loss', type=float)
+            parser.add_argument('--d_scale', default=0.0,
+                                help='sets the d value of scale for Ren loss, 0.25 in Rens code', type=float)
+            parser.add_argument('--g_scale', default=0.0,
+                                help='sets the g value of scale for Ren loss; 0.625 in Rens code', type=float)
             parser.add_argument('--gamma', default=1.0,
                                 help='sets the weighting of KL divergence in encoder loss (Ren) or'
                                      'the weight of MSE_1 in encoder loss (David: 1 vs 5)', type=float)
@@ -400,14 +400,31 @@ if __name__ == "__main__":
                         # if batch_idx == 0:
                         #     logging.info("kl is:", kl, kl.size())
                         #     logging.info("mse is: ", mse_1, mse_1.size())
-                        loss_encoder = torch.sum(kl) + torch.sum(mse_1)
+
+                        # print('encoder loss components \ntorch.sum(kl): {:.2f} \n'
+                        #       'torch.sum(mse_1): {:.2f}\n\n\n'.format(torch.sum(kl), torch.sum(mse_1)))
                         # kl_rat = torch.sum(kl)/loss_encoder
                         # mse_rat = torch.sum(mse_1)/loss_encoder  # Roughly 98-99%, sometimes 95~, rarely 75%~
                         # logging.info("Sum of KL is {}, and makes up {} of encoder loss; {}".format(torch.sum(kl), kl_rat, loss_encoder)) # 64
                         # logging.info("Sum of MSE is {}, and makes up {} of encoder loss; {}".format(torch.sum(mse_1), mse_rat, loss_encoder)) # 64 * 7 * 7
+
+                        # print('discriminator loss components '
+                        #       '\ntorch.sum(bce_dis_original): {:.2f} \n'
+                        #       'torch.sum(bce_dis_predicted): {:.2f}\n'
+                        #       '\ntorch.sum(bce_dis_sampled): {:.2f}'.format(torch.sum(bce_dis_original),
+                        #                                             torch.sum(bce_dis_predicted), torch.sum(bce_dis_sampled)))
+                        # todo: Check this positive decoder thing. Does it impact performance?
+                        # YES. Very much so.
+
+                        # print('decoder loss components '
+                        #       '\ntorch.sum(lambda_mse * mse_1): {:.2f} \n'
+                        #       '(1.0 - lambda_mse) * loss_discriminator: {:.2f}\n'
+                        #       '\nloss_discriminator: {:.2f}'.format(torch.sum(lambda_mse * mse_1),
+                        #                                                     (1.0 - lambda_mse) * loss_discriminator,
+                        #                                                     loss_discriminator))
+                        loss_encoder = torch.sum(kl) + torch.sum(mse_1)
                         loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
                             bce_dis_sampled)
-                        # todo: Check this positive decoder thing. Does it impact performance?
                         loss_decoder = torch.sum(lambda_mse * mse_1) - (1.0 - lambda_mse) * loss_discriminator
                         logging.info('Encoder loss: {} \nDecoder loss: {} \nDiscriminator loss: {}'.format(loss_encoder,
                                                                                                     loss_decoder,
@@ -422,6 +439,7 @@ if __name__ == "__main__":
                         loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
 
                     if loss_method == 'David':
+                        # Non-saturing GAN loss rather that minmax
                         nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
                         bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
                                                                      hid_dis_pred, hid_dis_sampled,
@@ -429,11 +447,11 @@ if __name__ == "__main__":
                                                                      fin_dis_sampled, mus, log_variances)
 
                         # Loss from torch vaegan loss
-                        mse_gamma = args.gamma # Change to 1 or 5
-                        loss_encoder = torch.sum(mse_1) * mse_gamma + torch.sum(kl)
+                        gamma = args.gamma # Change to 1 or 5
+                        loss_encoder = torch.sum(mse_1) + torch.sum(kl)
                         loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
                             bce_dis_sampled)
-                        loss_decoder = torch.sum(bce_gen_sampled) + torch.sum(bce_gen_recon)
+                        loss_decoder = (torch.sum(bce_gen_sampled) + torch.sum(bce_gen_recon)) * gamma
                         loss_decoder = torch.sum(lambda_mse * mse_1) + (1.0 - lambda_mse) * loss_decoder
 
 
@@ -443,7 +461,8 @@ if __name__ == "__main__":
                         loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
                         loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
 
-                    if loss_method == 'David_Alt':
+                    if loss_method == 'Maria_Alt':
+                        # no sampled portions and scaled discrimnator loss
                         nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
                         bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
                                                                      hid_dis_pred, hid_dis_sampled,
@@ -452,11 +471,46 @@ if __name__ == "__main__":
 
                         # Set up like enc is VAE and decoder as traditional GAN generator, dis as normal
                         # No sampling error
-                        mse_gamma = args.gamma # Change to 1 or 5
-                        loss_encoder = torch.sum(mse_1) * mse_gamma + torch.sum(kl)
-                        loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) # + torch.sum(bce_dis_sampled)
-                        loss_decoder = torch.sum(bce_gen_recon) # torch.sum(bce_gen_sampled) +
-                        loss_decoder = torch.sum(lambda_mse * mse_1) + (1.0 - lambda_mse) * loss_decoder
+                        gamma = args.gamma # Change to 1 or 5
+                        loss_encoder = torch.sum(kl) + torch.sum(mse_1)
+                        loss_discriminator = (torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted)) * gamma
+                        loss_decoder = torch.sum(lambda_mse * mse_1) - (1.0 - lambda_mse) * loss_discriminator
+                        logging.info('Encoder loss: {} \nDecoder loss: {} \nDiscriminator loss: {}'.format(loss_encoder,
+                                                                                                           loss_decoder,
+                                                                                                           loss_discriminator))
+
+                        logging.info('Encoder loss: {} \nDecoder loss: {} \nDiscriminator loss: {}'.format(loss_encoder,
+                                                                                                    loss_decoder,
+                                                                                                    loss_discriminator))
+
+                        # enc would be the same
+                        # dec is larger 80-120~
+                        # disc is smaller 400-55
+
+                        # Register mean values for logging
+                        loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
+                        loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
+                        loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
+                        loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
+
+                    if loss_method == 'Maria_Alt_2':
+                        # No lambda for discriminator portion of decoder loss
+                        nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
+                        bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
+                                                                     hid_dis_pred, hid_dis_sampled,
+                                                                     fin_dis_real, fin_dis_pred,
+                                                                     fin_dis_sampled, mus, log_variances)
+
+                        # Set up like enc is VAE and decoder as traditional GAN generator, dis as normal
+                        # No sampling error
+                        gamma = args.gamma # Change to 1 or 5
+                        loss_encoder = torch.sum(kl) + torch.sum(mse_1)
+                        loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
+                            bce_dis_sampled)
+                        loss_decoder = torch.sum(lambda_mse * mse_1) - loss_discriminator
+                        logging.info('Encoder loss: {} \nDecoder loss: {} \nDiscriminator loss: {}'.format(loss_encoder,
+                                                                                                           loss_decoder,
+                                                                                                           loss_discriminator))
 
                         logging.info('Encoder loss: {} \nDecoder loss: {} \nDiscriminator loss: {}'.format(loss_encoder,
                                                                                                     loss_decoder,
@@ -493,6 +547,7 @@ if __name__ == "__main__":
                         loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
 
                     if loss_method == 'Ren':
+                        # Won't work because now how sampled arguments
                         lambda_loss = args.lambda_loss
                         d_scale = args.d_scale
                         g_scale = args.g_scale
@@ -522,26 +577,26 @@ if __name__ == "__main__":
                         # loss_decoder_mean = loss_decoder.item()  # .cpu().numpy()/ batch_size
 
                     if loss_method == 'Ren_Alt':
+                        # Calculating BCE from torch
                         lambda_loss = args.lambda_loss
                         d_scale = args.d_scale
                         g_scale = args.g_scale
                         # equilibrium_game = False
                         # Ren Loss Function
-                        bce_dis_original, bce_dis_predicted, nle, kl, mse, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dec_fake_pred_loss = \
-                            VaeGan.ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred,
-                                            fin_dis_real,
-                                            fin_dis_pred, stage=stage, device=device, d_scale=d_scale,
-                                            g_scale=g_scale)
+                        bce_dis_original, bce_dis_predicted, nle, kl, mse, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dis_fake_sampled_loss, dec_fake_pred_loss = \
+                            VaeGan.ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, hid_dis_sampled,
+                                            fin_dis_real, fin_dis_pred, fin_dis_sampled, stage=stage, device=device, d_scale=d_scale, g_scale=g_scale)
 
-                        kl_weight = args.klw
-                        gamma = args.gamma
+                        # kl_weight = args.klw
+                        # gamma = args.gamma
 
                         # loss_encoder = ((kl / batch_size) * gamma) - feature_loss_pred / (7 * 7 * 64)
-                        loss_encoder = torch.sum(kl) * kl_weight + torch.sum(mse) * gamma
+                        loss_encoder = torch.sum(kl) + torch.sum(mse)
                         # Feature loss is a negative.
 
-                        loss_discriminator = torch.sum(dis_fake_pred_loss) + torch.sum(dis_real_loss)
-                        loss_decoder = torch.sum(dec_fake_pred_loss) # + torch.sum(mse) * gamma
+                        loss_discriminator = torch.sum(dis_real_loss) + torch.sum(dis_fake_pred_loss) + torch.sum(dis_fake_sampled_loss)
+                        loss_decoder = torch.sum(lambda_mse * mse) - (1.0 - lambda_mse) * loss_discriminator
+                        # loss_decoder = torch.sum(dec_fake_pred_loss) # + torch.sum(mse) * gamma
 
                         logging.info('Encoder loss: {} \nDecoder loss: {} '
                               '\nDiscriminator loss: {} \nOld Discriminator loss {} '.format(loss_encoder,

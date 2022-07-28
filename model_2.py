@@ -353,8 +353,8 @@ class VaeGan(nn.Module):
                bce_gen_recon, bce_gen_sampled
 
     @staticmethod
-    def ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, fin_dis_real, fin_dis_pred,
-                 hid_dis_cog=None, fin_dis_cog=None, stage=1, device='cuda', d_scale=0.25, g_scale=0.625):
+    def ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, hid_dis_sampled, fin_dis_real, fin_dis_pred,
+                 fin_dis_sampled, hid_dis_cog=None, fin_dis_cog=None, stage=1, device='cuda', d_scale=0.25, g_scale=0.625):
         # set Ren params
         # TODO: Switch scale factors on
         # TODO: Test without
@@ -384,6 +384,7 @@ class VaeGan(nn.Module):
         # bce for decoder and discriminator for original and reconstructed
         bce_dis_original = -torch.log(fin_dis_real + 1e-3)
         bce_dis_predicted = -torch.log(1 - fin_dis_pred + 1e-3)
+        bce_dis_sampled = -torch.log(1 - fin_dis_sampled + 1e-3)
 
         """
         What do we need for Ren:
@@ -430,6 +431,7 @@ class VaeGan(nn.Module):
             dis_real_loss = BCE(fin_dis_real,
                                 Variable((torch.ones_like(fin_dis_real.data) - d_scale_factor).cuda()))
             dis_fake_pred_loss = BCE(fin_dis_pred, Variable(torch.zeros_like(fin_dis_pred.data).cuda()))
+            dis_fake_sampled_loss = BCE(fin_dis_sampled, Variable(torch.zeros_like(fin_dis_sampled.data).cuda()))
             dec_fake_pred_loss = BCE(fin_dis_pred,
                                      Variable((torch.ones_like(fin_dis_pred.data) - g_scale_factor).cuda()))
 
@@ -463,7 +465,7 @@ class VaeGan(nn.Module):
             # loss_decoder = dec_fake_pred_loss - training_config.lambda_mse * feature_loss_pred
             # loss_discriminator = dis_fake_pred_loss + dis_real_loss
 
-            return bce_dis_original, bce_dis_predicted, nle, kl, mse, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dec_fake_pred_loss
+            return bce_dis_original, bce_dis_predicted, nle, kl, mse, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dis_fake_sampled_loss, dec_fake_pred_loss
             # return nle, kl, bce_dis_original, bce_dis_predicted, loss_encoder, loss_decoder, loss_discriminator, feature_loss_pred
 
         # Stage 2 Loss
