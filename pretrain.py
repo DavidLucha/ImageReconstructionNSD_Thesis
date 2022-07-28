@@ -598,10 +598,10 @@ if __name__ == "__main__":
                         loss_decoder = torch.sum(lambda_mse * mse) - (1.0 - lambda_mse) * loss_discriminator
                         # loss_decoder = torch.sum(dec_fake_pred_loss) # + torch.sum(mse) * gamma
 
-                        logging.info('Encoder loss: {} \nDecoder loss: {} '
-                              '\nDiscriminator loss: {} \nOld Discriminator loss {} '.format(loss_encoder,
-                                                                                             loss_decoder,
-                                                                                             loss_discriminator))
+                        # logging.info('Encoder loss: {} \nDecoder loss: {} '
+                        #       '\nDiscriminator loss: {} \nOld Discriminator loss {} '.format(loss_encoder,
+                        #                                                                      loss_decoder,
+                        #                                                                      loss_discriminator))
 
                         # Register mean values for logging
                         # .item() takes an average
