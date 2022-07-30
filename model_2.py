@@ -329,9 +329,9 @@ class VaeGan(nn.Module):
         mse_2 = torch.sum(0.5 * (hid_dis_real - hid_dis_sampled) ** 2, 1)  # NEW
 
         # bce for decoder and discriminator for original and reconstructed
-        bce_dis_original = -torch.log(fin_dis_real + 1e-3)
-        bce_dis_predicted = -torch.log(1 - fin_dis_pred + 1e-3)
-        bce_dis_sampled = -torch.log(1 - fin_dis_sampled + 1e-3)
+        bce_dis_original = -torch.log(fin_dis_real + 1e-5) # 1e-3
+        bce_dis_predicted = -torch.log(1 - fin_dis_pred + 1e-5)
+        bce_dis_sampled = -torch.log(1 - fin_dis_sampled + 1e-5)
 
         bce_gen_sampled = -torch.log(fin_dis_sampled + 1e-3)  # NEW
         bce_gen_recon = -torch.log(fin_dis_pred + 1e-3)  # NEW

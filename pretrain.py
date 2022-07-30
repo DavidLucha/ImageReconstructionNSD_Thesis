@@ -24,11 +24,11 @@ from utils_2 import ImageNetDataloader, GreyToColor, evaluate, PearsonCorrelatio
     StructuralSimilarity, objective_assessment, parse_args, NLLNormal, potentiation
 
 
-if __name__ == "__main__":
+def main():
     try:
-        numpy.random.seed(2010)
-        torch.manual_seed(2010)
-        torch.cuda.manual_seed(2010)
+        numpy.random.seed(42690)
+        torch.manual_seed(42690)
+        torch.cuda.manual_seed(42690)
         logging.info('set up random seeds')
 
         torch.autograd.set_detect_anomaly(True)
@@ -827,7 +827,8 @@ if __name__ == "__main__":
                     # only for one batch due to memory issue
                     break
 
-                if not idx_epoch % 10 or idx_epoch == epochs_n-1:
+                if not idx_epoch % 25 or idx_epoch == epochs_n-1:
+                    # TODO: Change this to a lower number, for testing, I have it higher
                     torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
                     logging.info('Saving model')
 
@@ -898,3 +899,7 @@ if __name__ == "__main__":
     except Exception:
         logger.error("Fatal error", exc_info=True)
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
