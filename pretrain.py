@@ -1,4 +1,5 @@
 import os
+import random
 import time
 import numpy
 import torch
@@ -7,6 +8,7 @@ import argparse
 import pandas as pd
 import matplotlib.pyplot as plt
 import json
+import random
 import sys
 
 import torchvision
@@ -26,16 +28,7 @@ from utils_2 import ImageNetDataloader, GreyToColor, evaluate, PearsonCorrelatio
 
 def main():
     try:
-        numpy.random.seed(42690)
-        torch.manual_seed(42690)
-        torch.cuda.manual_seed(42690)
-        logging.info('set up random seeds')
-
-        torch.autograd.set_detect_anomaly(True)
         timestep = time.strftime("%Y%m%d-%H%M%S")
-        # print('timestep is ',timestep)
-
-        stage = 1
 
         """
         ARGS PARSER
@@ -83,6 +76,7 @@ def main():
                                                                           'but new, means enc and dec are updated'
                                                                           ' using the same loss function', type=str)
             parser.add_argument('--klw', default=1.0, help='sets weighting for KL divergence', type=float)
+            parser.add_argument('--seed', default=42690, help='sets seed, 0 makes a random int', type=int)
 
 
 
@@ -119,6 +113,8 @@ def main():
 
         # Create directory for results
         stage_num = 'pretrain'
+        stage = 1
+
         SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, stage_num, args.run_name)
         if not os.path.exists(SAVE_PATH):
             os.makedirs(SAVE_PATH)
@@ -131,6 +127,11 @@ def main():
         if not os.path.exists(LOG_PATH):
             os.makedirs(LOG_PATH)
             # os.chmod(LOG_PATH, 0o777)
+
+        # Save arguments
+        with open(os.path.join(SAVE_PATH, 'config.txt'), 'w') as f:
+            json.dump(args.__dict__, f, indent=2)
+
 
         """
         LOGGING SETUP
@@ -148,6 +149,25 @@ def main():
         file_handler.setLevel(logging.INFO)
         logger.addHandler(file_handler)
 
+
+        """
+        SETTING SEEDS
+        """
+        seed = args.seed
+        if args.seed == 0:
+            seed = random.randint()
+        numpy.random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
+        logging.info('Set up random seeds...\nSeed is: {}'.format(seed))
+
+        torch.autograd.set_detect_anomaly(True)
+        # print('timestep is ',timestep)
+
+
+        """
+        DEVICE SETTING
+        """
         # Check available gpu
         # import torch
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -156,10 +176,6 @@ def main():
         logger.info("Used device: %s" % device)
         if device == 'cpu':
             raise Exception()
-
-        # Save arguments
-        with open(os.path.join(SAVE_PATH, 'config.txt'), 'w') as f:
-            json.dump(args.__dict__, f, indent=2)
 
 
         """
@@ -199,39 +215,6 @@ def main():
                                       shuffle=True, num_workers=args.num_workers)
         dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size,
                                       shuffle=False, num_workers=args.num_workers)
-
-        """# Test dataloader and show grid
-        print(plt.style.available)
-    
-        font = {'family': 'Times New Roman',
-                'weight': 'bold',
-                'size': 14}
-    
-        def show_and_save(file_name, img):
-            npimg = numpy.transpose(img.numpy(), (1, 2, 0))
-            fig = plt.figure(dpi=200)
-            # f = "./%s.png" % file_name
-            fig.suptitle(file_name, fontsize=14, fontweight='bold')
-            plt.imshow(npimg)
-            # plt.imsave(f, npimg)
-    
-        real_batch = next(iter(dataloader_train))
-    
-        fig, ax = plt.subplots(figsize=(10, 10))
-        # ax.text(family="Times New Roman", size=12)
-        ax.set_xticks([]) # Sets to no ticks
-        ax.set_yticks([])
-        ax.set_title('Iteration of Real Batch', **font)
-        ax.imshow(make_grid(real_batch[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
-        fig.show()
-    
-        # output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
-        # plt.savefig(output_dir)
-    
-        # show_and_save("Test Dataloader", make_grid((real_batch * 0.5 + 0.5).cpu(), 8))
-        # plt.show()
-    
-        raise Exception('Stop after grid show.')"""
 
         # This writer function is for torch.tensorboard - might be worth
         writer = SummaryWriter(SAVE_PATH + '/runs_' + args.run_name)
@@ -397,31 +380,7 @@ def main():
                                                                      hid_dis_pred, hid_dis_sampled,
                                                                      fin_dis_real, fin_dis_pred,
                                                                      fin_dis_sampled, mus, log_variances)
-                        # if batch_idx == 0:
-                        #     logging.info("kl is:", kl, kl.size())
-                        #     logging.info("mse is: ", mse_1, mse_1.size())
 
-                        # print('encoder loss components \ntorch.sum(kl): {:.2f} \n'
-                        #       'torch.sum(mse_1): {:.2f}\n\n\n'.format(torch.sum(kl), torch.sum(mse_1)))
-                        # kl_rat = torch.sum(kl)/loss_encoder
-                        # mse_rat = torch.sum(mse_1)/loss_encoder  # Roughly 98-99%, sometimes 95~, rarely 75%~
-                        # logging.info("Sum of KL is {}, and makes up {} of encoder loss; {}".format(torch.sum(kl), kl_rat, loss_encoder)) # 64
-                        # logging.info("Sum of MSE is {}, and makes up {} of encoder loss; {}".format(torch.sum(mse_1), mse_rat, loss_encoder)) # 64 * 7 * 7
-
-                        # print('discriminator loss components '
-                        #       '\ntorch.sum(bce_dis_original): {:.2f} \n'
-                        #       'torch.sum(bce_dis_predicted): {:.2f}\n'
-                        #       '\ntorch.sum(bce_dis_sampled): {:.2f}'.format(torch.sum(bce_dis_original),
-                        #                                             torch.sum(bce_dis_predicted), torch.sum(bce_dis_sampled)))
-                        # todo: Check this positive decoder thing. Does it impact performance?
-                        # YES. Very much so.
-
-                        # print('decoder loss components '
-                        #       '\ntorch.sum(lambda_mse * mse_1): {:.2f} \n'
-                        #       '(1.0 - lambda_mse) * loss_discriminator: {:.2f}\n'
-                        #       '\nloss_discriminator: {:.2f}'.format(torch.sum(lambda_mse * mse_1),
-                        #                                                     (1.0 - lambda_mse) * loss_discriminator,
-                        #                                                     loss_discriminator))
                         loss_encoder = torch.sum(kl) + torch.sum(mse_1)
                         loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
                             bce_dis_sampled)
@@ -429,8 +388,6 @@ def main():
                         logging.info('Encoder loss: {} \nDecoder loss: {} \nDiscriminator loss: {}'.format(loss_encoder,
                                                                                                     loss_decoder,
                                                                                                     loss_discriminator))
-                        # Enc: Massive
-                        # Dec and Disc same ~60-80 (dec is negative)
 
                         # Register mean values for logging
                         loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
@@ -447,45 +404,64 @@ def main():
                                                                      fin_dis_sampled, mus, log_variances)
 
                         # Loss from torch vaegan loss
-                        gamma = args.gamma # Change to 1 or 5
-                        loss_encoder = torch.sum(mse_1) + torch.sum(kl)
-                        loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
-                            bce_dis_sampled)
-                        loss_decoder = (torch.sum(bce_gen_sampled) + torch.sum(bce_gen_recon)) * gamma
-                        loss_decoder = torch.sum(lambda_mse * mse_1) + (1.0 - lambda_mse) * loss_decoder
+                        loss_encoder = torch.sum(kl) + torch.sum(mse_1)
+                        model.zero_grad()
+                        loss_encoder.backward(retain_graph=True)
+                        optimizer_encoder.step()
 
+                        x_tilde, disc_class, disc_layer, mus, log_variances = model(x)
 
-                        # Register mean values for logging
-                        loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
-                        loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
-                        loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
-                        loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
+                        # Split so we can get the different parts
+                        # disc_layer = hid_dis_
+                        hid_dis_real = disc_layer[:batch_size]
+                        hid_dis_pred = disc_layer[batch_size:-batch_size]
+                        hid_dis_sampled = disc_layer[-batch_size:]
 
-                    if loss_method == 'Maria_Alt':
-                        # no sampled portions and scaled discrimnator loss
+                        # disc_class = fin_dis_
+                        fin_dis_real = disc_class[:batch_size]
+                        fin_dis_pred = disc_class[batch_size:-batch_size]
+                        fin_dis_sampled = disc_class[-batch_size:]
+
                         nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
                         bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
                                                                      hid_dis_pred, hid_dis_sampled,
                                                                      fin_dis_real, fin_dis_pred,
                                                                      fin_dis_sampled, mus, log_variances)
 
-                        # Set up like enc is VAE and decoder as traditional GAN generator, dis as normal
-                        # No sampling error
-                        gamma = args.gamma # Change to 1 or 5
-                        loss_encoder = torch.sum(kl) + torch.sum(mse_1)
-                        loss_discriminator = (torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted)) * gamma
+                        loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
+                            bce_dis_sampled)
+                        model.zero_grad()
+                        loss_discriminator.backward(retain_graph=True)
+                        optimizer_discriminator.step()
+
+                        x_tilde, disc_class, disc_layer, mus, log_variances = model(x)
+
+                        # Split so we can get the different parts
+                        # disc_layer = hid_dis_
+                        hid_dis_real = disc_layer[:batch_size]
+                        hid_dis_pred = disc_layer[batch_size:-batch_size]
+                        hid_dis_sampled = disc_layer[-batch_size:]
+
+                        # disc_class = fin_dis_
+                        fin_dis_real = disc_class[:batch_size]
+                        fin_dis_pred = disc_class[batch_size:-batch_size]
+                        fin_dis_sampled = disc_class[-batch_size:]
+
+                        nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
+                        bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
+                                                                     hid_dis_pred, hid_dis_sampled,
+                                                                     fin_dis_real, fin_dis_pred,
+                                                                     fin_dis_sampled, mus, log_variances)
+
+                        loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
+                            bce_dis_sampled)
                         loss_decoder = torch.sum(lambda_mse * mse_1) - (1.0 - lambda_mse) * loss_discriminator
-                        logging.info('Encoder loss: {} \nDecoder loss: {} \nDiscriminator loss: {}'.format(loss_encoder,
-                                                                                                           loss_decoder,
-                                                                                                           loss_discriminator))
-
-                        logging.info('Encoder loss: {} \nDecoder loss: {} \nDiscriminator loss: {}'.format(loss_encoder,
-                                                                                                    loss_decoder,
-                                                                                                    loss_discriminator))
-
-                        # enc would be the same
-                        # dec is larger 80-120~
-                        # disc is smaller 400-55
+                        model.zero_grad()
+                        loss_decoder.backward(retain_graph=True)
+                        optimizer_decoder.step()
+                        # logging.info('Encoder loss: {} \nDecoder loss: {} \nDiscriminator loss: {}'.format(loss_encoder,
+                        #                                                                                    loss_decoder,
+                        #                                                                                    loss_discriminator))
 
                         # Register mean values for logging
                         loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
@@ -493,32 +469,73 @@ def main():
                         loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
                         loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
 
-                    if loss_method == 'Maria_Alt_2':
-                        # No lambda for discriminator portion of decoder loss
+                    if loss_method == 'David_Alt':
+                        # Non-saturing GAN loss rather that minmax
                         nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
                         bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
                                                                      hid_dis_pred, hid_dis_sampled,
                                                                      fin_dis_real, fin_dis_pred,
                                                                      fin_dis_sampled, mus, log_variances)
 
-                        # Set up like enc is VAE and decoder as traditional GAN generator, dis as normal
-                        # No sampling error
-                        gamma = args.gamma # Change to 1 or 5
+                        # Loss from torch vaegan loss
                         loss_encoder = torch.sum(kl) + torch.sum(mse_1)
+                        model.zero_grad()
+                        loss_encoder.backward(create_graph=True)
+                        optimizer_encoder.step()
+
+                        x_tilde, disc_class, disc_layer, mus, log_variances = model(x)
+
+                        # Split so we can get the different parts
+                        # disc_layer = hid_dis_
+                        hid_dis_real = disc_layer[:batch_size]
+                        hid_dis_pred = disc_layer[batch_size:-batch_size]
+                        hid_dis_sampled = disc_layer[-batch_size:]
+
+                        # disc_class = fin_dis_
+                        fin_dis_real = disc_class[:batch_size]
+                        fin_dis_pred = disc_class[batch_size:-batch_size]
+                        fin_dis_sampled = disc_class[-batch_size:]
+
+                        nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
+                        bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
+                                                                     hid_dis_pred, hid_dis_sampled,
+                                                                     fin_dis_real, fin_dis_pred,
+                                                                     fin_dis_sampled, mus, log_variances)
+
                         loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
                             bce_dis_sampled)
-                        loss_decoder = torch.sum(lambda_mse * mse_1) - loss_discriminator
-                        logging.info('Encoder loss: {} \nDecoder loss: {} \nDiscriminator loss: {}'.format(loss_encoder,
-                                                                                                           loss_decoder,
-                                                                                                           loss_discriminator))
+                        model.zero_grad()
+                        loss_discriminator.backward(create_graph=True)
+                        optimizer_discriminator.step()
 
-                        logging.info('Encoder loss: {} \nDecoder loss: {} \nDiscriminator loss: {}'.format(loss_encoder,
-                                                                                                    loss_decoder,
-                                                                                                    loss_discriminator))
+                        x_tilde, disc_class, disc_layer, mus, log_variances = model(x)
 
-                        # enc would be the same
-                        # dec is larger 80-120~
-                        # disc is smaller 400-55
+                        # Split so we can get the different parts
+                        # disc_layer = hid_dis_
+                        hid_dis_real = disc_layer[:batch_size]
+                        hid_dis_pred = disc_layer[batch_size:-batch_size]
+                        hid_dis_sampled = disc_layer[-batch_size:]
+
+                        # disc_class = fin_dis_
+                        fin_dis_real = disc_class[:batch_size]
+                        fin_dis_pred = disc_class[batch_size:-batch_size]
+                        fin_dis_sampled = disc_class[-batch_size:]
+
+                        nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
+                        bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
+                                                                     hid_dis_pred, hid_dis_sampled,
+                                                                     fin_dis_real, fin_dis_pred,
+                                                                     fin_dis_sampled, mus, log_variances)
+
+                        loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
+                            bce_dis_sampled)
+                        loss_decoder = torch.sum(lambda_mse * mse_1) - (1.0 - lambda_mse) * loss_discriminator
+                        model.zero_grad()
+                        loss_decoder.backward(create_graph=True)
+                        optimizer_decoder.step()
+                        # logging.info('Encoder loss: {} \nDecoder loss: {} \nDiscriminator loss: {}'.format(loss_encoder,
+                        #                                                                                    loss_decoder,
+                        #                                                                                    loss_discriminator))
 
                         # Register mean values for logging
                         loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
@@ -649,6 +666,47 @@ def main():
 
                         model.zero_grad()
 
+                    if args.backprop_method == 'create':
+                        # BACKPROP
+                        # Backpropagation below ensures same results as if running optimizers in isolation
+                        # And works in PyTorch==1.10 (allows for other important functions)
+                        loss_encoder.backward(create_graph=True, inputs=list(model.encoder.parameters()))
+                        optimizer_encoder.step()
+
+                        if train_dec:
+                            model.decoder.zero_grad()
+                            loss_decoder.backward(create_graph=True, inputs=list(model.decoder.parameters()))
+                            optimizer_decoder.step()
+
+                        if train_dis:
+                            model.discriminator.zero_grad()
+                            loss_discriminator.backward(create_graph=True, inputs=list(model.discriminator.parameters()))
+                            optimizer_discriminator.step()
+
+                        model.zero_grad()
+
+                    if args.backprop_method == 'clip':
+                        # BACKPROP
+                        # Backpropagation below ensures same results as if running optimizers in isolation
+                        # And works in PyTorch==1.10 (allows for other important functions)
+                        loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
+                        [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
+                        optimizer_encoder.step()
+
+                        if train_dec:
+                            model.decoder.zero_grad()
+                            loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
+                            [p.grad.data.clamp_(-1, 1) for p in model.decoder.parameters()]
+                            optimizer_decoder.step()
+
+                        if train_dis:
+                            model.discriminator.zero_grad()
+                            loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
+                            [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
+                            optimizer_discriminator.step()
+
+                        model.zero_grad()
+
                     if args.backprop_method == 'new':
                         # BACKPROP
                         # Using the logic from Ren's paper, encoder and decoder updated using the same loss.
@@ -664,6 +722,9 @@ def main():
                         optimizer_discriminator.step()
 
                         model.zero_grad()
+
+                    if args.backprop_method == 'no':
+                        logging.info('No backprop sequence')
 
                     logging.info(
                         f'Epoch  {idx_epoch} {batch_idx + 1:3.0f} / {100 * (batch_idx + 1) / len(dataloader_train):2.3f}%, '
