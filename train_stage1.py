@@ -9,6 +9,7 @@ import logging
 import argparse
 import pandas as pd
 import matplotlib.pyplot as plt
+import random
 
 import torchvision
 from torch import nn
@@ -24,17 +25,11 @@ from model_2 import VaeGan
 from utils_2 import ImageNetDataloader, GreyToColor, evaluate, PearsonCorrelation, \
     StructuralSimilarity, objective_assessment, parse_args, NLLNormal, potentiation
 
-if __name__ == "__main__":
+def main():
     try:
-        numpy.random.seed(8)
-        torch.manual_seed(8)
-        torch.cuda.manual_seed(8)
-        logging.info('set up random seeds')
 
-        torch.autograd.set_detect_anomaly(True)
         timestep = time.strftime("%Y%m%d-%H%M%S")
 
-        stage = 1
 
         """
         ARGS PARSER
@@ -57,13 +52,13 @@ if __name__ == "__main__":
             parser.add_argument('--epochs', default=training_config.n_epochs, help='number of epochs', type=int)
             parser.add_argument('--num_workers', '-nw', default=training_config.num_workers,
                                 help='number of workers for dataloader', type=int)
-            parser.add_argument('--loss_method', default='Maria',
-                                help='defines loss calculations. Maria, David, Orig.', type=str)
-            parser.add_argument('--optim_method', default='RMS',
-                                help='defines method for optimizer. Options: RMS or Adam.', type=str)
             parser.add_argument('--lr', default=training_config.learning_rate_s1, type=float)
             parser.add_argument('--decay_lr', default=training_config.decay_lr,
                                 help='.98 in Maria, .75 in original VAE/GAN', type=float)
+            parser.add_argument('--backprop_method', default='clip', help='trad sets three diff loss functions,'
+                                                                          'but clip, clips the gradients to help'
+                                                                          'avoid the late spikes in loss', type=str)
+            parser.add_argument('--seed', default=277603, help='sets seed, 0 makes a random int', type=int)
 
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
@@ -102,6 +97,8 @@ if __name__ == "__main__":
 
         # Create directory for results
         stage_num = 'stage_1'
+        stage = 1
+
         SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, stage_num, args.run_name)
         if not os.path.exists(SAVE_PATH):
             os.makedirs(SAVE_PATH)
@@ -113,6 +110,11 @@ if __name__ == "__main__":
         LOG_PATH = os.path.join(SAVE_PATH, training_config.LOGS_PATH)
         if not os.path.exists(LOG_PATH):
             os.makedirs(LOG_PATH)
+
+        # Save arguments
+        with open(os.path.join(SAVE_PATH, 'config.txt'), 'w') as f:
+            json.dump(args.__dict__, f, indent=2)
+
 
         """
         LOGGING SETUP
@@ -129,15 +131,31 @@ if __name__ == "__main__":
         file_handler.setLevel(logging.INFO)
         logger.addHandler(file_handler)
 
+
+        """
+        SETTING SEEDS
+        """
+        seed = args.seed
+        if seed == 0:
+            seed = random.randint(1, 999999)
+        numpy.random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
+        logging.info('Set up random seeds...\nSeed is: {}'.format(seed))
+
+        torch.autograd.set_detect_anomaly(True)
+        # print('timestep is ',timestep)
+
+
+        """
+        DEVICE SETTING
+        """
         # Check available gpu
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         logger.info("Used device: %s" % device)
         if device == 'cpu':
             raise Exception()
 
-        # Save arguments
-        with open(os.path.join(SAVE_PATH, 'config.txt'), 'w') as f:
-            json.dump(args.__dict__, f, indent=2)
 
         """
         DATASET LOADING
@@ -287,31 +305,18 @@ if __name__ == "__main__":
         )
 
         # An optimizer and schedulers for each of the sub-networks, so we can selectively backprop
-        # TODO: Change LR to args for stages
-        optim_method = args.optim_method  # RMS or Adam or SGD (Momentum)
-        if optim_method == 'RMS':
-            optimizer_encoder = torch.optim.RMSprop(params=model.encoder.parameters(), lr=args.lr,
-                                                    alpha=0.9,
-                                                    eps=1e-8, weight_decay=training_config.weight_decay, momentum=0,
-                                                    centered=False)
-            optimizer_decoder = torch.optim.RMSprop(params=model.decoder.parameters(), lr=args.lr,
-                                                    alpha=0.9,
-                                                    eps=1e-8, weight_decay=training_config.weight_decay, momentum=0,
-                                                    centered=False)
-            optimizer_discriminator = torch.optim.RMSprop(params=model.discriminator.parameters(),
-                                                          lr=args.lr,
-                                                          alpha=0.9, eps=1e-8, weight_decay=training_config.weight_decay,
-                                                          momentum=0, centered=False)
-
-        if optim_method == 'Adam':
-            optimizer_encoder = torch.optim.Adam(params=model.encoder.parameters(), lr=args.lr,
-                                                 eps=1e-8, weight_decay=training_config.weight_decay)
-            optimizer_decoder = torch.optim.Adam(params=model.decoder.parameters(), lr=args.lr,
-                                                 eps=1e-8, weight_decay=training_config.weight_decay)
-            optimizer_discriminator = torch.optim.Adam(params=model.discriminator.parameters(),
-                                                       lr=args.lr, eps=1e-8,
-                                                       weight_decay=training_config.weight_decay)
-
+        optimizer_encoder = torch.optim.RMSprop(params=model.encoder.parameters(), lr=lr,
+                                                alpha=0.9,
+                                                eps=1e-8, weight_decay=training_config.weight_decay, momentum=0,
+                                                centered=False)
+        optimizer_decoder = torch.optim.RMSprop(params=model.decoder.parameters(), lr=lr,
+                                                alpha=0.9,
+                                                eps=1e-8, weight_decay=training_config.weight_decay, momentum=0,
+                                                centered=False)
+        optimizer_discriminator = torch.optim.RMSprop(params=model.discriminator.parameters(),
+                                                      lr=lr,
+                                                      alpha=0.9, eps=1e-8, weight_decay=training_config.weight_decay,
+                                                      momentum=0, centered=False)
 
         # Initialize schedulers for learning rate
         lr_encoder = ExponentialLR(optimizer_encoder, gamma=args.decay_lr)
@@ -371,54 +376,31 @@ if __name__ == "__main__":
                     fin_dis_sampled = disc_class[-batch_size:]
 
                     # VAE/GAN Loss
-                    # Using Ren's Loss Function
-                    # TODO: ADD EXTRA PARAMS (Only for COG)
-                    # TODO: Add a second kl for cog
-                    """nle, kl, bce_dis_original, bce_dis_predicted, loss_encoder, loss_decoder, loss_discriminator, feature_loss_pred = \
-                        VaeGan.ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, fin_dis_real,
-                                        fin_dis_pred, hid_dis_cog=None, fin_dis_cog=None, stage=stage, device=device)"""
-
                     # Selectively disable the decoder of the discriminator if they are unbalanced
                     train_dis = True
                     train_dec = True
 
-                    loss_method = args.loss_method # 'Maria', 'Ren'
+                    model.zero_grad()
 
-                    # VAE/GAN loss
-                    if loss_method == 'Maria':
-                        nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
-                        bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
-                                                                     hid_dis_pred, hid_dis_sampled,
-                                                                     fin_dis_real, fin_dis_pred,
-                                                                     fin_dis_sampled, mus, log_variances)
+                    """
+                    Calculate loss
+                    """
+                    nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
+                    bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
+                                                                 hid_dis_pred, hid_dis_sampled,
+                                                                 fin_dis_real, fin_dis_pred,
+                                                                 fin_dis_sampled, mus, log_variances)
 
-                        loss_encoder = torch.sum(kl) + torch.sum(mse_1)
-                        loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
-                            bce_dis_sampled)
-                        loss_decoder = torch.sum(training_config.lambda_mse * mse_1) - (1.0 - training_config.lambda_mse) * loss_discriminator
+                    loss_encoder = torch.sum(kl) + torch.sum(mse_1)
+                    loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
+                        bce_dis_sampled)
+                    loss_decoder = torch.sum(training_config.lambda_mse * mse_1) - (1.0 - training_config.lambda_mse) * loss_discriminator
 
-                        # Register mean values for logging
-                        loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
-                        loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
-                        loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
-                        loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
-
-                    if loss_method == 'Ren':
-                        # Ren Loss Function
-                        kl, feature_loss_pred, dis_fake_pred_loss, dis_real_loss, dec_fake_pred_loss = \
-                            VaeGan.ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, fin_dis_real,
-                                            fin_dis_pred, hid_dis_sampled, fin_dis_sampled, stage=stage, device=device)
-
-                        print(kl, feature_loss_pred, dis_fake_pred_loss, dis_real_loss)
-
-                        loss_encoder = kl + feature_loss_pred # GOOD | but Ren does some further division
-                        loss_discriminator = dis_fake_pred_loss + dis_real_loss  # could add sampled term
-                        loss_decoder = (1 - training_config.lambda_mse) * dec_fake_pred_loss - training_config.lambda_mse * feature_loss_pred
-
-                        # Register mean values for logging
-                        loss_encoder_mean = torch.mean(loss_encoder).data.cpu().numpy()
-                        loss_discriminator_mean = loss_discriminator.data.cpu().numpy()  # / batch_size
-                        loss_decoder_mean = loss_decoder.item()  # .cpu().numpy()/ batch_size
+                    # Register mean values for logging
+                    loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
+                    loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
+                    loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
+                    loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
 
                     # Initially try training without equilibrium
                     if torch.mean(bce_dis_original).item() < equilibrium - margin or torch.mean(
@@ -431,23 +413,47 @@ if __name__ == "__main__":
                         train_dis = True
                         train_dec = True
 
-                    # BACKPROP
-                    # Backpropagation below ensures same results as if running optimizers in isolation
-                    # And works in PyTorch==1.10 (allows for other important functions)
-                    loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
-                    optimizer_encoder.step()
+                    """
+                    Backpropagation
+                    """
+                    if args.backprop_method == 'trad':
+                        # BACKPROP
+                        # Backpropagation below ensures same results as if running optimizers in isolation
+                        # And works in PyTorch==1.10 (allows for other important functions)
+                        loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
+                        optimizer_encoder.step()
 
-                    if train_dec:
-                        model.decoder.zero_grad()
-                        loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
-                        optimizer_decoder.step()
+                        if train_dec:
+                            model.decoder.zero_grad()
+                            loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
+                            optimizer_decoder.step()
 
-                    if train_dis:
-                        model.discriminator.zero_grad()
-                        loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
-                        optimizer_discriminator.step()
+                        if train_dis:
+                            model.discriminator.zero_grad()
+                            loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
+                            optimizer_discriminator.step()
 
-                    model.zero_grad()
+                        model.zero_grad()
+
+                    if args.backprop_method == 'clip':
+                        # clip, clips the gradients and helps the late spike in loss
+                        loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
+                        [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
+                        optimizer_encoder.step()
+
+                        if train_dec:
+                            model.decoder.zero_grad()
+                            loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
+                            [p.grad.data.clamp_(-1, 1) for p in model.decoder.parameters()]
+                            optimizer_decoder.step()
+
+                        if train_dis:
+                            model.discriminator.zero_grad()
+                            loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
+                            [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
+                            optimizer_discriminator.step()
+
+                        model.zero_grad()
 
                     logging.info(
                         f'Epoch  {idx_epoch} {batch_idx + 1:3.0f} / {100 * (batch_idx + 1) / len(dataloader_train):2.3f}%, '
@@ -467,6 +473,7 @@ if __name__ == "__main__":
                 lr_encoder.step()
                 lr_decoder.step()
                 lr_discriminator.step()
+
                 margin *= training_config.decay_margin
                 equilibrium *= training_config.decay_equilibrium
 
@@ -671,3 +678,7 @@ if __name__ == "__main__":
     except Exception:
         logger.error("Fatal error", exc_info=True)
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

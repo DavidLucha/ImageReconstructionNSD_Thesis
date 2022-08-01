@@ -75,7 +75,7 @@ lr = cfg.learning_rate
 # subj_04_betas_normed = pd.read_pickle("D:/Lucha_Data/datasets/NSD/1.8mm/normed_concat_pickle/subj_04_normed_concat_trial_fmri.pickle")
 
 # Test loading list dicts from NSD concat
-LOAD_PATH = "D:/Lucha_Data/datasets/NSD/1.8mm/"
+LOAD_PATH = "D:/Honours/nsd_pickles/"
 pickle_dir = LOAD_PATH + "normed_concat_pickle/subj_07_normed_concat_trial_fmri.pickle"
 print("Reading betas from pickle file: ", pickle_dir)
 s7_fmri = pd.read_pickle(pickle_dir)

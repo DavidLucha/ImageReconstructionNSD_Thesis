@@ -72,11 +72,11 @@ def main():
             parser.add_argument('--gamma', default=1.0,
                                 help='sets the weighting of KL divergence in encoder loss (Ren) or'
                                      'the weight of MSE_1 in encoder loss (David: 1 vs 5)', type=float)
-            parser.add_argument('--backprop_method', default='trad', help='trad sets three diff loss functions,'
-                                                                          'but new, means enc and dec are updated'
-                                                                          ' using the same loss function', type=str)
+            parser.add_argument('--backprop_method', default='clip', help='trad sets three diff loss functions,'
+                                                                          'but clip, clips the gradients to help'
+                                                                          'avoid the late spikes in loss', type=str)
             parser.add_argument('--klw', default=1.0, help='sets weighting for KL divergence', type=float)
-            parser.add_argument('--seed', default=42690, help='sets seed, 0 makes a random int', type=int)
+            parser.add_argument('--seed', default=277603, help='sets seed, 0 makes a random int', type=int)
 
 
 
@@ -277,7 +277,7 @@ def main():
 
         # An optimizer and schedulers for each of the sub-networks, so we can selectively backprop
         optim_method = args.optim_method  # RMS or Adam or SGD (Momentum)
-        encdec_params = list(model.encoder.parameters()) + list(model.decoder.parameters())
+        # encdec_params = list(model.encoder.parameters()) + list(model.decoder.parameters())
 
         if optim_method == 'RMS':
             optimizer_encoder = torch.optim.RMSprop(params=model.encoder.parameters(), lr=lr,
@@ -296,8 +296,8 @@ def main():
             lr_decoder = ExponentialLR(optimizer_decoder, gamma=args.decay_lr)
 
         if optim_method == 'Adam':
+            # There are issues with Pytorch's Adam implementation. Doesn't work well with the network.
             beta_1 = args.adam_beta
-            # todo: make adam_beta arg
             eps = 1e-8
             optimizer_encoder = torch.optim.Adam(params=model.encoder.parameters(), lr=lr, eps=eps,
                                                  betas=(beta_1, 0.999), weight_decay=training_config.weight_decay)
@@ -395,93 +395,6 @@ def main():
                         loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
                         loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
 
-                    if loss_method == 'Orig':
-                        nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
-                        bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
-                                                                     hid_dis_pred, hid_dis_sampled,
-                                                                     fin_dis_real, fin_dis_pred,
-                                                                     fin_dis_sampled, mus, log_variances)
-
-                        # Loss from torch vaegan loss
-                        loss_encoder = torch.sum(mse_1) + torch.sum(mse_2) + torch.sum(kl)
-                        loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(bce_dis_sampled)
-                        loss_decoder = torch.sum(bce_gen_sampled) + torch.sum(bce_gen_recon)
-                        loss_decoder = torch.sum(lambda_mse / 2 * mse_1) + torch.sum(lambda_mse / 2 * mse_2) + (
-                                    1.0 - lambda_mse) * loss_decoder
-
-                        # Register mean values for logging
-                        loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
-                        loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
-                        loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
-                        loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
-
-                    if loss_method == 'Ren':
-                        # Won't work because now how sampled arguments
-                        lambda_loss = args.lambda_loss
-                        d_scale = args.d_scale
-                        g_scale = args.g_scale
-                        # equilibrium_game = False
-                        # Ren Loss Function
-                        bce_dis_original, bce_dis_predicted, nle, kl, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dec_fake_pred_loss = \
-                            VaeGan.ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, fin_dis_real,
-                                            fin_dis_pred, stage=stage, device=device, d_scale=d_scale, g_scale=g_scale)
-
-                        # print(kl, feature_loss_pred, dis_fake_pred_loss, dis_real_loss)
-                        # bce_dis_original = dis_real_loss.clone().detach()
-                        # bce_dis_predicted = dis_fake_pred_loss.clone().detach()
-                        gamma = args.gamma
-
-                        loss_encoder = ((kl / (training_config.latent_dim * batch_size)) * gamma) - feature_loss_pred / (4 * 4 * 64)
-                        loss_discriminator = dis_fake_pred_loss + dis_real_loss
-                        loss_decoder = dec_fake_pred_loss - lambda_loss * feature_loss_pred
-
-                        # Register mean values for logging
-                        # .item() takes an average
-                        loss_encoder_mean = loss_encoder.data.cpu().numpy()
-                        loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
-                        loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
-                        loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
-                        # loss_encoder_mean = torch.mean(loss_encoder).data.cpu().numpy()
-                        # loss_discriminator_mean = loss_discriminator.data.cpu().numpy()  # / batch_size
-                        # loss_decoder_mean = loss_decoder.item()  # .cpu().numpy()/ batch_size
-
-                    if loss_method == 'Ren_Alt':
-                        # Calculating BCE from torch
-                        lambda_loss = args.lambda_loss
-                        d_scale = args.d_scale
-                        g_scale = args.g_scale
-                        # equilibrium_game = False
-                        # Ren Loss Function
-                        bce_dis_original, bce_dis_predicted, nle, kl, mse, feature_loss_pred, dis_real_loss, dis_fake_pred_loss, dis_fake_sampled_loss, dec_fake_pred_loss = \
-                            VaeGan.ren_loss(x, x_tilde, mus, log_variances, hid_dis_real, hid_dis_pred, hid_dis_sampled,
-                                            fin_dis_real, fin_dis_pred, fin_dis_sampled, stage=stage, device=device, d_scale=d_scale, g_scale=g_scale)
-
-                        # kl_weight = args.klw
-                        # gamma = args.gamma
-
-                        # loss_encoder = ((kl / batch_size) * gamma) - feature_loss_pred / (7 * 7 * 64)
-                        loss_encoder = torch.sum(kl) + torch.sum(mse)
-                        # Feature loss is a negative.
-
-                        loss_discriminator = torch.sum(dis_real_loss) + torch.sum(dis_fake_pred_loss) + torch.sum(dis_fake_sampled_loss)
-                        loss_decoder = torch.sum(lambda_mse * mse) - (1.0 - lambda_mse) * loss_discriminator
-                        # loss_decoder = torch.sum(dec_fake_pred_loss) # + torch.sum(mse) * gamma
-
-                        # logging.info('Encoder loss: {} \nDecoder loss: {} '
-                        #       '\nDiscriminator loss: {} \nOld Discriminator loss {} '.format(loss_encoder,
-                        #                                                                      loss_decoder,
-                        #                                                                      loss_discriminator))
-
-                        # Register mean values for logging
-                        # .item() takes an average
-                        loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
-                        loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
-                        loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
-                        loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
-                        # loss_encoder_mean = torch.mean(loss_encoder).data.cpu().numpy()
-                        # loss_discriminator_mean = loss_discriminator.data.cpu().numpy()  # / batch_size
-                        # loss_decoder_mean = loss_decoder.item()  # .cpu().numpy()/ batch_size
-
                     equilibrium_game = args.equilibrium_game
 
                     # print('#\n#\n#\n#\n#\n Before training: #\n#\n#\n#\n#\n')
@@ -518,29 +431,8 @@ def main():
 
                         model.zero_grad()
 
-                    if args.backprop_method == 'create':
-                        # BACKPROP
-                        # Backpropagation below ensures same results as if running optimizers in isolation
-                        # And works in PyTorch==1.10 (allows for other important functions)
-                        loss_encoder.backward(create_graph=True, inputs=list(model.encoder.parameters()))
-                        optimizer_encoder.step()
-
-                        if train_dec:
-                            model.decoder.zero_grad()
-                            loss_decoder.backward(create_graph=True, inputs=list(model.decoder.parameters()))
-                            optimizer_decoder.step()
-
-                        if train_dis:
-                            model.discriminator.zero_grad()
-                            loss_discriminator.backward(create_graph=True, inputs=list(model.discriminator.parameters()))
-                            optimizer_discriminator.step()
-
-                        model.zero_grad()
-
                     if args.backprop_method == 'clip':
-                        # BACKPROP
-                        # Backpropagation below ensures same results as if running optimizers in isolation
-                        # And works in PyTorch==1.10 (allows for other important functions)
+                        # clip, clips the gradients and helps the late spike in loss
                         loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
                         [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
                         optimizer_encoder.step()
@@ -558,25 +450,6 @@ def main():
                             optimizer_discriminator.step()
 
                         model.zero_grad()
-
-                    if args.backprop_method == 'new':
-                        # BACKPROP
-                        # Using the logic from Ren's paper, encoder and decoder updated using the same loss.
-                        # As such, not using the equilibrium game.
-                        model.encoder.zero_grad()
-                        model.decoder.zero_grad()
-                        loss_encoder.backward(retain_graph=True, inputs=encdec_params)
-                        optimizer_encoder.step()
-                        optimizer_decoder.step()
-
-                        model.discriminator.zero_grad()
-                        loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
-                        optimizer_discriminator.step()
-
-                        model.zero_grad()
-
-                    if args.backprop_method == 'no':
-                        logging.info('No backprop sequence')
 
                     logging.info(
                         f'Epoch  {idx_epoch} {batch_idx + 1:3.0f} / {100 * (batch_idx + 1) / len(dataloader_train):2.3f}%, '
@@ -740,8 +613,7 @@ def main():
                     # only for one batch due to memory issue
                     break
 
-                if not idx_epoch % 25 or idx_epoch == epochs_n-1:
-                    # TODO: Change this to a lower number, for testing, I have it higher
+                if not idx_epoch % 10 or idx_epoch == epochs_n-1:
                     torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
                     logging.info('Saving model')
 
