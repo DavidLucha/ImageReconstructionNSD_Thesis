@@ -172,6 +172,7 @@ class Discriminator(nn.Module):
             ten = torch.cat((ten_orig, ten_predicted, ten_sampled), 0)
             for i, lay in enumerate(self.conv):
                 # we take the 9th layer as one of the outputs
+                # print('I am layer {}: {} ... of the discriminator'.format(i, lay))
                 if i == self.recon_levl:
                     ten, layer_ten = lay(ten, True)
                     # we need the layer representations just for the original and reconstructed,
@@ -191,6 +192,7 @@ class Discriminator(nn.Module):
             ten = self.fc(ten)
             return torch.sigmoid(ten)
             # return ten
+        # raise Exception('testing discrimintator')
 
     def __call__(self, *args, **kwargs):
         return super(Discriminator, self).__call__(*args, **kwargs)

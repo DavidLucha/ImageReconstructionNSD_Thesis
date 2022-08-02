@@ -109,7 +109,10 @@ def main():
         OUTPUT_PATH = os.path.join(args.data_root, 'output/')
 
         TRAIN_DATA_PATH = os.path.join(args.data_root, training_config.god_pretrain_imgs)
-        VALID_DATA_PATH = os.path.join(args.data_root, 'both/images/valid/')
+        VALID_DATA_PATH = os.path.join(args.data_root, 'NSD/images/valid/')
+
+        if args.dataset == 'NSD':
+            TRAIN_DATA_PATH = os.path.join(args.data_root, 'NSD/images/train/')
 
         # Create directory for results
         stage_num = 'pretrain'
@@ -264,8 +267,6 @@ def main():
         else:
             logging.info('Initialize')
             stp = 1
-
-        # print(lr) # TODO: Remove if working
 
         results = dict(
             epochs=[],

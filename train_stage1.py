@@ -86,14 +86,13 @@ def main():
         """
         PATHS
         """
-        # TODO: sort out paths for Stage 1 depending on how we do it
         # Get current working directory
         CWD = os.getcwd()
         OUTPUT_PATH = os.path.join(args.data_root, 'output/')
 
         # Load data paths
-        TRAIN_DATA_PATH = os.path.join(args.data_root, 'both/images/train/')
-        VALID_DATA_PATH = os.path.join(args.data_root, 'both/images/valid/')
+        TRAIN_DATA_PATH = os.path.join(args.data_root, 'NSD/images/train/')
+        VALID_DATA_PATH = os.path.join(args.data_root, 'NSD/images/valid/')
 
         # Create directory for results
         stage_num = 'stage_1'
@@ -217,7 +216,7 @@ def main():
         writer_discriminator = SummaryWriter(SAVE_PATH + '/runs_' + args.run_name + '/discriminator')
 
         # LOAD NETWORK WEIGHTS
-        model_dir = os.path.join(OUTPUT_PATH, args.dataset, 'pretrain', args.pretrained_net,
+        model_dir = os.path.join(OUTPUT_PATH, 'both', 'pretrain', args.pretrained_net,
                                    'pretrained_vaegan_' + args.pretrained_net + '_{}.pth'.format(args.load_epoch))
         logging.info('Loaded network is:', model_dir)
         # model_dir = trained_net.replace(".pth", '_{}.pth'.format(args.load_epoch))
