@@ -8,7 +8,7 @@ import os.path
 import os
 import math
 import torch
-import numpy
+import numpy as np
 import random
 import logging
 import torch.nn.functional as F
@@ -20,6 +20,8 @@ from PIL import Image
 from os import listdir
 
 import torchvision
+
+from typing import Any
 
 
 """
@@ -69,6 +71,71 @@ class FmriDataloader(object):
         return transformed_sample
 
 
+class VQDataloader(object):
+
+    def __init__(self, data_dir, transform=None, pickle=True):
+        """
+        The constructor to initialized paths to ImageNet images
+        :param data_dir: directory to ImageNet images
+        :param transform: image transformations
+        :param pickle: True if names are stored in pickle file (deprecated)
+        """
+        self.transform = transform
+        if not pickle:
+            self.image_names = [os.path.join(data_dir, img) for img in listdir(data_dir) if os.path.join(data_dir, img)]
+        else:
+            self.image_names = data_dir
+
+        # Get all data and calculate variance
+        calc_var = False
+        if calc_var:
+            self.data: Any = []
+
+            # Applies transformations to get 0-255 RGB values to run var calculation
+            trans = torch.nn.Sequential(
+                transforms.Resize(100),
+                transforms.RandomCrop((100, 100)),
+            )
+
+            grey_colour = GreyToColor(100)
+
+            img_count = 0
+            # Grabs all images RGB values and places in array (C, H, W)
+            for img in listdir(data_dir):
+                # if img == 'ILSVRC2011_val_00000004.JPEG' or img == 'ILSVRC2011_val_00000040.JPEG':
+                im_path = os.path.join(data_dir, img)
+                im = Image.open(im_path)
+                im = trans(im)
+                im = transforms.PILToTensor()(im)
+                im = grey_colour(im)
+                self.data.append(im)
+                img_count += 1
+                if not img_count % 100:
+                    print('{} images processed.'.format(img_count))
+
+            # Rearranges the array to (N, H, W, C)
+            self.data = np.vstack(self.data).reshape(-1, 3, 100, 100)
+            self.data = self.data.transpose((0, 2, 3, 1))
+
+            self.data_variance = np.var(self.data / 255.0)
+            raise Exception('check')
+        # self.data.append(mod_im)
+
+        # vqVAEGAN code
+        # self.data: Any = []
+
+    def __len__(self):
+        return len(self.image_names)
+
+    def __getitem__(self, idx):
+
+        image = Image.open(self.image_names[idx])
+
+        if self.transform:
+            image = self.transform(image)
+
+        return image
+
 """
 More Dataloaders
 """
@@ -88,6 +155,9 @@ class ImageNetDataloader(object):
             self.image_names = [os.path.join(data_dir, img) for img in listdir(data_dir) if os.path.join(data_dir, img)]
         else:
             self.image_names = data_dir
+
+        # vqVAEGAN code
+        self.data: Any = []
 
     def __len__(self):
         return len(self.image_names)
@@ -558,7 +628,7 @@ def imgnet_dataloader(batch_size):
 
 def NLLNormal(pred, target):
 
-    c = -0.5 * numpy.log(2 * numpy.pi)  # -0.5 * ~0.80 = -.40~
+    c = -0.5 * np.log(2 * np.pi)  # -0.5 * ~0.80 = -.40~
     multiplier = 1.0 / (2.0 * 1 ** 2)  # 0.5 (1/2)
     tmp = torch.square(pred - target)
     tmp *= -multiplier
