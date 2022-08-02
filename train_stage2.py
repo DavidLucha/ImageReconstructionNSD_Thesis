@@ -73,6 +73,8 @@ if __name__ == "__main__":
             parser.add_argument('--checkpoint_epoch', default=90, help='epoch of checkpoint network', type=int)
             parser.add_argument('--pretrained_net', '-pretrain', default=training_config.pretrained_net,
                                 help='pretrained network', type=str)
+            parser.add_argument('--load_from',default='stage_1', help='sets whether pretrained net is from pretrain'
+                                                                      'or from stage_1 output', type=str)
             parser.add_argument('--load_epoch', '-pretrain_epoch', default=400,
                                 help='epoch of the pretrained model', type=int)
             parser.add_argument('--dataset', default='GOD', help='GOD, NSD', type=str)
@@ -218,7 +220,8 @@ if __name__ == "__main__":
         writer_discriminator = SummaryWriter(SAVE_PATH + '/runs_' + args.run_name + '/discriminator')
 
         # Load Stage 1 network weights
-        model_dir = os.path.join(OUTPUT_PATH, 'both/stage_1', args.pretrained_net,
+
+        model_dir = os.path.join(OUTPUT_PATH, args.load_from, args.pretrained_net,
                                    'stage_1_vaegan_' + args.pretrained_net + '_{}.pth'.format(args.load_epoch))
         logging.info('Loaded network is:', model_dir)
         # TODO: Change 'pretrain' to stage 1 when it's working | We don't know yet
