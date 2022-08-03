@@ -52,8 +52,6 @@ if __name__ == "__main__":
                                                                ', 15k for stage 3.', type=int)
             parser.add_argument('--num_workers', '-nw', default=training_config.num_workers,
                                 help='number of workers for dataloader', type=int)
-            parser.add_argument('--loss_method', default='Maria',
-                                help='defines loss calculations. Maria, David, Orig.', type=str)
             parser.add_argument('--lr', default=training_config.learning_rate, type=float)
             parser.add_argument('--decay_lr', default=training_config.decay_lr,
                                 help='.98 in Maria, .75 in original VAE/GAN', type=float)
@@ -74,7 +72,7 @@ if __name__ == "__main__":
                                                                       'or from stage_1 output', type=str)
             parser.add_argument('--load_epoch', '-pretrain_epoch', default='final',
                                 help='epoch of the pretrained model', type=str)
-            parser.add_argument('--dataset', default='GOD', help='GOD, NSD', type=str)
+            parser.add_argument('--dataset', default='NSD', help='GOD, NSD', type=str)
             # Only need vox_res arg from stage 2 and 3
             parser.add_argument('--vox_res', default='1.8mm', help='1.8mm, 3mm', type=str)
             # Probably only needed stage 2/3 (though do we want to change stage 1 - depends on whether we do the full Ren...
@@ -365,44 +363,40 @@ if __name__ == "__main__":
         max_iters = args.iters
 
         for idx_epoch in range(args.epochs):
+            while step_index < max_iters:
+                try:
 
-            try:
+                    # For each batch
+                    for batch_idx, data_batch in enumerate(dataloader_train):
+                        if step_index < max_iters:
+                            model.train()
+                            batch_size = len(data_batch['image'])
+                            # x = Variable(data_batch, requires_grad=False).float().to(device)
 
-                # For each batch
-                for batch_idx, data_batch in enumerate(dataloader_train):
-                    if step_index < max_iters:
-                        model.train()
-                        batch_size = len(data_batch['image'])
-                        # x = Variable(data_batch, requires_grad=False).float().to(device)
+                            # Fix decoder weights
+                            for param in model.decoder.parameters():
+                                param.requires_grad = False
 
-                        # Fix decoder weights
-                        for param in model.decoder.parameters():
-                            param.requires_grad = False
+                            x_gt, x_tilde, disc_class, disc_layer, mus, log_variances = model(data_batch)
+                            # x_gt = reconstruction by teacher (vis enc)
+                            # x_tilde = reconstruction from cog
+                            # x_tilde, disc_class, disc_layer, mus, log_variances = model(x) # OLD STAGE 1
 
-                        x_gt, x_tilde, disc_class, disc_layer, mus, log_variances = model(data_batch)
-                        # x_gt = reconstruction by teacher (vis enc)
-                        # x_tilde = reconstruction from cog
-                        # x_tilde, disc_class, disc_layer, mus, log_variances = model(x) # OLD STAGE 1
+                            # Split so we can get the different parts
+                            # hid_ refers to hidden discriminator layer
+                            # dis_ refers to final sigmoid output from discriminator
+                            # real = vis reconstruction (teacher)
+                            # pred = cog reconstruction
+                            hid_dis_real = disc_layer[:batch_size]
+                            hid_dis_pred = disc_layer[batch_size:-batch_size]
+                            hid_dis_sampled = disc_layer[-batch_size:]
 
-                        # Split so we can get the different parts
-                        # hid_ refers to hidden discriminator layer
-                        # dis_ refers to final sigmoid output from discriminator
-                        # real = vis reconstruction (teacher)
-                        # pred = cog reconstruction
-                        hid_dis_real = disc_layer[:batch_size]
-                        hid_dis_pred = disc_layer[batch_size:-batch_size]
-                        hid_dis_sampled = disc_layer[-batch_size:]
+                            # disc_class = fin_dis_
+                            fin_dis_real = disc_class[:batch_size]
+                            fin_dis_pred = disc_class[batch_size:-batch_size]
+                            fin_dis_sampled = disc_class[-batch_size:]
 
-                        # disc_class = fin_dis_
-                        fin_dis_real = disc_class[:batch_size]
-                        fin_dis_pred = disc_class[batch_size:-batch_size]
-                        fin_dis_sampled = disc_class[-batch_size:]
-
-                        # VAE/GAN Loss
-                        loss_method = args.loss_method  # 'Maria', 'Ren'
-
-                        # VAE/GAN loss
-                        if loss_method == 'Maria':
+                            # VAE/GAN loss
                             nle, kl, mse, bce_dis_original, bce_dis_predicted, bce_dis_sampled = \
                                 VaeGanCognitive.loss(x_gt, x_tilde, hid_dis_real, hid_dis_pred, fin_dis_real,
                                                      fin_dis_pred, fin_dis_sampled, mus, log_variances)
@@ -422,293 +416,275 @@ if __name__ == "__main__":
                             loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
                             loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
 
-                        if loss_method == 'Ren':
-                            # Using Ren's Loss Function
-                            # TODO: Calculate loss functions here. Or do in function.
-                            # TODO: ADD EXTRA PARAMS (Only for COG)
-                            """nle, loss_encoder, loss_decoder, loss_discriminator = VaeGanCognitive.ren_loss(x_gt, x_tilde, mus,
-                                                                                                  log_variances, hid_dis_real,
-                                                                                                  hid_dis_pred, fin_dis_real,
-                                                                                                  fin_dis_pred, stage=stage,
-                                                                                                  device=device)"""
-                            # Register mean values for logging
-                            loss_encoder_mean = torch.mean(loss_encoder).data.cpu().numpy()
-                            loss_discriminator_mean = loss_discriminator.data.cpu().numpy()  # / batch_size
-                            loss_decoder_mean = loss_decoder.item()  # NOT USED, JUST FOR REF
+                            # Selectively disable the decoder of the discriminator if they are unbalanced
+                            train_dis = True
+                            train_dec = False
 
-                            loss_encoder_mean_old = loss_encoder.data.cpu().numpy()  # / batch_size
-                            loss_discriminator_mean_old = loss_discriminator.data.cpu().numpy()  # / batch_size
-                            loss_decoder_mean_old = loss_decoder.data.cpu().numpy()  # NOT USED, JUST FOR REF
-                            loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
+                            # Initially try training without equilibrium
+                            equilibrium_game = args.equilibrium_game
 
-                        # Selectively disable the decoder of the discriminator if they are unbalanced
-                        train_dis = True
-                        train_dec = False
+                            if equilibrium_game == 'y':
+                                if torch.mean(bce_dis_original).item() < equilibrium - margin or torch.mean(
+                                        bce_dis_predicted).item() < equilibrium - margin:
+                                    train_dis = False
+                                if torch.mean(bce_dis_original).item() > equilibrium + margin or torch.mean(
+                                        bce_dis_predicted).item() > equilibrium + margin:
+                                    train_dec = False
+                                if train_dec is False and train_dis is False:
+                                    train_dis = True
+                                    train_dec = True
 
-                        # Initially try training without equilibrium
-                        equilibrium_game = args.equilibrium_game
+                            if args.backprop_method == 'trad':
+                                # BACKPROP
+                                loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
+                                optimizer_encoder.step()
 
-                        if equilibrium_game == 'y':
-                            if torch.mean(bce_dis_original).item() < equilibrium - margin or torch.mean(
-                                    bce_dis_predicted).item() < equilibrium - margin:
-                                train_dis = False
-                            if torch.mean(bce_dis_original).item() > equilibrium + margin or torch.mean(
-                                    bce_dis_predicted).item() > equilibrium + margin:
-                                train_dec = False
-                            if train_dec is False and train_dis is False:
-                                train_dis = True
-                                train_dec = True
+                                # if train_dec:
+                                #     model.decoder.zero_grad()
+                                #     loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
+                                #     optimizer_decoder.step()
 
-                        if args.backprop_method == 'trad':
-                            # BACKPROP
-                            loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
-                            optimizer_encoder.step()
+                                if train_dis:
+                                    model.discriminator.zero_grad()
+                                    loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
+                                    optimizer_discriminator.step()
 
-                            # if train_dec:
-                            #     model.decoder.zero_grad()
-                            #     loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
-                            #     optimizer_decoder.step()
+                                model.zero_grad()
 
-                            if train_dis:
-                                model.discriminator.zero_grad()
-                                loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
-                                optimizer_discriminator.step()
+                            if args.backprop_method == 'clip':
+                                # BACKPROP
+                                loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
+                                [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
+                                optimizer_encoder.step()
 
-                            model.zero_grad()
+                                # if train_dec:
+                                #     model.decoder.zero_grad()
+                                #     loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
+                                #     optimizer_decoder.step()
 
-                        if args.backprop_method == 'clip':
-                            # BACKPROP
-                            loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
-                            [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
-                            optimizer_encoder.step()
+                                if train_dis:
+                                    model.discriminator.zero_grad()
+                                    loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
+                                    [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
+                                    optimizer_discriminator.step()
 
-                            # if train_dec:
-                            #     model.decoder.zero_grad()
-                            #     loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
-                            #     optimizer_decoder.step()
+                                model.zero_grad()
 
-                            if train_dis:
-                                model.discriminator.zero_grad()
-                                loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
-                                [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
-                                optimizer_discriminator.step()
+                            logging.info(
+                                f'Epoch  {idx_epoch} {batch_idx + 1:3.0f} / {100 * (batch_idx + 1) / len(dataloader_train):2.3f}%, '
+                                f'---- encoder loss: {loss_encoder_mean:.5f} ---- | '
+                                f'---- decoder loss: {loss_decoder_mean:.5f} ---- | '
+                                f'---- discriminator loss: {loss_discriminator_mean:.5f} ---- | '
+                                f'---- network status (dec, dis): {train_dec}, {train_dis}')
 
-                            model.zero_grad()
+                            writer.add_scalar('loss_reconstruction_batch', loss_nle_mean, step_index)
+                            writer_encoder.add_scalar('loss_encoder_batch', loss_encoder_mean, step_index)
+                            writer_decoder.add_scalar('loss_decoder_discriminator_batch', loss_decoder_mean, step_index)
+                            writer_discriminator.add_scalar('loss_decoder_discriminator_batch', loss_discriminator_mean, step_index)
 
-                        logging.info(
-                            f'Epoch  {idx_epoch} {batch_idx + 1:3.0f} / {100 * (batch_idx + 1) / len(dataloader_train):2.3f}%, '
-                            f'---- encoder loss: {loss_encoder_mean:.5f} ---- | '
-                            f'---- decoder loss: {loss_decoder_mean:.5f} ---- | '
-                            f'---- discriminator loss: {loss_discriminator_mean:.5f} ---- | '
-                            f'---- network status (dec, dis): {train_dec}, {train_dis}')
+                            step_index += 1
+                        else:
+                            break
 
-                        writer.add_scalar('loss_reconstruction_batch', loss_nle_mean, step_index)
-                        writer_encoder.add_scalar('loss_encoder_batch', loss_encoder_mean, step_index)
-                        writer_decoder.add_scalar('loss_decoder_discriminator_batch', loss_decoder_mean, step_index)
-                        writer_discriminator.add_scalar('loss_decoder_discriminator_batch', loss_discriminator_mean, step_index)
+                    # EPOCH END
+                    lr_encoder.step()
+                    # lr_decoder.step()
+                    lr_discriminator.step()
+                    margin *= training_config.decay_margin
+                    equilibrium *= training_config.decay_equilibrium
 
-                        step_index += 1
-                    else:
-                        break
+                    if margin > equilibrium:
+                        equilibrium = margin
+                    lambda_mse *= decay_mse
+                    if lambda_mse > 1:
+                        lambda_mse = 1
 
-                # EPOCH END
-                lr_encoder.step()
-                # lr_decoder.step()
-                lr_discriminator.step()
-                margin *= training_config.decay_margin
-                equilibrium *= training_config.decay_equilibrium
+                    writer.add_scalar('loss_reconstruction', loss_nle_mean, idx_epoch)
+                    writer_encoder.add_scalar('loss_encoder', loss_encoder_mean, idx_epoch)
+                    writer_decoder.add_scalar('loss_decoder_discriminator', loss_decoder_mean, idx_epoch)
+                    writer_discriminator.add_scalar('loss_decoder_discriminator', loss_discriminator_mean, idx_epoch)
 
-                if margin > equilibrium:
-                    equilibrium = margin
-                lambda_mse *= decay_mse
-                if lambda_mse > 1:
-                    lambda_mse = 1
+                    if not idx_epoch % 2:
+                        # Save train examples
+                        images_dir = os.path.join(SAVE_PATH, 'images', 'train')
+                        if not os.path.exists(images_dir):
+                            os.makedirs(images_dir)
 
-                writer.add_scalar('loss_reconstruction', loss_nle_mean, idx_epoch)
-                writer_encoder.add_scalar('loss_encoder', loss_encoder_mean, idx_epoch)
-                writer_decoder.add_scalar('loss_decoder_discriminator', loss_decoder_mean, idx_epoch)
-                writer_discriminator.add_scalar('loss_decoder_discriminator', loss_discriminator_mean, idx_epoch)
-
-                if not idx_epoch % 2:
-                    # Save train examples
-                    images_dir = os.path.join(SAVE_PATH, 'images', 'train')
-                    if not os.path.exists(images_dir):
-                        os.makedirs(images_dir)
-
-                    fig, ax = plt.subplots(figsize=(10, 10))
-                    ax.set_xticks([])
-                    ax.set_yticks([])
-                    ax.set_title('Training Ground Truth at Epoch {}'.format(idx_epoch))
-                    ax.imshow(make_grid(data_batch['image'][: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
-                    gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
-                    plt.savefig(gt_dir)
-
-                    fig, ax = plt.subplots(figsize=(10, 10))
-                    ax.set_xticks([])
-                    ax.set_yticks([])
-                    ax.set_title('Training Reconstruction at Epoch {}'.format(idx_epoch))
-                    ax.imshow(make_grid(x_tilde[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
-                    output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
-                    plt.savefig(output_dir)
-
-                logging.info('Evaluation')
-
-                for batch_idx, data_batch in enumerate(dataloader_valid):
-                    model.eval()
-
-                    with no_grad():
-
-                        data_target = Variable(data_batch['image'], requires_grad=False).float().to(device)
-                        out = model(data_batch)
-
-                        # Validation metrics for the first validation batch
-                        if metrics_valid is not None:
-                            for key, metric in metrics_valid.items():
-                                if key == 'cosine_similarity':
-                                    result_metrics_valid[key] = metric(out, data_target).mean()
-                                else:
-                                    result_metrics_valid[key] = metric(out, data_target)
-
-                        # Training metrics for the last training batch
-                        if metrics_train is not None:
-                            for key, metric in metrics_train.items():
-                                if key == 'cosine_similarity':
-                                    result_metrics_train[key] = metric(x_tilde, x_gt).mean()
-                                else:
-                                    result_metrics_train[key] = metric(x_tilde, x_gt)
-
-                        out = out.data.cpu()
-
-                    # Save validation examples
-                    images_dir = os.path.join(SAVE_PATH, 'images', 'valid')
-                    if not os.path.exists(images_dir):
-                        os.makedirs(images_dir)
-                        os.makedirs(os.path.join(images_dir, 'random'))
-
-                    out = out.data.cpu()
-
-                    if idx_epoch == 0:
                         fig, ax = plt.subplots(figsize=(10, 10))
                         ax.set_xticks([])
                         ax.set_yticks([])
-                        ax.set_title('Validation Ground Truth')
-                        ax.imshow(make_grid(data_target[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                        ax.set_title('Training Ground Truth at Epoch {}'.format(idx_epoch))
+                        ax.imshow(make_grid(data_batch['image'][: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
                         gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                         plt.savefig(gt_dir)
 
-                    fig, ax = plt.subplots(figsize=(10, 10))
-                    ax.set_xticks([])
-                    ax.set_yticks([])
-                    ax.set_title('Validation Reconstruction at Epoch {}'.format(idx_epoch))
-                    ax.imshow(make_grid(out[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
-                    output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
-                    plt.savefig(output_dir)
+                        fig, ax = plt.subplots(figsize=(10, 10))
+                        ax.set_xticks([])
+                        ax.set_yticks([])
+                        ax.set_title('Training Reconstruction at Epoch {}'.format(idx_epoch))
+                        ax.imshow(make_grid(x_tilde[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                        output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
+                        plt.savefig(output_dir)
 
-                    out = (out + 1) / 2
-                    out = make_grid(out, nrow=8)
-                    writer.add_image("reconstructed", out, step_index)
+                    logging.info('Evaluation')
 
-                    # out = model(None, 100)
-                    # out = out.data.cpu()
-                    # out = (out + 1) / 2
-                    # out = make_grid(out, nrow=8)
-                    # writer.add_image("generated", out, step_index)
+                    for batch_idx, data_batch in enumerate(dataloader_valid):
+                        model.eval()
 
-                    out = data_target.data.cpu()
-                    out = (out + 1) / 2
-                    out = make_grid(out, nrow=8)
-                    writer.add_image("original", out, step_index)
+                        with no_grad():
+
+                            data_target = Variable(data_batch['image'], requires_grad=False).float().to(device)
+                            out = model(data_batch)
+
+                            # Validation metrics for the first validation batch
+                            if metrics_valid is not None:
+                                for key, metric in metrics_valid.items():
+                                    if key == 'cosine_similarity':
+                                        result_metrics_valid[key] = metric(out, data_target).mean()
+                                    else:
+                                        result_metrics_valid[key] = metric(out, data_target)
+
+                            # Training metrics for the last training batch
+                            if metrics_train is not None:
+                                for key, metric in metrics_train.items():
+                                    if key == 'cosine_similarity':
+                                        result_metrics_train[key] = metric(x_tilde, x_gt).mean()
+                                    else:
+                                        result_metrics_train[key] = metric(x_tilde, x_gt)
+
+                            out = out.data.cpu()
+
+                        # Save validation examples
+                        images_dir = os.path.join(SAVE_PATH, 'images', 'valid')
+                        if not os.path.exists(images_dir):
+                            os.makedirs(images_dir)
+                            os.makedirs(os.path.join(images_dir, 'random'))
+
+                        out = out.data.cpu()
+
+                        if idx_epoch == 0:
+                            fig, ax = plt.subplots(figsize=(10, 10))
+                            ax.set_xticks([])
+                            ax.set_yticks([])
+                            ax.set_title('Validation Ground Truth')
+                            ax.imshow(make_grid(data_target[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                            gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
+                            plt.savefig(gt_dir)
+
+                        fig, ax = plt.subplots(figsize=(10, 10))
+                        ax.set_xticks([])
+                        ax.set_yticks([])
+                        ax.set_title('Validation Reconstruction at Epoch {}'.format(idx_epoch))
+                        ax.imshow(make_grid(out[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                        output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
+                        plt.savefig(output_dir)
+
+                        out = (out + 1) / 2
+                        out = make_grid(out, nrow=8)
+                        writer.add_image("reconstructed", out, step_index)
+
+                        # out = model(None, 100)
+                        # out = out.data.cpu()
+                        # out = (out + 1) / 2
+                        # out = make_grid(out, nrow=8)
+                        # writer.add_image("generated", out, step_index)
+
+                        out = data_target.data.cpu()
+                        out = (out + 1) / 2
+                        out = make_grid(out, nrow=8)
+                        writer.add_image("original", out, step_index)
+
+                        if metrics_valid is not None:
+                            for key, values in result_metrics_valid.items():
+                                result_metrics_valid[key] = torch.mean(values)
+                            # Logging metrics
+                            if writer is not None:
+                                for key, values in result_metrics_valid.items():
+                                    writer.add_scalar(key, values, stp + idx_epoch)
+
+                        if metrics_train is not None:
+                            for key, values in result_metrics_train.items():
+                                result_metrics_train[key] = torch.mean(values)
+                            # Logging metrics
+                            if writer is not None:
+                                for key, values in result_metrics_train.items():
+                                    writer.add_scalar(key, values, stp + idx_epoch)
+
+                        logging.info(
+                            f'Epoch  {idx_epoch} ---- train PCC:  {result_metrics_train["train_PCC"].item():.5f} ---- | '
+                            f'---- train SSIM: {result_metrics_train["train_SSIM"].item():.5f} ---- '
+                            f'---- train MSE: {result_metrics_train["train_MSE"].item():.5f} ---- ')
+
+                        logging.info(
+                            f'Epoch  {idx_epoch} ---- valid PCC:  {result_metrics_valid["valid_PCC"].item():.5f} ---- | '
+                            f'---- valid SSIM: {result_metrics_valid["valid_SSIM"].item():.5f} ---- '
+                            f'---- valid MSE: {result_metrics_valid["valid_MSE"].item():.5f} ---- ')
+
+                        # only for one batch due to memory issue
+                        break
+
+                    if not idx_epoch % 20 or idx_epoch == epochs_n-1:
+                        torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
+                        logging.info('Saving model')
+
+                    # Record losses & scores
+                    results['epochs'].append(idx_epoch + stp)
+                    results['loss_encoder'].append(loss_encoder_mean)
+                    results['loss_decoder'].append(loss_decoder_mean)
+                    results['loss_discriminator'].append(loss_discriminator_mean)
+                    results['loss_reconstruction'].append(loss_nle_mean)
 
                     if metrics_valid is not None:
-                        for key, values in result_metrics_valid.items():
-                            result_metrics_valid[key] = torch.mean(values)
-                        # Logging metrics
-                        if writer is not None:
-                            for key, values in result_metrics_valid.items():
-                                writer.add_scalar(key, values, stp + idx_epoch)
+                        for key, value in result_metrics_valid.items():
+                            metric_value = value.detach().clone().item()
+                            results[key].append(metric_value)
 
                     if metrics_train is not None:
-                        for key, values in result_metrics_train.items():
-                            result_metrics_train[key] = torch.mean(values)
-                        # Logging metrics
-                        if writer is not None:
-                            for key, values in result_metrics_train.items():
-                                writer.add_scalar(key, values, stp + idx_epoch)
+                        for key, value in result_metrics_train.items():
+                            metric_value = value.detach().clone().item()
+                            results[key].append(metric_value)
 
-                    logging.info(
-                        f'Epoch  {idx_epoch} ---- train PCC:  {result_metrics_train["train_PCC"].item():.5f} ---- | '
-                        f'---- train SSIM: {result_metrics_train["train_SSIM"].item():.5f} ---- '
-                        f'---- train MSE: {result_metrics_train["train_MSE"].item():.5f} ---- ')
+                    results_to_save = pd.DataFrame(results)
+                    results_to_save.to_csv(SAVE_SUB_PATH.replace(".pth", "_results.csv"), index=False)
 
-                    logging.info(
-                        f'Epoch  {idx_epoch} ---- valid PCC:  {result_metrics_valid["valid_PCC"].item():.5f} ---- | '
-                        f'---- valid SSIM: {result_metrics_valid["valid_SSIM"].item():.5f} ---- '
-                        f'---- valid MSE: {result_metrics_valid["valid_MSE"].item():.5f} ---- ')
+                except KeyboardInterrupt as e:
+                    logging.info(e, 'Saving plots')
 
-                    # only for one batch due to memory issue
-                    break
+                finally:
 
-                if not idx_epoch % 20 or idx_epoch == epochs_n-1:
-                    torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
-                    logging.info('Saving model')
+                    plt.figure(figsize=(10, 5))
+                    plt.title("Generator and Discriminator Loss During Training")
+                    plt.plot(results['loss_decoder'], label="G")
+                    plt.plot(results['loss_discriminator'], label="D")
+                    plt.xlabel("iterations")
+                    plt.ylabel("Loss")
+                    plt.legend()
+                    plots_dir = os.path.join(SAVE_PATH, 'plots')
+                    if not os.path.exists(plots_dir):
+                        os.makedirs(plots_dir)
+                    plot_dir = os.path.join(plots_dir, 'GD_loss')
+                    plt.savefig(plot_dir)
 
-                if step_index >= max_iters:
-                    torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_final.pth'))
-                    logging.info('Saving model at max iteration')
+                    plt.figure(figsize=(10, 5))
+                    plt.title("Encoder and Reconstruction Loss During Training")
+                    plt.plot(results['loss_encoder'], label="E")
+                    plt.plot(results['loss_reconstruction'], label="R")
+                    plt.xlabel("iterations")
+                    plt.ylabel("Loss")
+                    plt.legend()
+                    plots_dir = os.path.join(SAVE_PATH, 'plots')
+                    if not os.path.exists(plots_dir):
+                        os.makedirs(plots_dir)
+                    plot_dir = os.path.join(plots_dir, 'ER_loss')
+                    plt.savefig(plot_dir)
+                    logging.info("Plots are saved")
+                    # plt.show() # TODO: Check this
+                    plt.close('all')
 
-                # Record losses & scores
-                results['epochs'].append(idx_epoch + stp)
-                results['loss_encoder'].append(loss_encoder_mean)
-                results['loss_decoder'].append(loss_decoder_mean)
-                results['loss_discriminator'].append(loss_discriminator_mean)
-                results['loss_reconstruction'].append(loss_nle_mean)
+        # Save final model
+        torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_final.pth'))
+        logging.info('Saving model at max iteration')
 
-                if metrics_valid is not None:
-                    for key, value in result_metrics_valid.items():
-                        metric_value = value.detach().clone().item()
-                        results[key].append(metric_value)
-
-                if metrics_train is not None:
-                    for key, value in result_metrics_train.items():
-                        metric_value = value.detach().clone().item()
-                        results[key].append(metric_value)
-
-                results_to_save = pd.DataFrame(results)
-                results_to_save.to_csv(SAVE_SUB_PATH.replace(".pth", "_results.csv"), index=False)
-
-            except KeyboardInterrupt as e:
-                logging.info(e, 'Saving plots')
-
-            finally:
-
-                plt.figure(figsize=(10, 5))
-                plt.title("Generator and Discriminator Loss During Training")
-                plt.plot(results['loss_decoder'], label="G")
-                plt.plot(results['loss_discriminator'], label="D")
-                plt.xlabel("iterations")
-                plt.ylabel("Loss")
-                plt.legend()
-                plots_dir = os.path.join(SAVE_PATH, 'plots')
-                if not os.path.exists(plots_dir):
-                    os.makedirs(plots_dir)
-                plot_dir = os.path.join(plots_dir, 'GD_loss')
-                plt.savefig(plot_dir)
-
-                plt.figure(figsize=(10, 5))
-                plt.title("Encoder and Reconstruction Loss During Training")
-                plt.plot(results['loss_encoder'], label="E")
-                plt.plot(results['loss_reconstruction'], label="R")
-                plt.xlabel("iterations")
-                plt.ylabel("Loss")
-                plt.legend()
-                plots_dir = os.path.join(SAVE_PATH, 'plots')
-                if not os.path.exists(plots_dir):
-                    os.makedirs(plots_dir)
-                plot_dir = os.path.join(plots_dir, 'ER_loss')
-                plt.savefig(plot_dir)
-                logging.info("Plots are saved")
-                # plt.show() # TODO: Check this
-                plt.close('all')
         exit(0)
     except Exception:
         logger.error("Fatal error", exc_info=True)
