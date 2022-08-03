@@ -40,7 +40,8 @@ srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/de
 echo "Stage 3 complete at $(date +%Y%m%d-%H%M%S)"
 
 # tar the folder after complete
-tar -czvf RUN_stage3_subj0${SUBJ}_${RUN_NAME}.tar.gz /scratch/qbi/uqdlucha/datasets/output/NSD/${VOX_RES}/${SET_SIZE}/Subj_0${SUBJ}/stage_3/RUN_1.8max_stage3_subj0${SUBJ}_${RUN_NAME}/
+cd /scratch/qbi/uqdlucha/datasets/output/NSD/${VOX_RES}/${SET_SIZE}/Subj_0${SUBJ}/stage_3/
+tar -czvf RUN_stage3_subj0${SUBJ}_${RUN_NAME}.tar.gz ./RUN_1.8max_stage3_subj0${SUBJ}_${RUN_NAME}/
 echo "Stage 3 folder tarred and zipped."
 
 # copy to afm
@@ -50,3 +51,5 @@ echo "Stage 3 zipped folder moved to afm02"
 # delete zip folder from bash_scripts
 rm RUN_stage3_subj0${SUBJ}_${RUN_NAME}.tar.gz
 echo "File removed from bash scripts"
+
+cd ~/scripts/deepReconPyTorch/bash_scripts/
