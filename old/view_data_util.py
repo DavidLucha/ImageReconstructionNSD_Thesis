@@ -9,13 +9,33 @@ import training_config as cfg
 import random
 
 
+# BREAK TEST
+counter = 0
+max_count = 700
+for i in range(1,10):
+    for n in range(0,100):
+        if counter < max_count:
+            if counter >= 680:
+                print('more stuff, iter: {}'.format(counter))
+            counter += 1
+        else:
+            break
+    if counter < max_count:
+        print('finished, counter is {}. Continue with saving shit.'.format(counter))
+    else:
+        print('save model at counter {}'.format(counter))
+        break
+print('welcome back.')
+
+
 """
 Testing random selection of dataset
 """
 random.seed(76)
+# 1 - 37, 3 - 29, 4 - 27
 
 LOAD_PATH = "D:/Lucha_Data/datasets/NSD/1.8mm/"
-pickle_dir = LOAD_PATH + "train/single_pres/Subj_01_NSD_single_pres_train.pickle"
+pickle_dir = LOAD_PATH + "train/max/Subj_04_NSD_max_train.pickle"
 print("Reading betas from pickle file: ", pickle_dir)
 # sp = single_pres
 # s1_sp_betas = pickle.load(pickle_dir)

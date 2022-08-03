@@ -56,6 +56,8 @@ if __name__ == "__main__":
             parser.add_argument('--batch_size', default=training_config.batch_size, help='batch size for dataloader',
                                 type=int)
             parser.add_argument('--epochs', default=training_config.n_epochs, help='number of epochs', type=int)
+            parser.add_argument('--iters', default=30000, help='sets max number of forward passes. 30k for stage 2'
+                                                               ', 15k for stage 3.')
             parser.add_argument('--num_workers', '-nw', default=training_config.num_workers,
                                 help='number of workers for dataloader', type=int)
             parser.add_argument('--loss_method', default='Maria',
@@ -78,8 +80,8 @@ if __name__ == "__main__":
                                 help='pretrained network', type=str)
             parser.add_argument('--load_from',default='stage_1', help='sets whether pretrained net is from pretrain'
                                                                       'or from stage_1 output', type=str)
-            parser.add_argument('--load_epoch', '-pretrain_epoch', default=400,
-                                help='epoch of the pretrained model', type=int)
+            parser.add_argument('--load_epoch', '-pretrain_epoch', default='final',
+                                help='epoch of the pretrained model', type=str)
             parser.add_argument('--dataset', default='GOD', help='GOD, NSD', type=str)
             # Only need vox_res arg from stage 2 and 3
             parser.add_argument('--vox_res', default='1.8mm', help='1.8mm, 3mm', type=str)
@@ -351,7 +353,7 @@ if __name__ == "__main__":
         batch_number = len(dataloader_train)
         step_index = 0
         epochs_n = args.epochs
-        iters = 0
+        # iters = 0
         max_iters = args.iters
 
         for idx_epoch in range(args.epochs):
@@ -360,147 +362,146 @@ if __name__ == "__main__":
 
                 # For each batch
                 for batch_idx, data_batch in enumerate(dataloader_train):
-                    iters += 1
-                    if iters == max_iters + 1:
+                    if step_index < max_iters:
+                        model.train()
+                        batch_size = len(data_batch['image'])
+                        # x = Variable(data_batch, requires_grad=False).float().to(device)
+
+                        # Fix decoder weights
+                        for param in model.decoder.parameters():
+                            param.requires_grad = False
+
+                        x_gt, x_tilde, disc_class, disc_layer, mus, log_variances = model(data_batch)
+                        # x_gt = reconstruction by teacher (vis enc)
+                        # x_tilde = reconstruction from cog
+                        # x_tilde, disc_class, disc_layer, mus, log_variances = model(x) # OLD STAGE 1
+
+                        # Split so we can get the different parts
+                        # hid_ refers to hidden discriminator layer
+                        # dis_ refers to final sigmoid output from discriminator
+                        # real = vis reconstruction (teacher)
+                        # pred = cog reconstruction
+                        hid_dis_real = disc_layer[:batch_size]
+                        hid_dis_pred = disc_layer[batch_size:-batch_size]
+                        hid_dis_sampled = disc_layer[-batch_size:]
+
+                        # disc_class = fin_dis_
+                        fin_dis_real = disc_class[:batch_size]
+                        fin_dis_pred = disc_class[batch_size:-batch_size]
+                        fin_dis_sampled = disc_class[-batch_size:]
+
+                        # VAE/GAN Loss
+                        loss_method = args.loss_method  # 'Maria', 'Ren'
+
+                        # VAE/GAN loss
+                        if loss_method == 'Maria':
+                            nle, kl, mse, bce_dis_original, bce_dis_predicted, bce_dis_sampled = \
+                                VaeGanCognitive.loss(x_gt, x_tilde, hid_dis_real, hid_dis_pred, fin_dis_real,
+                                                     fin_dis_pred, fin_dis_sampled, mus, log_variances)
+
+                            loss_encoder = torch.sum(kl) + torch.sum(mse)
+                            loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
+                                bce_dis_sampled)
+                            loss_decoder = torch.sum(training_config.lambda_mse * mse) - (1.0 - training_config.lambda_mse) * loss_discriminator
+
+                            logging.info('Encoder loss: {} \nDecoder loss: {} \nDiscriminator loss: {}'.format(loss_encoder,
+                                                                                                               loss_decoder,
+                                                                                                               loss_discriminator))
+
+                            # Register mean values for logging
+                            loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
+                            loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
+                            loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
+                            loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
+
+                        if loss_method == 'Ren':
+                            # Using Ren's Loss Function
+                            # TODO: Calculate loss functions here. Or do in function.
+                            # TODO: ADD EXTRA PARAMS (Only for COG)
+                            """nle, loss_encoder, loss_decoder, loss_discriminator = VaeGanCognitive.ren_loss(x_gt, x_tilde, mus,
+                                                                                                  log_variances, hid_dis_real,
+                                                                                                  hid_dis_pred, fin_dis_real,
+                                                                                                  fin_dis_pred, stage=stage,
+                                                                                                  device=device)"""
+                            # Register mean values for logging
+                            loss_encoder_mean = torch.mean(loss_encoder).data.cpu().numpy()
+                            loss_discriminator_mean = loss_discriminator.data.cpu().numpy()  # / batch_size
+                            loss_decoder_mean = loss_decoder.item()  # NOT USED, JUST FOR REF
+
+                            loss_encoder_mean_old = loss_encoder.data.cpu().numpy()  # / batch_size
+                            loss_discriminator_mean_old = loss_discriminator.data.cpu().numpy()  # / batch_size
+                            loss_decoder_mean_old = loss_decoder.data.cpu().numpy()  # NOT USED, JUST FOR REF
+                            loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
+
+                        # Selectively disable the decoder of the discriminator if they are unbalanced
+                        train_dis = True
+                        train_dec = False
+
+                        # Initially try training without equilibrium
+                        equilibrium_game = args.equilibrium_game
+
+                        if equilibrium_game == 'y':
+                            if torch.mean(bce_dis_original).item() < equilibrium - margin or torch.mean(
+                                    bce_dis_predicted).item() < equilibrium - margin:
+                                train_dis = False
+                            if torch.mean(bce_dis_original).item() > equilibrium + margin or torch.mean(
+                                    bce_dis_predicted).item() > equilibrium + margin:
+                                train_dec = False
+                            if train_dec is False and train_dis is False:
+                                train_dis = True
+                                train_dec = True
+
+                        if args.backprop_method == 'trad':
+                            # BACKPROP
+                            loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
+                            optimizer_encoder.step()
+
+                            # if train_dec:
+                            #     model.decoder.zero_grad()
+                            #     loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
+                            #     optimizer_decoder.step()
+
+                            if train_dis:
+                                model.discriminator.zero_grad()
+                                loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
+                                optimizer_discriminator.step()
+
+                            model.zero_grad()
+
+                        if args.backprop_method == 'clip':
+                            # BACKPROP
+                            loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
+                            [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
+                            optimizer_encoder.step()
+
+                            # if train_dec:
+                            #     model.decoder.zero_grad()
+                            #     loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
+                            #     optimizer_decoder.step()
+
+                            if train_dis:
+                                model.discriminator.zero_grad()
+                                loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
+                                [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
+                                optimizer_discriminator.step()
+
+                            model.zero_grad()
+
+                        logging.info(
+                            f'Epoch  {idx_epoch} {batch_idx + 1:3.0f} / {100 * (batch_idx + 1) / len(dataloader_train):2.3f}%, '
+                            f'---- encoder loss: {loss_encoder_mean:.5f} ---- | '
+                            f'---- decoder loss: {loss_decoder_mean:.5f} ---- | '
+                            f'---- discriminator loss: {loss_discriminator_mean:.5f} ---- | '
+                            f'---- network status (dec, dis): {train_dec}, {train_dis}')
+
+                        writer.add_scalar('loss_reconstruction_batch', loss_nle_mean, step_index)
+                        writer_encoder.add_scalar('loss_encoder_batch', loss_encoder_mean, step_index)
+                        writer_decoder.add_scalar('loss_decoder_discriminator_batch', loss_decoder_mean, step_index)
+                        writer_discriminator.add_scalar('loss_decoder_discriminator_batch', loss_discriminator_mean, step_index)
+
+                        step_index += 1
+                    else:
                         break
-
-                    model.train()
-                    batch_size = len(data_batch['image'])
-                    # x = Variable(data_batch, requires_grad=False).float().to(device)
-
-                    # Fix decoder weights
-                    for param in model.decoder.parameters():
-                        param.requires_grad = False
-
-                    x_gt, x_tilde, disc_class, disc_layer, mus, log_variances = model(data_batch)
-                    # x_gt = reconstruction by teacher (vis enc)
-                    # x_tilde = reconstruction from cog
-                    # x_tilde, disc_class, disc_layer, mus, log_variances = model(x) # OLD STAGE 1
-
-                    # Split so we can get the different parts
-                    # hid_ refers to hidden discriminator layer
-                    # dis_ refers to final sigmoid output from discriminator
-                    # real = vis reconstruction (teacher)
-                    # pred = cog reconstruction
-                    hid_dis_real = disc_layer[:batch_size]
-                    hid_dis_pred = disc_layer[batch_size:-batch_size]
-                    hid_dis_sampled = disc_layer[-batch_size:]
-
-                    # disc_class = fin_dis_
-                    fin_dis_real = disc_class[:batch_size]
-                    fin_dis_pred = disc_class[batch_size:-batch_size]
-                    fin_dis_sampled = disc_class[-batch_size:]
-
-                    # VAE/GAN Loss
-                    loss_method = args.loss_method  # 'Maria', 'Ren'
-
-                    # VAE/GAN loss
-                    if loss_method == 'Maria':
-                        nle, kl, mse, bce_dis_original, bce_dis_predicted, bce_dis_sampled = \
-                            VaeGanCognitive.loss(x_gt, x_tilde, hid_dis_real, hid_dis_pred, fin_dis_real,
-                                                 fin_dis_pred, fin_dis_sampled, mus, log_variances)
-
-                        loss_encoder = torch.sum(kl) + torch.sum(mse)
-                        loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
-                            bce_dis_sampled)
-                        loss_decoder = torch.sum(training_config.lambda_mse * mse) - (1.0 - training_config.lambda_mse) * loss_discriminator
-
-                        logging.info('Encoder loss: {} \nDecoder loss: {} \nDiscriminator loss: {}'.format(loss_encoder,
-                                                                                                           loss_decoder,
-                                                                                                           loss_discriminator))
-
-                        # Register mean values for logging
-                        loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
-                        loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
-                        loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
-                        loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
-
-                    if loss_method == 'Ren':
-                        # Using Ren's Loss Function
-                        # TODO: Calculate loss functions here. Or do in function.
-                        # TODO: ADD EXTRA PARAMS (Only for COG)
-                        """nle, loss_encoder, loss_decoder, loss_discriminator = VaeGanCognitive.ren_loss(x_gt, x_tilde, mus,
-                                                                                              log_variances, hid_dis_real,
-                                                                                              hid_dis_pred, fin_dis_real,
-                                                                                              fin_dis_pred, stage=stage,
-                                                                                              device=device)"""
-                        # Register mean values for logging
-                        loss_encoder_mean = torch.mean(loss_encoder).data.cpu().numpy()
-                        loss_discriminator_mean = loss_discriminator.data.cpu().numpy()  # / batch_size
-                        loss_decoder_mean = loss_decoder.item()  # NOT USED, JUST FOR REF
-
-                        loss_encoder_mean_old = loss_encoder.data.cpu().numpy()  # / batch_size
-                        loss_discriminator_mean_old = loss_discriminator.data.cpu().numpy()  # / batch_size
-                        loss_decoder_mean_old = loss_decoder.data.cpu().numpy()  # NOT USED, JUST FOR REF
-                        loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
-
-                    # Selectively disable the decoder of the discriminator if they are unbalanced
-                    train_dis = True
-                    train_dec = False
-
-                    # Initially try training without equilibrium
-                    equilibrium_game = args.equilibrium_game
-
-                    if equilibrium_game == 'y':
-                        if torch.mean(bce_dis_original).item() < equilibrium - margin or torch.mean(
-                                bce_dis_predicted).item() < equilibrium - margin:
-                            train_dis = False
-                        if torch.mean(bce_dis_original).item() > equilibrium + margin or torch.mean(
-                                bce_dis_predicted).item() > equilibrium + margin:
-                            train_dec = False
-                        if train_dec is False and train_dis is False:
-                            train_dis = True
-                            train_dec = True
-
-                    if args.backprop_method == 'trad':
-                        # BACKPROP
-                        loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
-                        optimizer_encoder.step()
-
-                        # if train_dec:
-                        #     model.decoder.zero_grad()
-                        #     loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
-                        #     optimizer_decoder.step()
-
-                        if train_dis:
-                            model.discriminator.zero_grad()
-                            loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
-                            optimizer_discriminator.step()
-
-                        model.zero_grad()
-
-                    if args.backprop_method == 'clip':
-                        # BACKPROP
-                        loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
-                        [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
-                        optimizer_encoder.step()
-
-                        # if train_dec:
-                        #     model.decoder.zero_grad()
-                        #     loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
-                        #     optimizer_decoder.step()
-
-                        if train_dis:
-                            model.discriminator.zero_grad()
-                            loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
-                            [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
-                            optimizer_discriminator.step()
-
-                        model.zero_grad()
-
-                    logging.info(
-                        f'Epoch  {idx_epoch} {batch_idx + 1:3.0f} / {100 * (batch_idx + 1) / len(dataloader_train):2.3f}%, '
-                        f'---- encoder loss: {loss_encoder_mean:.5f} ---- | '
-                        f'---- decoder loss: {loss_decoder_mean:.5f} ---- | '
-                        f'---- discriminator loss: {loss_discriminator_mean:.5f} ---- | '
-                        f'---- network status (dec, dis): {train_dec}, {train_dis}')
-
-                    writer.add_scalar('loss_reconstruction_batch', loss_nle_mean, step_index)
-                    writer_encoder.add_scalar('loss_encoder_batch', loss_encoder_mean, step_index)
-                    writer_decoder.add_scalar('loss_decoder_discriminator_batch', loss_decoder_mean, step_index)
-                    writer_discriminator.add_scalar('loss_decoder_discriminator_batch', loss_discriminator_mean, step_index)
-
-                    step_index += 1
 
                 # EPOCH END
                 lr_encoder.step()
@@ -642,6 +643,10 @@ if __name__ == "__main__":
                 if not idx_epoch % 20 or idx_epoch == epochs_n-1:
                     torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
                     logging.info('Saving model')
+
+                if step_index >= max_iters:
+                    torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_final.pth'))
+                    logging.info('Saving model at max iteration')
 
                 # Record losses & scores
                 results['epochs'].append(idx_epoch + stp)
