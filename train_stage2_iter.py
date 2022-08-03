@@ -49,7 +49,7 @@ if __name__ == "__main__":
                                 type=int)
             parser.add_argument('--epochs', default=training_config.n_epochs, help='number of epochs', type=int)
             parser.add_argument('--iters', default=30000, help='sets max number of forward passes. 30k for stage 2'
-                                                               ', 15k for stage 3.')
+                                                               ', 15k for stage 3.', type=int)
             parser.add_argument('--num_workers', '-nw', default=training_config.num_workers,
                                 help='number of workers for dataloader', type=int)
             parser.add_argument('--loss_method', default='Maria',
