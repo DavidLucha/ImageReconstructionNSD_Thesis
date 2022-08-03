@@ -9,6 +9,7 @@ import logging
 import argparse
 import pandas as pd
 import matplotlib.pyplot as plt
+import random
 
 import torchvision
 from torch import nn, no_grad
@@ -26,16 +27,7 @@ from utils_2 import GreyToColor, evaluate, PearsonCorrelation, \
 
 if __name__ == "__main__":
     try:
-        numpy.random.seed(468)
-        torch.manual_seed(468)
-        torch.cuda.manual_seed(468)
-
-        logging.info('set up random seeds')
-
-        torch.autograd.set_detect_anomaly(True)
         timestep = time.strftime("%Y%m%d-%H%M%S")
-
-        stage = 2
 
         """
         ARGS PARSER
@@ -70,7 +62,7 @@ if __name__ == "__main__":
             parser.add_argument('--backprop_method', default='clip', help='trad sets three diff loss functions,'
                                                                           'but clip, clips the gradients to help'
                                                                           'avoid the late spikes in loss', type=str)
-
+            parser.add_argument('--seed', default=277603, help='sets seed, 0 makes a random int', type=int)
 
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
@@ -128,6 +120,8 @@ if __name__ == "__main__":
 
         # Create directory for results
         stage_num = 'stage_2'
+        stage = 2
+
         SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, SUBJECT_PATH, stage_num,
                                  args.run_name)
         if not os.path.exists(SAVE_PATH):
@@ -140,6 +134,10 @@ if __name__ == "__main__":
         LOG_PATH = os.path.join(SAVE_PATH, training_config.LOGS_PATH)
         if not os.path.exists(LOG_PATH):
             os.makedirs(LOG_PATH)
+
+        # Save arguments
+        with open(os.path.join(SAVE_PATH, 'config.txt'), 'w') as f:
+            json.dump(args.__dict__, f, indent=2)
 
         """
         LOGGING SETUP
@@ -156,6 +154,23 @@ if __name__ == "__main__":
         file_handler.setLevel(logging.INFO)
         logger.addHandler(file_handler)
 
+        """
+        SETTING SEEDS
+        """
+        seed = args.seed
+        if seed == 0:
+            seed = random.randint(1, 999999)
+        numpy.random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
+        logging.info('Set up random seeds...\nSeed is: {}'.format(seed))
+
+        torch.autograd.set_detect_anomaly(True)
+        # print('timestep is ',timestep)
+
+        """
+        DEVICE SETTING
+        """
         # Check available gpu
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         logger.info("Used device: %s" % device)
@@ -170,17 +185,11 @@ if __name__ == "__main__":
             valid_data = pickle.load(input_file)
         logger.info("Loading validation pickles for subject {} from {}".format(args.subject, VALID_DATA_PATH))
 
-        # Save arguments
-        with open(os.path.join(SAVE_PATH, 'config.txt'), 'w') as f:
-            json.dump(args.__dict__, f, indent=2)
-
         root_path = os.path.join(args.data_root, args.dataset + '/')
 
         """
         DATASET LOADING
         """
-        # TODO: Update dataloaders for cog/vis split
-        # image_crop = training_config.image_crop
 
         # Load data
         training_data = FmriDataloader(dataset=train_data, root_path=root_path,
@@ -234,7 +243,6 @@ if __name__ == "__main__":
                                      'pretrained_vaegan_' + args.pretrained_net + '_{}.pth'.format(args.load_epoch))
 
         logging.info('Loaded network is:', model_dir)
-        # TODO: Change 'pretrain' to stage 1 when it's working | We don't know yet
 
         # Initialize network and load Stage 1 weights
         teacher_model = VaeGan(device=device, z_size=training_config.latent_dim).to(device)
