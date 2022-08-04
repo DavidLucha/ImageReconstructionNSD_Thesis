@@ -684,3 +684,103 @@ class VaeGanCognitive(nn.Module):
         # Feature Loss
         # TODO: Look into GuassianNLLL and NLLL loss
         # TODO: Look into square function
+
+
+class VAE(nn.Module):
+    """
+    Just VAE
+    """
+    def __init__(self, device, z_size=128):
+        super(VAE, self).__init__()
+        # latent space size
+        self.z_size = z_size
+        self.encoder = Encoder(z_size=self.z_size).to(device)
+        # self.encoder = ResNetEncoder(z_size=self.z_size).to(device)
+        self.decoder = Decoder(z_size=self.z_size, size=self.encoder.size).to(device)
+        # self-defined function to init the parameters
+        self.init_parameters()
+        self.device = device
+
+    def init_parameters(self):
+        # just explore the network, find every weight and bias matrix and fill it
+        for m in self.modules():
+            if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d, nn.Linear)):
+                if hasattr(m, "weight") and m.weight is not None and m.weight.requires_grad:
+                    # init as original implementation # TODO: Check this
+                    scale = 1.0 / numpy.sqrt(numpy.prod(m.weight.shape[1:]))
+                    scale /= numpy.sqrt(3)
+                    # nn.init.xavier_normal(m.weight,1)
+                    # nn.init.constant(m.weight,0.005)
+                    nn.init.uniform_(m.weight, -scale, scale)
+                if hasattr(m, "bias") and m.bias is not None and m.bias.requires_grad:
+                    nn.init.constant_(m.bias, 0.0)
+
+    def reparameterize(self, mu, logvar):
+        logvar = logvar.mul(0.5).exp_()
+        eps = Variable(logvar.data.new(logvar.size()).normal_())
+        return eps.mul(logvar).add_(mu)
+
+    def forward(self, x, gen_size=10):
+        x = Variable(x).to(self.device)
+        if self.training:
+            mus, log_variances = self.encoder(x)
+            z = self.reparameterize(mus, log_variances)
+            x_tilde = self.decoder(z)
+
+            return x_tilde, mus, log_variances
+        else:
+            mus, log_variances = self.encoder(x)
+            z = self.reparameterize(mus, log_variances)
+            x_tilde = self.decoder(z)
+            return x_tilde
+
+    def __call__(self, *args, **kwargs):
+        return super(VAE, self).__call__(*args, **kwargs)
+
+    @staticmethod
+    def loss(x, x_tilde, hid_dis_real, hid_dis_pred, hid_dis_sampled, fin_dis_real, fin_dis_pred, fin_dis_sampled, mus, variances):
+
+        # reconstruction error, not used for the loss but useful to evaluate quality
+        nle = 0.5 * (x.view(len(x), -1) - x_tilde.view(len(x_tilde), -1)) ** 2
+
+        # kl-divergence
+        kl = -0.5 * torch.sum(-variances.exp() - torch.pow(mus, 2) + variances + 1, 1)
+        # print("axis then sum", kl, kl.size())
+        # print("then, sum that", torch.sum(kl), torch.sum(kl).size())
+        # kl_meth_2 = -0.5 * torch.sum(-variances.exp() - torch.pow(mus, 2) + variances + 1)
+        # print("sum with no axis", kl_meth_2, kl_meth_2.size())
+
+        # loss_KL = -0.5* torch.mean( 1.0 + logvar - mean.pow(2.0) - logvar.exp() )
+
+        # mse between intermediate layers
+        # mse_1 = torch.sum((hid_dis_real - hid_dis_pred) ** 2)
+        # The above didn't work as well. Not sure why though.
+        # Likely, because things are summed, everything is really finely tuned.
+        mse_1 = torch.sum(0.5 * (hid_dis_real - hid_dis_pred) ** 2, 1)
+        mse_2 = torch.sum(0.5 * (hid_dis_real - hid_dis_sampled) ** 2, 1)  # NEW
+
+        # bce for decoder and discriminator for original and reconstructed
+        bce_dis_original = -torch.log(fin_dis_real + 1e-5) # 1e-3
+        bce_dis_predicted = -torch.log(1 - fin_dis_pred + 1e-5)
+        bce_dis_sampled = -torch.log(1 - fin_dis_sampled + 1e-5)
+
+        bce_gen_sampled = -torch.log(fin_dis_sampled + 1e-3)  # NEW
+        bce_gen_recon = -torch.log(fin_dis_pred + 1e-3)  # NEW
+        '''
+
+
+        bce_gen_predicted = nn.BCEWithLogitsLoss(size_average=False)(labels_predicted,
+                                         Variable(torch.ones_like(labels_predicted.data).cuda(), requires_grad=False))
+        bce_gen_sampled = nn.BCEWithLogitsLoss(size_average=False)(labels_sampled,
+                                       Variable(torch.ones_like(labels_sampled.data).cuda(), requires_grad=False))
+        bce_dis_original = nn.BCEWithLogitsLoss(size_average=False)(labels_original,
+                                        Variable(torch.ones_like(labels_original.data).cuda(), requires_grad=False))
+        bce_dis_predicted = nn.BCEWithLogitsLoss(size_average=False)(labels_predicted,
+                                         Variable(torch.zeros_like(labels_predicted.data).cuda(), requires_grad=False))
+        bce_dis_sampled = nn.BCEWithLogitsLoss(size_average=False)(labels_sampled,
+                                       Variable(torch.zeros_like(labels_sampled.data).cuda(), requires_grad=False))
+        '''
+        return nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
+               bce_gen_recon, bce_gen_sampled
+
+
