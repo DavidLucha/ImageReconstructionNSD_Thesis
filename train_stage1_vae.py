@@ -193,35 +193,12 @@ def main():
         dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size,
                                       shuffle=False, num_workers=args.num_workers)
 
-        """# Test dataloader and show grid
-        def show_and_save(file_name, img):
-            npimg = numpy.transpose(img.numpy(), (1, 2, 0))
-            fig = plt.figure(dpi=200)
-            # f = "./%s.png" % file_name
-            fig.suptitle(file_name, fontsize=14, fontweight='bold')
-            plt.imshow(npimg)
-            # plt.imsave(f, npimg)
-    
-        real_batch = next(iter(dataloader_train))
-        show_and_save("Test Dataloader", make_grid((real_batch * 0.5 + 0.5).cpu(), 8))
-        plt.show()"""
-
         # This writer function is for torch.tensorboard - might be worth
         writer = SummaryWriter(SAVE_PATH + '/runs_' + args.run_name)
         writer_encoder = SummaryWriter(SAVE_PATH + '/runs_' + args.run_name + '/encoder')
-        writer_decoder = SummaryWriter(SAVE_PATH + '/runs_' + args.run_name + '/decoder')
-        writer_discriminator = SummaryWriter(SAVE_PATH + '/runs_' + args.run_name + '/discriminator')
-
-        # LOAD NETWORK WEIGHTS
-        model_dir = os.path.join(OUTPUT_PATH, 'both', 'pretrain', args.pretrained_net,
-                                   'pretrained_vaegan_' + args.pretrained_net + '_{}.pth'.format(args.load_epoch))
-        logging.info('Loaded network is:', model_dir)
-        # model_dir = trained_net.replace(".pth", '_{}.pth'.format(args.load_epoch))
 
         model = VAE(device=device, z_size=training_config.latent_dim).to(device)
-        logging.info('Loading model from pretraining')
-        model.load_state_dict(torch.load(model_dir, map_location=device))
-        model.eval()
+
 
         # Variables for equilibrium to improve GAN stability
         lr = args.lr
@@ -242,7 +219,7 @@ def main():
         #                                         alpha=0.9,
         #                                         eps=1e-8, weight_decay=training_config.weight_decay, momentum=0,
         #                                         centered=False)
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.003, amsgrad=False)
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr, amsgrad=False)
 
         # Initialize schedulers for learning rate
         lr_encoder = ExponentialLR(optimizer, gamma=args.decay_lr)
