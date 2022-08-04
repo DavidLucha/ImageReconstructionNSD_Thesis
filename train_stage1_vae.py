@@ -437,8 +437,8 @@ def main():
                         metric_value = value.detach().clone().item()
                         results[key].append(metric_value)
 
-                results_to_save = pd.DataFrame(results)
-                results_to_save.to_csv(SAVE_SUB_PATH.replace(".pth", "_results.csv"), index=False)
+                # results_to_save = pd.DataFrame(results)
+                # results_to_save.to_csv(SAVE_SUB_PATH.replace(".pth", "_results.csv"), index=False)
 
             except KeyboardInterrupt as e:
                 logging.info(e, 'Saving plots')
