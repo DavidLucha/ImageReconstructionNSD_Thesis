@@ -649,7 +649,7 @@ if __name__ == "__main__":
 
                         break
 
-                    if not idx_epoch % 20 or idx_epoch == epochs_n-1:
+                    if not idx_epoch % 10 or idx_epoch == epochs_n-1:
                         torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
                         logging.info('Saving model')
 

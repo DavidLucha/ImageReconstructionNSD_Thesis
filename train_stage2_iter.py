@@ -52,7 +52,8 @@ if __name__ == "__main__":
                                                                ', 15k for stage 3.', type=int)
             parser.add_argument('--num_workers', '-nw', default=training_config.num_workers,
                                 help='number of workers for dataloader', type=int)
-            parser.add_argument('--lr', default=training_config.learning_rate, type=float)
+            parser.add_argument('--lr_enc', default=.0001, type=float)
+            parser.add_argument('--lr_disc', default=.00001, type=float)
             parser.add_argument('--decay_lr', default=training_config.decay_lr,
                                 help='.98 in Maria, .75 in original VAE/GAN', type=float)
             parser.add_argument('--equilibrium_game', default='n', type=str,
@@ -268,7 +269,8 @@ if __name__ == "__main__":
         equilibrium = training_config.equilibrium
         lambda_mse = training_config.lambda_mse
         decay_mse = training_config.decay_mse
-        lr = args.lr
+        lr_enc = args.lr_enc
+        lr_disc = args.lr_disc
 
         # Loading Checkpoint | If you want to continue training for existing checkpoint
         # Set checkpoint path
@@ -288,6 +290,7 @@ if __name__ == "__main__":
             results = {col_name: list(results[col_name].values) for col_name in results.columns}
             stp = 1 + len(results['epochs'])
             # Calculates the lr at time of checkpoint
+            # TODO: potentiation breaks here because two lrs.
             lr = potentiation(lr, args.decay_lr, args.checkpoint_epoch)
             if training_config.evaluate:
                 images_dir = os.path.join(SAVE_PATH, 'images')
@@ -315,7 +318,7 @@ if __name__ == "__main__":
         )
 
         # An optimizer and schedulers for each of the sub-networks, so we can selectively backprop
-        optimizer_encoder = torch.optim.RMSprop(params=model.encoder.parameters(), lr=lr,
+        optimizer_encoder = torch.optim.RMSprop(params=model.encoder.parameters(), lr=lr_enc,
                                                 alpha=0.9,
                                                 eps=1e-8, weight_decay=training_config.weight_decay, momentum=0,
                                                 centered=False)
@@ -328,7 +331,7 @@ if __name__ == "__main__":
         # lr_decoder = ExponentialLR(optimizer_decoder, gamma=args.decay_lr)
 
         optimizer_discriminator = torch.optim.RMSprop(params=model.discriminator.parameters(),
-                                                      lr=lr,
+                                                      lr=lr_disc,
                                                       alpha=0.9, eps=1e-8, weight_decay=training_config.weight_decay,
                                                       momentum=0, centered=False)
         lr_discriminator = ExponentialLR(optimizer_discriminator, gamma=args.decay_lr)
@@ -396,6 +399,7 @@ if __name__ == "__main__":
                             fin_dis_sampled = disc_class[-batch_size:]
 
                             # VAE/GAN loss
+                            # TODO: try a loss where we do image/image rather than feature loss
                             nle, kl, mse, bce_dis_original, bce_dis_predicted, bce_dis_sampled = \
                                 VaeGanCognitive.loss(x_gt, x_tilde, hid_dis_real, hid_dis_pred, fin_dis_real,
                                                      fin_dis_pred, fin_dis_sampled, mus, log_variances)
@@ -622,7 +626,7 @@ if __name__ == "__main__":
                         # only for one batch due to memory issue
                         break
 
-                    if not idx_epoch % 20 or idx_epoch == epochs_n-1:
+                    if not idx_epoch % 10 or idx_epoch == epochs_n-1:
                         torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
                         logging.info('Saving model')
 

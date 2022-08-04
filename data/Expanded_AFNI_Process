@@ -1,0 +1,33 @@
+# Get all subject voxel labels
+
+# lh.floc-bodies.nii.gz
+# lh.floc-faces.nii.gz
+# lh.floc-places.nii.gz
+# lh.floc-words.nii.gz
+# lh.Kastner2015.nii.gz
+# lh.prf-visualrois.nii.gz
+
+# rh.floc-bodies.nii.gz
+# rh.floc-faces.nii.gz
+# rh.floc-places.nii.gz
+# rh.floc-words.nii.gz
+# rh.Kastner2015.nii.gz
+# rh.prf-visualrois.nii.gz
+
+3dcalc -a lh.floc-bodies.nii.gz -b rh.floc-bodies.nii.gz -expr "posval(a) + 5 * equals(b, 1) + 6 * equals(b, 2) + 7 * equals(b, 3) + 8 * equals(b, 4)" -prefix bh.floc-bodies
+3dmaskdump -mask bh.floc-bodies+orig.BRIK.gz -index -noijk -xyz -o bh.floc-bodies_ROI_labels.txt bh.floc-bodies+orig.BRIK.gz
+
+3dcalc -a lh.floc-faces.nii.gz -b rh.floc-faces.nii.gz -expr "posval(a) + 6 * equals(b, 1) + 7 * equals(b, 2) + 8 * equals(b, 3) + 9 * equals(b, 4) + 10 * equals(b, 5)" -prefix bh.floc-faces
+3dmaskdump -mask bh.floc-faces+orig.BRIK.gz -index -noijk -xyz -o bh.floc-faces_ROI_labels.txt bh.floc-faces+orig.BRIK.gz
+
+3dcalc -a lh.floc-places.nii.gz -b rh.floc-places.nii.gz -expr "posval(a) + 4 * equals(b, 1) + 5 * equals(b, 2) + 6 * equals(b, 3)" -prefix bh.floc-places
+3dmaskdump -mask bh.floc-places+orig.BRIK.gz -index -noijk -xyz -o bh.floc-places_ROI_labels.txt bh.floc-places+orig.BRIK.gz
+
+3dcalc -a lh.floc-words.nii.gz -b rh.floc-words.nii.gz -expr "posval(a) + 6 * equals(b, 1) + 7 * equals(b, 2) + 8 * equals(b, 3) + 9 * equals(b, 4) + 10 * equals(b, 5)" -prefix bh.floc-words
+3dmaskdump -mask bh.floc-words+orig.BRIK.gz -index -noijk -xyz -o bh.floc-words_ROI_labels.txt bh.floc-words+orig.BRIK.gz
+
+3dcalc -a lh.prf-visualrois.nii.gz -b rh.prf-visualrois.nii.gz -expr "posval(a) + 8 * equals(b, 1) + 9 * equals(b, 2) + 10 * equals(b, 3) + 11 * equals(b, 4) + 12 * equals(b, 5) + 13 * equals(b, 6) + 14 * equals(b, 7)" -prefix bh.prf-visualrois
+3dmaskdump -mask bh.prf-visualrois+orig.BRIK.gz -index -noijk -xyz -o bh.prf-visualrois_ROI_labels.txt bh.prf-visualrois+orig.BRIK.gz
+
+3dcalc -a lh.Kastner2015.nii.gz -b rh.Kastner2015.nii.gz -expr "posval(a) + 4 * equals(b, 1) + 5 * equals(b, 2) + 6 * equals(b, 3)" -prefix bh.Kastner2015
+3dmaskdump -mask bh.Kastner2015+orig.BRIK.gz -index -noijk -xyz -o bh.Kastner2015_ROI_labels.txt bh.Kastner2015+orig.BRIK.gz
