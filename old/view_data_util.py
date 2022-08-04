@@ -12,19 +12,17 @@ import random
 # BREAK TEST
 counter = 0
 max_count = 700
-for i in range(1,10):
-    for n in range(0,100):
-        if counter < max_count:
-            if counter >= 680:
-                print('more stuff, iter: {}'.format(counter))
-            counter += 1
-        else:
-            break
-    if counter < max_count:
+while counter < max_count:
+    for i in range(1,10):
+        for n in range(0,100):
+            if counter < max_count:
+                if counter >= 680:
+                    print('more stuff, iter: {}'.format(counter))
+                counter += 1
+            else:
+                break
         print('finished, counter is {}. Continue with saving shit.'.format(counter))
-    else:
-        print('save model at counter {}'.format(counter))
-        break
+print('save model at counter {}'.format(counter))
 print('welcome back.')
 
 

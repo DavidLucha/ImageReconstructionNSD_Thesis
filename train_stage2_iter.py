@@ -362,11 +362,9 @@ if __name__ == "__main__":
         # iters = 0
         max_iters = args.iters
 
-        for idx_epoch in range(args.epochs):
-            while step_index < max_iters:
-                # TODO: This is broken
+        while step_index < max_iters:
+            for idx_epoch in range(args.epochs):
                 try:
-
                     # For each batch
                     for batch_idx, data_batch in enumerate(dataloader_train):
                         if step_index < max_iters:
@@ -679,7 +677,7 @@ if __name__ == "__main__":
                     plot_dir = os.path.join(plots_dir, 'ER_loss')
                     plt.savefig(plot_dir)
                     logging.info("Plots are saved")
-                    # plt.show() # TODO: Check this
+                    # plt.show()
                     plt.close('all')
 
         # Save final model
@@ -687,6 +685,7 @@ if __name__ == "__main__":
         logging.info('Saving model at max iteration')
 
         exit(0)
+
     except Exception:
         logger.error("Fatal error", exc_info=True)
         sys.exit(1)

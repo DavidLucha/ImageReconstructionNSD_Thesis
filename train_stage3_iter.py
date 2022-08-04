@@ -265,7 +265,7 @@ if __name__ == "__main__":
 
         # Define model for stage II
         cognitive_encoder = CognitiveEncoder(input_size=NUM_VOXELS, z_size=training_config.latent_dim).to(device)
-        decoder = Decoder(z_size=training_config.latent_dim, size=vis_encoder.size).to(device)  # TODO: Check size is okay
+        decoder = Decoder(z_size=training_config.latent_dim, size=vis_encoder.size).to(device)
         # Though it should be because every one instance uses decoder.size=encoder.size
         # Given that we use the same decoder, this should be the same
         discriminator = Discriminator().to(device)  # Default: channels=3, recon_level=3
@@ -390,10 +390,9 @@ if __name__ == "__main__":
         epochs_n = args.epochs
         max_iters = args.iters
 
-        for idx_epoch in range(args.epochs):
-            while step_index < max_iters:
+        while step_index < max_iters:
+            for idx_epoch in range(args.epochs):
                 try:
-
                     # For each batch
                     for batch_idx, data_batch in enumerate(dataloader_train):
                         if step_index < max_iters:
@@ -713,6 +712,7 @@ if __name__ == "__main__":
         logging.info('Saving model at max iteration')
 
         exit(0)
+
     except Exception:
         logger.error("Fatal error", exc_info=True)
         sys.exit(1)
