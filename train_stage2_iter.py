@@ -364,6 +364,7 @@ if __name__ == "__main__":
 
         for idx_epoch in range(args.epochs):
             while step_index < max_iters:
+                # TODO: This is broken
                 try:
 
                     # For each batch
