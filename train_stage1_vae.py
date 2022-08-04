@@ -385,20 +385,6 @@ def main():
                     out = make_grid(out, nrow=8)
                     writer.add_image("reconstructed", out, step_index)
 
-                    out = model(None, 100)
-                    out = out.data.cpu()
-                    out = (out + 1) / 2
-                    out = make_grid(out, nrow=8)
-                    writer.add_image("generated", out, step_index)
-
-                    fig, ax = plt.subplots(figsize=(10, 10))
-                    ax.set_xticks([])
-                    ax.set_yticks([])
-                    ax.set_title('Random Generation at Epoch {}'.format(idx_epoch))
-                    ax.imshow(make_grid(out[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
-                    output_dir = os.path.join(images_dir, 'random', 'epoch_' + str(idx_epoch) + '_output_' + 'rand')
-                    plt.savefig(output_dir)
-
                     out = data_target.data.cpu()
                     out = (out + 1) / 2
                     out = make_grid(out, nrow=8)
