@@ -799,3 +799,100 @@ class VAE(nn.Module):
                bce_gen_recon, bce_gen_sampled
 
 
+class WaeGan(nn.Module):
+    """
+    WAE with GAN-based penalty. WAE discriminator distinguishes real and fake latent distributions
+    rather than images such as for standard GANs.
+    """
+    def __init__(self, device, z_size=128):
+        super(WaeGan, self).__init__()
+        # latent space size
+        self.z_size = z_size
+        self.encoder = Encoder(z_size=self.z_size).to(device)
+        self.decoder = Decoder(z_size=self.z_size, size=self.encoder.size).to(device)
+        # self.decoder = WaeDecoder(z_size=self.z_size, size=self.encoder.size).to(device)
+        self.discriminator = WaeDiscriminator(z_size=self.z_size).to(device)
+        # self-defined function to init the parameters
+        self.init_parameters()
+        self.device = device
+
+    def init_parameters(self):
+        # just explore the network, find every weight and bias matrix and fill it
+        for m in self.modules():
+            if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d, nn.Linear)):
+                if hasattr(m, "weight") and m.weight is not None and m.weight.requires_grad:
+                    # init as original implementation
+                    scale = 1.0 / numpy.sqrt(numpy.prod(m.weight.shape[1:]))
+                    scale /= numpy.sqrt(3)
+                    # nn.init.xavier_normal(m.weight,1)
+                    # nn.init.constant(m.weight,0.005)
+                    nn.init.uniform(m.weight, -scale, scale)
+                if hasattr(m, "bias") and m.bias is not None and m.bias.requires_grad:
+                    nn.init.constant(m.bias, 0.0)
+
+    def forward(self, x, gen_size=10):
+
+        if x is not None:
+            x = Variable(x).to(self.device)
+
+        if self.training:
+
+            # TODO: currently not used
+
+            mus, log_variances = self.encoder(x)
+            x_tilde = self.decoder(mus)
+
+            z_p = Variable(torch.randn(len(mus), self.z_size).to(self.device), requires_grad=True)
+            x_p = self.decoder(z_p)
+
+            disc_class = self.discriminator(mus, x_p, "GAN")  # encoder distribution
+
+            return x_tilde, disc_class, mus, log_variances
+        else:
+            if x is None:
+                # z_p = Variable(torch.randn(gen_size, self.z_size).to(self.device), requires_grad=False)  # just sample and decode
+                z_p = Variable(torch.randn_like(x).to(self.device), requires_grad=False)
+                x_p = self.decoder(z_p)
+                return x_p
+            else:
+                mus, log_variances = self.encoder(x)
+                x_tilde = self.decoder(mus)
+                return x_tilde
+
+    def __call__(self, *args, **kwargs):
+        return super(WaeGan, self).__call__(*args, **kwargs)
+
+
+class WaeDiscriminator(nn.Module):
+
+    """
+    Discriminator for the latent space to distinguish real and fake latent representations
+    """
+
+    def __init__(self, z_size=128, dim_h=512):
+        super(WaeDiscriminator, self).__init__()
+        self.n_z = z_size
+        self.dim_h = dim_h
+
+        self.main = nn.Sequential(
+            nn.Linear(self.n_z, self.dim_h),
+            nn.ReLU(True),
+            nn.Linear(self.dim_h, self.dim_h),
+            nn.ReLU(True),
+            nn.Linear(self.dim_h, self.dim_h),
+            nn.ReLU(True),
+            nn.Linear(self.dim_h, self.dim_h),
+            nn.ReLU(True),
+            nn.Linear(self.dim_h, 1),
+            nn.Sigmoid()
+        )
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                m.weight.data.normal_(0.0, 0.0099999)
+                m.bias.data.zero_()
+
+    def forward(self, x):
+        x = self.main(x)
+        return x
+
+

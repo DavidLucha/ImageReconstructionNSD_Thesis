@@ -8,6 +8,8 @@ $T_NOW = Get-Date -Format "dd-MM-yyyy_HH-mm"
 echo "Running pretrain at $T_NOW"
 python C:\Users\david\Python\deepReconPyTorch\pretrain.py --data_root 'D:/Lucha_Data/datasets/' --run_name Pretrain_Maria_RMS_0003_$RUN_NAME --d_scale 0.0 --g_scale 0.0 --lr 0.0003 --gamma 1.0 --equilibrium_game y --backprop_method trad --num_workers 2 --epochs 200 --dataset both --loss_method Maria --optim_method RMS --message "400 epoch run, Maria basic, lr 0003"
 
+python C:\Users\david\Python\deepReconPyTorch\pretrain_WAE.py --data_root 'D:/Lucha_Data/datasets/' --run_name WAE_TEST --lr 0.0001 --num_workers 2 --epochs 200 --dataset both --message "wae test"
+
 # Study 1
 # Pretrain one network. Used in both GOD and NSD.
 # python C:\Users\david\Python\deepReconPyTorch\pretrain.py --data_root 'D:/Lucha_Data/datasets/' --run_name Pretrain_Maria_$RUN_NAME --d_scale 0.0 --g_scale 0.0 --lr 0.0003 --gamma 1.0 --equilibrium_game y --backprop_method trad --num_workers 2 --epochs 400 --dataset both --loss_method Ren_Alt --optim_method RMS --message "400 epoch run, Maria basic."

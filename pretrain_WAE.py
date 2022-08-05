@@ -18,13 +18,21 @@ from torch.autograd import Variable
 from torchvision.utils import make_grid
 from torch.utils.data import DataLoader, ConcatDataset
 from torch.utils.tensorboard import SummaryWriter
-from torch.optim.lr_scheduler import ExponentialLR
+from torch.optim.lr_scheduler import ExponentialLR, StepLR
 
 import training_config
-from model_2 import VaeGan
+from model_2 import WaeGan
 from utils_2 import ImageNetDataloader, GreyToColor, evaluate, PearsonCorrelation, \
     StructuralSimilarity, objective_assessment, parse_args, NLLNormal, potentiation
 
+def free_params(module: nn.Module):
+    for p in module.parameters():
+        p.requires_grad = True
+
+
+def frozen_params(module: nn.Module):
+    for p in module.parameters():
+        p.requires_grad = False
 
 def main():
     try:
@@ -52,30 +60,12 @@ def main():
             parser.add_argument('--epochs', default=training_config.n_epochs_pt, help='number of epochs', type=int)
             parser.add_argument('--num_workers', '-nw', default=training_config.num_workers,
                                 help='number of workers for dataloader', type=int)
-            parser.add_argument('--loss_method', default='Maria',
-                                help='defines loss calculations. Maria, David, Orig.', type=str)
-            parser.add_argument('--optim_method', default='RMS',
-                                help='defines method for optimizer. Options: RMS or Adam.', type=str)
-            parser.add_argument('--lr', default=training_config.learning_rate_pt, type=float)
-            parser.add_argument('--decay_lr', default=training_config.decay_lr,
+            parser.add_argument('--lr', default=0.001, type=float)
+            parser.add_argument('--decay_lr', default=0.5,
                                 help='.98 in Maria, .75 in original VAE/GAN', type=float)
-            parser.add_argument('--adam_beta', default=0.9,
-                                help='sets the first value of the adam optimizer', type=float)
-            parser.add_argument('--lambda_loss', default=1e-6,
-                                help='sets the weighting of the reconstruction loss', type=float)
-            parser.add_argument('--equilibrium_game', default='y', type=str,
-                                 help='Sets whether to engage the equilibrium game for decoder/disc updates (y/n)')
-            parser.add_argument('--d_scale', default=0.0,
-                                help='sets the d value of scale for Ren loss, 0.25 in Rens code', type=float)
-            parser.add_argument('--g_scale', default=0.0,
-                                help='sets the g value of scale for Ren loss; 0.625 in Rens code', type=float)
-            parser.add_argument('--gamma', default=1.0,
-                                help='sets the weighting of KL divergence in encoder loss (Ren) or'
-                                     'the weight of MSE_1 in encoder loss (David: 1 vs 5)', type=float)
             parser.add_argument('--backprop_method', default='clip', help='trad sets three diff loss functions,'
                                                                           'but clip, clips the gradients to help'
                                                                           'avoid the late spikes in loss', type=str)
-            parser.add_argument('--klw', default=1.0, help='sets weighting for KL divergence', type=float)
             parser.add_argument('--seed', default=277603, help='sets seed, 0 makes a random int', type=int)
             parser.add_argument('--gpus', default=1, help='number of gpus but just testing this', type=int)
 
@@ -83,7 +73,7 @@ def main():
 
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
-                                                                           'vaegan_20220613-014326', type=str)
+                                                                           'WAE_20220613-014326', type=str)
             parser.add_argument('--checkpoint_epoch', default=90, help='epoch of checkpoint network', type=int)
             parser.add_argument('--pretrained_net', '-pretrain', default=training_config.pretrained_net,
                                 help='pretrained network', type=str)
@@ -123,7 +113,7 @@ def main():
         if not os.path.exists(SAVE_PATH):
             os.makedirs(SAVE_PATH)
 
-        SAVE_SUB_PATH = os.path.join(SAVE_PATH, 'pretrained_vaegan_{}.pth'.format(args.run_name))
+        SAVE_SUB_PATH = os.path.join(SAVE_PATH, 'pretrained_WAE_{}.pth'.format(args.run_name))
         if not os.path.exists(SAVE_SUB_PATH):
             os.makedirs(SAVE_SUB_PATH)
 
@@ -226,7 +216,7 @@ def main():
         writer_decoder = SummaryWriter(SAVE_PATH + '/runs_' + args.run_name + '/decoder')
         writer_discriminator = SummaryWriter(SAVE_PATH + '/runs_' + args.run_name + '/discriminator')
 
-        model = VaeGan(device=device, z_size=training_config.latent_dim, recon_level=training_config.recon_level).to(device)
+        model = WaeGan(device=device, z_size=training_config.latent_dim).to(device)
 
         # Variables for equilibrium to improve GAN stability
         margin = training_config.margin
@@ -239,7 +229,7 @@ def main():
         # Set checkpoint path
         if args.network_checkpoint is not None:
             net_checkpoint_path = os.path.join(OUTPUT_PATH, args.dataset, 'pretrain', args.network_checkpoint,
-                                       'pretrained_vaegan_' + args.network_checkpoint + '.pth')
+                                       'pretrained_WAE_' + args.network_checkpoint + '.pth')
             print(net_checkpoint_path)
 
         # Load and show results
@@ -277,41 +267,15 @@ def main():
             loss_reconstruction=[]
         )
 
-        # An optimizer and schedulers for each of the sub-networks, so we can selectively backprop
-        optim_method = args.optim_method  # RMS or Adam or SGD (Momentum)
-        # encdec_params = list(model.encoder.parameters()) + list(model.decoder.parameters())
+        # Optimizers
+        optimizer_encoder = torch.optim.Adam(model.encoder.parameters(), lr=0.0001, betas=(0.5, 0.999))
+        optimizer_decoder = torch.optim.Adam(model.decoder.parameters(), lr=0.0001, betas=(0.5, 0.999))
+        optimizer_discriminator = torch.optim.Adam(model.discriminator.parameters(), lr=0.5 * 0.0001,
+                                                   betas=(0.5, 0.999))
 
-        if optim_method == 'RMS':
-            optimizer_encoder = torch.optim.RMSprop(params=model.encoder.parameters(), lr=lr,
-                                                    alpha=0.9,
-                                                    eps=1e-8, weight_decay=training_config.weight_decay, momentum=0,
-                                                    centered=False)
-            optimizer_decoder = torch.optim.RMSprop(params=model.decoder.parameters(), lr=lr,
-                                                    alpha=0.9,
-                                                    eps=1e-8, weight_decay=training_config.weight_decay, momentum=0,
-                                                    centered=False)
-            optimizer_discriminator = torch.optim.RMSprop(params=model.discriminator.parameters(),
-                                                          lr=lr,
-                                                          alpha=0.9, eps=1e-8, weight_decay=training_config.weight_decay,
-                                                          momentum=0, centered=False)
-            lr_encoder = ExponentialLR(optimizer_encoder, gamma=args.decay_lr)
-            lr_decoder = ExponentialLR(optimizer_decoder, gamma=args.decay_lr)
-
-        if optim_method == 'Adam':
-            # There are issues with Pytorch's Adam implementation. Doesn't work well with the network.
-            beta_1 = args.adam_beta
-            eps = 1e-8
-            optimizer_encoder = torch.optim.Adam(params=model.encoder.parameters(), lr=lr, eps=eps,
-                                                 betas=(beta_1, 0.999), weight_decay=training_config.weight_decay)
-            optimizer_decoder = torch.optim.Adam(params=model.decoder.parameters(), lr=lr, eps=eps,
-                                                 betas=(beta_1, 0.999), weight_decay=training_config.weight_decay)
-            optimizer_discriminator = torch.optim.Adam(params=model.discriminator.parameters(), lr=lr, eps=eps,
-                                                       betas=(beta_1, 0.999),  weight_decay=training_config.weight_decay)
-            lr_encoder = ExponentialLR(optimizer_encoder, gamma=args.decay_lr)
-            lr_decoder = ExponentialLR(optimizer_decoder, gamma=args.decay_lr)
-
-        # Initialize schedulers for learning rate
-        lr_discriminator = ExponentialLR(optimizer_discriminator, gamma=args.decay_lr)
+        lr_encoder = StepLR(optimizer_encoder, step_size=30, gamma=0.5)
+        lr_decoder = StepLR(optimizer_decoder, step_size=30, gamma=0.5)
+        lr_discriminator = StepLR(optimizer_discriminator, step_size=30, gamma=0.5)
 
         # Metrics
         pearson_correlation = PearsonCorrelation()
@@ -351,119 +315,71 @@ def main():
                     model.train()
 
                     batch_size = len(data_batch)
+                    model.encoder.zero_grad()
+                    model.decoder.zero_grad()
+                    model.discriminator.zero_grad()
+
                     x = Variable(data_batch, requires_grad=False).float().to(device)
 
-                    x_tilde, disc_class, disc_layer, mus, log_variances = model(x)
+                    # ----------Train discriminator-------------
 
-                    # Split so we can get the different parts
-                    # disc_layer = hid_dis_
-                    hid_dis_real = disc_layer[:batch_size]
-                    hid_dis_pred = disc_layer[batch_size:-batch_size]
-                    hid_dis_sampled = disc_layer[-batch_size:]
+                    frozen_params(model.decoder)
+                    frozen_params(model.encoder)
+                    free_params(model.discriminator)
 
-                    # disc_class = fin_dis_
-                    fin_dis_real = disc_class[:batch_size]
-                    fin_dis_pred = disc_class[batch_size:-batch_size]
-                    fin_dis_sampled = disc_class[-batch_size:]
+                    z_real, var = model.encoder(x)
+                    z_fake = Variable(torch.randn_like(z_real) * 0.5).to(device)
 
-                    # Selectively disable the decoder of the discriminator if they are unbalanced
-                    train_dis = True
-                    train_dec = True
-                    # equilibrium_game = True
+                    d_real = model.discriminator(z_real)
+                    d_fake = model.discriminator(z_fake)
 
-                    model.zero_grad()
+                    loss_discriminator_fake = - 10 * torch.sum(torch.log(d_fake + 1e-3))
+                    loss_discriminator_real = - 10 * torch.sum(torch.log(1 - d_real + 1e-3))
+                    loss_discriminator_fake.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
+                    loss_discriminator_real.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
 
-                    loss_method = args.loss_method # 'Maria', 'Orig', 'Ren'
+                    # loss_discriminator.backward(retain_graph=True)
+                    # [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
+                    optimizer_discriminator.step()
 
-                    # VAE/GAN loss
-                    if loss_method == 'Maria':
-                        nle, kl, mse_1, mse_2, bce_dis_original, bce_dis_predicted, bce_dis_sampled, \
-                        bce_gen_recon, bce_gen_sampled = VaeGan.loss(x, x_tilde, hid_dis_real,
-                                                                     hid_dis_pred, hid_dis_sampled,
-                                                                     fin_dis_real, fin_dis_pred,
-                                                                     fin_dis_sampled, mus, log_variances)
+                    # ----------Train generator----------------
+                    model.encoder.zero_grad()
+                    model.decoder.zero_grad()
 
-                        loss_encoder = torch.sum(kl) + torch.sum(mse_1)
-                        loss_discriminator = torch.sum(bce_dis_original) + torch.sum(bce_dis_predicted) + torch.sum(
-                            bce_dis_sampled)
-                        loss_decoder = torch.sum(lambda_mse * mse_1) - (1.0 - lambda_mse) * loss_discriminator
-                        logging.info('Encoder loss: {} \nDecoder loss: {} \nDiscriminator loss: {}'.format(loss_encoder,
-                                                                                                    loss_decoder,
-                                                                                                    loss_discriminator))
+                    free_params(model.encoder)
+                    free_params(model.decoder)
+                    frozen_params(model.discriminator)
 
-                        # Register mean values for logging
-                        loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
-                        loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / batch_size
-                        loss_decoder_mean = loss_decoder.data.cpu().numpy() / batch_size
-                        loss_nle_mean = torch.sum(nle).data.cpu().numpy() / batch_size
+                    z_real, var = model.encoder(x)
+                    x_recon = model.decoder(z_real)
+                    d_real = model.discriminator(z_real)
 
-                    equilibrium_game = args.equilibrium_game
+                    mse_loss = nn.MSELoss()
+                    loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x) ** 2, 1))
+                    # loss_reconstruction = mse_loss(x_recon, x)
+                    loss_penalty = - 10 * torch.sum(torch.log(d_real + 1e-3))
+                    # loss_wae = (loss_reconstruction + loss_penalty) / batch_size
+                    encdec_params = list(model.encoder.parameters()) + list(model.decoder.parameters())
 
-                    # print('#\n#\n#\n#\n#\n Before training: #\n#\n#\n#\n#\n')
-                    # for name, param in model.named_parameters():
-                    #     print('\n\n PRE-TRAINING \n\n', name, param)
+                    loss_reconstruction.backward(retain_graph=True, inputs=encdec_params)
+                    loss_penalty.backward(inputs=encdec_params)
+                    # [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
+                    # loss_wae.backward()
+                    optimizer_encoder.step()
+                    optimizer_decoder.step()
 
-                    if equilibrium_game == 'y':
-                        if torch.mean(bce_dis_original).item() < equilibrium - margin or torch.mean(
-                                bce_dis_predicted).item() < equilibrium - margin:
-                            train_dis = False
-                        if torch.mean(bce_dis_original).item() > equilibrium + margin or torch.mean(
-                                bce_dis_predicted).item() > equilibrium + margin:
-                            train_dec = False
-                        if train_dec is False and train_dis is False:
-                            train_dis = True
-                            train_dec = True
-
-                    if args.backprop_method == 'trad':
-                        # BACKPROP
-                        # Backpropagation below ensures same results as if running optimizers in isolation
-                        # And works in PyTorch==1.10 (allows for other important functions)
-                        loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
-                        optimizer_encoder.step()
-
-                        if train_dec:
-                            model.decoder.zero_grad()
-                            loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
-                            optimizer_decoder.step()
-
-                        if train_dis:
-                            model.discriminator.zero_grad()
-                            loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
-                            optimizer_discriminator.step()
-
-                        model.zero_grad()
-
-                    if args.backprop_method == 'clip':
-                        # clip, clips the gradients and helps the late spike in loss
-                        loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
-                        [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
-                        optimizer_encoder.step()
-
-                        if train_dec:
-                            model.decoder.zero_grad()
-                            loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
-                            [p.grad.data.clamp_(-1, 1) for p in model.decoder.parameters()]
-                            optimizer_decoder.step()
-
-                        if train_dis:
-                            model.discriminator.zero_grad()
-                            loss_discriminator.backward(inputs=list(model.discriminator.parameters()))
-                            [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
-                            optimizer_discriminator.step()
-
-                        model.zero_grad()
+                    # register mean values of the losses for logging
+                    loss_reconstruction_mean = loss_reconstruction.data.cpu().numpy() / batch_size
+                    loss_penalty_mean = loss_penalty.data.cpu().numpy() / batch_size
+                    loss_discriminator_fake_mean = loss_discriminator_fake.data.cpu().numpy() / batch_size
+                    loss_discriminator_real_mean = loss_discriminator_real.data.cpu().numpy() / batch_size
 
                     logging.info(
                         f'Epoch  {idx_epoch} {batch_idx + 1:3.0f} / {100 * (batch_idx + 1) / len(dataloader_train):2.3f}%, '
-                        f'---- encoder loss: {loss_encoder_mean:.5f} ---- | '
-                        f'---- decoder loss: {loss_decoder_mean:.5f} ---- | '
-                        f'---- discriminator loss: {loss_discriminator_mean:.5f} ---- | '
-                        f'---- network status (dec, dis): {train_dec}, {train_dis}')
-
-                    writer.add_scalar('loss_reconstruction_batch', loss_nle_mean, step_index)
-                    writer_encoder.add_scalar('loss_encoder_batch', loss_encoder_mean, step_index)
-                    writer_decoder.add_scalar('loss_decoder_discriminator_batch', loss_decoder_mean, step_index)
-                    writer_discriminator.add_scalar('loss_decoder_discriminator_batch', loss_discriminator_mean, step_index)
+                        f'---- recon loss: {loss_reconstruction_mean:.5f} ---- | '
+                        f'---- penalty loss: {loss_penalty_mean:.5f} ---- | '
+                        f'---- discrim fake loss: {loss_discriminator_fake:.5f} ---- | '
+                        f'---- discrim real loss: {loss_discriminator_real:.5f}')
 
                     step_index += 1
 
@@ -471,20 +387,6 @@ def main():
                 lr_encoder.step()
                 lr_decoder.step()
                 lr_discriminator.step()
-
-                margin *= training_config.decay_margin
-                equilibrium *= training_config.decay_equilibrium
-
-                if margin > equilibrium:
-                    equilibrium = margin
-                lambda_mse *= decay_mse
-                if lambda_mse > 1:
-                    lambda_mse = 1
-
-                writer.add_scalar('loss_reconstruction', loss_nle_mean, idx_epoch)
-                writer_encoder.add_scalar('loss_encoder', loss_encoder_mean, idx_epoch)
-                writer_decoder.add_scalar('loss_decoder_discriminator', loss_decoder_mean, idx_epoch)
-                writer_discriminator.add_scalar('loss_decoder_discriminator', loss_discriminator_mean, idx_epoch)
 
                 if not idx_epoch % 2:
                     # Save train examples
@@ -506,7 +408,7 @@ def main():
                     ax.set_xticks([])
                     ax.set_yticks([])
                     ax.set_title('Training Reconstruction at Epoch {}'.format(idx_epoch))
-                    ax.imshow(make_grid(x_tilde[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                    ax.imshow(make_grid(x_recon[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
                     output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
                     plt.savefig(output_dir)
 
@@ -534,9 +436,9 @@ def main():
                     if metrics_train is not None:
                         for key, metric in metrics_train.items():
                             if key == 'cosine_similarity':
-                                result_metrics_train[key] = metric(x_tilde, x).mean()
+                                result_metrics_train[key] = metric(x_recon, x).mean()
                             else:
-                                result_metrics_train[key] = metric(x_tilde, x)
+                                result_metrics_train[key] = metric(x_recon, x)
 
                     # Save validation examples
                     images_dir = os.path.join(SAVE_PATH, 'images', 'valid')
@@ -621,10 +523,10 @@ def main():
 
                 # Record losses & scores
                 results['epochs'].append(idx_epoch + stp)
-                results['loss_encoder'].append(loss_encoder_mean)
-                results['loss_decoder'].append(loss_decoder_mean)
-                results['loss_discriminator'].append(loss_discriminator_mean)
-                results['loss_reconstruction'].append(loss_nle_mean)
+                results['loss_reconstruction'].append(loss_reconstruction_mean)
+                results['loss_penalty'].append(loss_penalty_mean)
+                results['loss_discriminator_fake'].append(loss_discriminator_fake_mean)
+                results['loss_discriminator_real'].append(loss_discriminator_real_mean)
 
                 if metrics_valid is not None:
                     for key, value in result_metrics_valid.items():
