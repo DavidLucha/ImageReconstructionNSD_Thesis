@@ -77,6 +77,7 @@ def main():
                                                                           'avoid the late spikes in loss', type=str)
             parser.add_argument('--klw', default=1.0, help='sets weighting for KL divergence', type=float)
             parser.add_argument('--seed', default=277603, help='sets seed, 0 makes a random int', type=int)
+            parser.add_argument('--gpus', default=1, help='number of gpus but just testing this')
 
 
 
@@ -226,6 +227,10 @@ def main():
         writer_discriminator = SummaryWriter(SAVE_PATH + '/runs_' + args.run_name + '/discriminator')
 
         model = VaeGan(device=device, z_size=training_config.latent_dim, recon_level=training_config.recon_level).to(device)
+
+        if args.gpus > 1:
+            model = nn.DataParallel(model)
+            model.to(device)
 
         # Variables for equilibrium to improve GAN stability
         margin = training_config.margin

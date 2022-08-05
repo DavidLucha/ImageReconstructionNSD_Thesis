@@ -1,14 +1,14 @@
 #!/bin/bash
 
 #SBATCH -N 1
-#SBATCH --job-name=1T50C
-#SBATCH -n 1
-#SBATCH -c 1
+#SBATCH --job-name=2T25C2G
+#SBATCH -n 2
+#SBATCH -c 25
 #SBATCH --mem=50000
-#SBATCH -o 1T50C_output.txt
-#SBATCH -e 1T50C_error.txt
+#SBATCH -o 2T25C2G_output.txt
+#SBATCH -e 2T25C2G_error.txt
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:tesla:1
+#SBATCH --gres=gpu:tesla:2
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=uqdlucha@uq.edu.au
 
@@ -25,7 +25,7 @@ RUN_NAME=$(date +%Y%m%d-%H%M%S)
 # Study 1
 # Pretrain one network. Used in both GOD and NSD.
 echo "Running pretrain at $(date +%Y%m%d-%H%M%S)"
-srun -N 1 -p gpu --gres=gpu:1 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/pretrain.py --run_name 1T50C_$RUN_NAME --lr 0.0001 --gamma 1.0 --equilibrium_game y --backprop_method clip --num_workers 1 --epochs 100 --dataset both --loss_method Maria --optim_method RMS --seed 277603 --message "1 worker, 1 task, 50 CPU"
+srun -N 1 -p gpu --gres=gpu:2 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/pretrain.py --run_name 2T25C2G_$RUN_NAME --gpus 2 --lr 0.0001 --gamma 1.0 --equilibrium_game y --backprop_method clip --num_workers 2 --epochs 100 --dataset both --loss_method Maria --optim_method RMS --seed 277603 --message "1 worker, 1 task, 50 CPU"
 echo "Pretrain complete at $(date +%Y%m%d-%H%M%S)"
 
 # echo "Running stage 1 at $(date +%Y%m%d-%H%M%S)"
