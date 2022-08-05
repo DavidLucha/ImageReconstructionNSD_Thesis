@@ -8,6 +8,18 @@ import torch
 import training_config as cfg
 import random
 
+def mami(stage):
+    if stage == 2:
+        stage_out = 2
+        print('this is stage 2')
+        return stage_out
+    mami_out = 4
+    print('this will happen')
+    return mami_out
+
+out = mami(2)
+
+print(out)
 
 # BREAK TEST
 counter = 0

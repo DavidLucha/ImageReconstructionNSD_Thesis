@@ -594,7 +594,9 @@ class VaeGanCognitive(nn.Module):
                     z_teacher = self.reparameterize(mu_teacher, logvar_teacher)
                     # Reconstruct gt by the teacher net
                     gt_x = self.decoder(z_teacher)
-                return x_tilde, gt_x
+                    return x_tilde, gt_x
+
+                return x_tilde
         else:
             z_p = Variable(torch.randn(gen_size, self.z_size).to(self.device), requires_grad=False)
             x_p = self.decoder(z_p)

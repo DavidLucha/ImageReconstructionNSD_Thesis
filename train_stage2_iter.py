@@ -578,6 +578,7 @@ if __name__ == "__main__":
                             os.makedirs(os.path.join(images_dir, 'random'))
 
                         out = out.data.cpu()
+                        vis_out = vis_out.data.cpu()
 
                         if shuf:
                             fig, ax = plt.subplots(figsize=(10, 10))
