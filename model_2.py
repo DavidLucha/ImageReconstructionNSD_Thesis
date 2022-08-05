@@ -581,7 +581,20 @@ class VaeGanCognitive(nn.Module):
                 mus, log_variances = self.encoder(x)
                 z = self.reparameterize(mus, log_variances)
                 x_tilde = self.decoder(z)
-                return x_tilde
+
+                # Also grab visual encoder reconstruction for comparison
+                if self.teacher_net is not None and self.stage == 2:
+
+                    for param in self.teacher_net.encoder.parameters():
+                        param.requires_grad = False
+
+                    # Inter-modality knowledge distillation
+                    mu_teacher, logvar_teacher = self.teacher_net.encoder(gt_x)
+                    # Re-parametrization trick
+                    z_teacher = self.reparameterize(mu_teacher, logvar_teacher)
+                    # Reconstruct gt by the teacher net
+                    gt_x = self.decoder(z_teacher)
+                return x_tilde, gt_x
         else:
             z_p = Variable(torch.randn(gen_size, self.z_size).to(self.device), requires_grad=False)
             x_p = self.decoder(z_p)

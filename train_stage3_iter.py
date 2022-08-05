@@ -52,15 +52,18 @@ if __name__ == "__main__":
                                                                ', 15k for stage 3.', type=int)
             parser.add_argument('--num_workers', '-nw', default=training_config.num_workers,
                                 help='number of workers for dataloader', type=int)
-            parser.add_argument('--lr', default=training_config.learning_rate, type=float)
+            parser.add_argument('--lr_dec', default=.0001, type=float)
+            parser.add_argument('--lr_disc', default=.00001, type=float)
             parser.add_argument('--decay_lr', default=training_config.decay_lr,
                                 help='.98 in Maria, .75 in original VAE/GAN', type=float)
-            parser.add_argument('--equilibrium_game', default='n', type=str,
+            parser.add_argument('--equilibrium_game', default='y', type=str,
                                 help='Sets whether to engage the equilibrium game for decoder/disc updates (y/n)')
             parser.add_argument('--backprop_method', default='clip', help='trad sets three diff loss functions,'
                                                                           'but clip, clips the gradients to help'
                                                                           'avoid the late spikes in loss', type=str)
             parser.add_argument('--seed', default=277603, help='sets seed, 0 makes a random int', type=int)
+            parser.add_argument('--valid_shuffle', '-shuffle', default='False', type=str, help='defines whether'
+                                                                                               'eval dataloader shuffles')
 
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
@@ -191,6 +194,10 @@ if __name__ == "__main__":
         DATASET LOADING
         """
         # image_crop = training_config.image_crop
+        if args.valid_shuffle == 'True':
+            shuf = True
+        else:
+            shuf = False
 
         # Load data
         training_data = FmriDataloader(dataset=train_data, root_path=root_path,
@@ -224,7 +231,7 @@ if __name__ == "__main__":
         dataloader_train = DataLoader(training_data, batch_size=args.batch_size,  # collate_fn=PadCollate(dim=0),
                                       shuffle=True, num_workers=args.num_workers)
         dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size,  # collate_fn=PadCollate(dim=0),
-                                      shuffle=False, num_workers=args.num_workers)
+                                      shuffle=shuf, num_workers=args.num_workers)
 
         NUM_VOXELS = len(train_data[0]['fmri'])
 
@@ -280,7 +287,8 @@ if __name__ == "__main__":
         equilibrium = training_config.equilibrium
         lambda_mse = training_config.lambda_mse
         decay_mse = training_config.decay_mse
-        lr = args.lr
+        lr_dec = args.lr_dec
+        lr_disc = args.lr_disc
 
         # Load Stage 2 network weights
         model_dir = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, SUBJECT_PATH,
@@ -351,13 +359,13 @@ if __name__ == "__main__":
         #                                         centered=False)
         # lr_encoder = ExponentialLR(optimizer_encoder, gamma=args.decay_lr)
 
-        optimizer_decoder = torch.optim.RMSprop(params=model.decoder.parameters(), lr=lr,
+        optimizer_decoder = torch.optim.RMSprop(params=model.decoder.parameters(), lr=lr_dec,
                                                 alpha=0.9, eps=1e-8, weight_decay=training_config.weight_decay,
                                                 momentum=0, centered=False)
         lr_decoder = ExponentialLR(optimizer_decoder, gamma=args.decay_lr)
 
         optimizer_discriminator = torch.optim.RMSprop(params=model.discriminator.parameters(),
-                                                      lr=lr,
+                                                      lr=lr_disc,
                                                       alpha=0.9, eps=1e-8, weight_decay=training_config.weight_decay,
                                                       momentum=0, centered=False)
         lr_discriminator = ExponentialLR(optimizer_discriminator, gamma=args.decay_lr)
@@ -589,14 +597,24 @@ if __name__ == "__main__":
                         if not os.path.exists(images_dir):
                             os.makedirs(images_dir)
 
-                        if idx_epoch == 0:
+                        if shuf:
                             fig, ax = plt.subplots(figsize=(10, 10))
                             ax.set_xticks([])
                             ax.set_yticks([])
                             ax.set_title('Validation Ground Truth')
-                            ax.imshow(make_grid(data_target[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                            ax.imshow(
+                                make_grid(data_target[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
                             gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                             plt.savefig(gt_dir)
+                        else:
+                            if idx_epoch == 0:
+                                fig, ax = plt.subplots(figsize=(10, 10))
+                                ax.set_xticks([])
+                                ax.set_yticks([])
+                                ax.set_title('Validation Ground Truth')
+                                ax.imshow(make_grid(data_target[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                                gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
+                                plt.savefig(gt_dir)
 
                         fig, ax = plt.subplots(figsize=(10, 10))
                         ax.set_xticks([])

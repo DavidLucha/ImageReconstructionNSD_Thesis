@@ -62,6 +62,8 @@ if __name__ == "__main__":
                                                                           'but clip, clips the gradients to help'
                                                                           'avoid the late spikes in loss', type=str)
             parser.add_argument('--seed', default=277603, help='sets seed, 0 makes a random int', type=int)
+            parser.add_argument('--valid_shuffle', '-shuffle', default='False', type=str, help='defines whether'
+                                                                                               'eval dataloader shuffles')
 
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
@@ -189,6 +191,10 @@ if __name__ == "__main__":
         """
         DATASET LOADING
         """
+        if args.valid_shuffle == 'True':
+            shuf = True
+        else:
+            shuf = False
 
         # Load data
         training_data = FmriDataloader(dataset=train_data, root_path=root_path,
@@ -222,7 +228,7 @@ if __name__ == "__main__":
         dataloader_train = DataLoader(training_data, batch_size=args.batch_size,  # collate_fn=collate_fn,
                                       shuffle=True, num_workers=args.num_workers)
         dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size,  # collate_fn=collate_fn,
-                                      shuffle=False, num_workers=args.num_workers)
+                                      shuffle=shuf, num_workers=args.num_workers)
 
         NUM_VOXELS = len(train_data[0]['fmri'])
 
@@ -399,7 +405,6 @@ if __name__ == "__main__":
                             fin_dis_sampled = disc_class[-batch_size:]
 
                             # VAE/GAN loss
-                            # TODO: try a loss where we do image/image rather than feature loss
                             nle, kl, mse, bce_dis_original, bce_dis_predicted, bce_dis_sampled = \
                                 VaeGanCognitive.loss(x_gt, x_tilde, hid_dis_real, hid_dis_pred, fin_dis_real,
                                                      fin_dis_pred, fin_dis_sampled, mus, log_variances)
@@ -524,9 +529,18 @@ if __name__ == "__main__":
                         fig, ax = plt.subplots(figsize=(10, 10))
                         ax.set_xticks([])
                         ax.set_yticks([])
-                        ax.set_title('Training Reconstruction at Epoch {}'.format(idx_epoch))
+                        ax.set_title('Training Vis Enc Reconstruction (Real) at Epoch {}'.format(idx_epoch))
+                        ax.imshow(
+                            make_grid(x_gt[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                        gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
+                        plt.savefig(gt_dir)
+
+                        fig, ax = plt.subplots(figsize=(10, 10))
+                        ax.set_xticks([])
+                        ax.set_yticks([])
+                        ax.set_title('Training Cog Enc Reconstruction at Epoch {}'.format(idx_epoch))
                         ax.imshow(make_grid(x_tilde[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
-                        output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
+                        output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_cog_output_' + 'grid')
                         plt.savefig(output_dir)
 
                     logging.info('Evaluation')
@@ -537,7 +551,7 @@ if __name__ == "__main__":
                         with no_grad():
 
                             data_target = Variable(data_batch['image'], requires_grad=False).float().to(device)
-                            out = model(data_batch)
+                            out, vis_out = model(data_batch)
 
                             # Validation metrics for the first validation batch
                             if metrics_valid is not None:
@@ -565,21 +579,50 @@ if __name__ == "__main__":
 
                         out = out.data.cpu()
 
-                        if idx_epoch == 0:
+                        if shuf:
                             fig, ax = plt.subplots(figsize=(10, 10))
                             ax.set_xticks([])
                             ax.set_yticks([])
                             ax.set_title('Validation Ground Truth')
-                            ax.imshow(make_grid(data_target[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                            ax.imshow(
+                                make_grid(data_target[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
                             gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                             plt.savefig(gt_dir)
+
+                            fig, ax = plt.subplots(figsize=(10, 10))
+                            ax.set_xticks([])
+                            ax.set_yticks([])
+                            ax.set_title('Validation Vis Enc Reconstruction at Epoch {}'.format(idx_epoch))
+                            ax.imshow(make_grid(vis_out[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                            output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
+                            plt.savefig(output_dir)
+
+                        else:  # valid_shuffle is false, so same images are shown
+                            if idx_epoch == 0:
+                                fig, ax = plt.subplots(figsize=(10, 10))
+                                ax.set_xticks([])
+                                ax.set_yticks([])
+                                ax.set_title('Validation Ground Truth')
+                                ax.imshow(make_grid(data_target[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                                gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
+                                plt.savefig(gt_dir)
+
+                                fig, ax = plt.subplots(figsize=(10, 10))
+                                ax.set_xticks([])
+                                ax.set_yticks([])
+                                ax.set_title('Validation Vis Enc Reconstruction at Epoch {}'.format(idx_epoch))
+                                ax.imshow(
+                                    make_grid(vis_out[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                                output_dir = os.path.join(images_dir,
+                                                          'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
+                                plt.savefig(output_dir)
 
                         fig, ax = plt.subplots(figsize=(10, 10))
                         ax.set_xticks([])
                         ax.set_yticks([])
-                        ax.set_title('Validation Reconstruction at Epoch {}'.format(idx_epoch))
+                        ax.set_title('Validation Cog Enc Reconstruction at Epoch {}'.format(idx_epoch))
                         ax.imshow(make_grid(out[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
-                        output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
+                        output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_cog_output_' + 'grid')
                         plt.savefig(output_dir)
 
                         out = (out + 1) / 2
