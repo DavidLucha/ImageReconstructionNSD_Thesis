@@ -231,6 +231,7 @@ def main():
         if args.gpus > 1:
             model = nn.DataParallel(model)
             model.to(device)
+            # TODO: This doesn't work.
 
         # Variables for equilibrium to improve GAN stability
         margin = training_config.margin
