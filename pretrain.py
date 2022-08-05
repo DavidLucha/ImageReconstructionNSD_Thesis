@@ -77,7 +77,7 @@ def main():
                                                                           'avoid the late spikes in loss', type=str)
             parser.add_argument('--klw', default=1.0, help='sets weighting for KL divergence', type=float)
             parser.add_argument('--seed', default=277603, help='sets seed, 0 makes a random int', type=int)
-            parser.add_argument('--gpus', default=1, help='number of gpus but just testing this')
+            parser.add_argument('--gpus', default=1, help='number of gpus but just testing this', type=int)
 
 
 
