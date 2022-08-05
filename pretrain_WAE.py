@@ -261,10 +261,10 @@ def main():
 
         results = dict(
             epochs=[],
-            loss_encoder=[],
-            loss_decoder=[],
-            loss_discriminator=[],
-            loss_reconstruction=[]
+            loss_reconstruction=[],
+            loss_penalty=[],
+            loss_discriminator_fake=[],
+            loss_discriminator_real=[]
         )
 
         # Optimizers
