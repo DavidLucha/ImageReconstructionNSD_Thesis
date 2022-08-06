@@ -71,6 +71,8 @@ def main():
                                                                                                'eval dataloader shuffles')
             parser.add_argument('--latent_dims', default=1024, type=int)
             parser.add_argument('--beta', default=0.5, type=float)
+            parser.add_argument('--recon_loss', default='trad', type=str, help='sets whether to use pytroch mse'
+                                                                               'or manual like in pretrain (manual)')
 
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
@@ -400,10 +402,12 @@ def main():
                             x_recon = model.decoder(z_real)
                             d_real = model.discriminator(z_real)
 
-                            mse_loss = nn.MSELoss()
-                            # loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_image) ** 2, 1))
-                            # TODO: why here we go to MSE - where in pretrain this was the manual (above)
-                            loss_reconstruction = mse_loss(x_recon, x_image)
+                            if args.recon_loss == 'manual':
+                                loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_image) ** 2, 1))
+                            else:  # trad
+                                mse_loss = nn.MSELoss()
+                                loss_reconstruction = mse_loss(x_recon, x_image)
+
                             loss_penalty = - 10 * torch.mean(torch.log(d_real + 1e-3))
 
                             loss_reconstruction.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
