@@ -264,7 +264,7 @@ def main():
         # Define model
         cognitive_encoder = CognitiveEncoder(input_size=NUM_VOXELS, z_size=args.latent_dims).to(device)
         model = WaeGanCognitive(device=device, encoder=cognitive_encoder, decoder=trained_model.decoder,
-                                z_size=args.latent_dims, recon_level=args.recon_level).to(device)
+                                z_size=args.latent_dims).to(device)
 
         # Loading Checkpoint | If you want to continue training for existing checkpoint
         # Set checkpoint path

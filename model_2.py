@@ -868,7 +868,7 @@ class WaeGanCognitive(nn.Module):
     """
     WAE/GAN model for training in Stage II and III
     """
-    def __init__(self, device, encoder, decoder, z_size=128, recon_level=3):
+    def __init__(self, device, encoder, decoder, z_size=128):
         super(WaeGanCognitive, self).__init__()
         # latent space size
         self.z_size = z_size
