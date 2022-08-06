@@ -1,5 +1,8 @@
 # Get all subject voxel labels
 
+# Visual difference between manual hV4 and LOC1 and 2 from Kastner
+3dcalc -a prf-visualrois.nii.gz -b Kastner2015.nii.gz -expr "1 * equals(b, 15) + 2 * equals(b, 14) + 3 * equals(a, 7)" -prefix v4_LOC
+
 # lh.floc-bodies.nii.gz
 # lh.floc-faces.nii.gz
 # lh.floc-places.nii.gz
@@ -13,6 +16,8 @@
 # rh.floc-words.nii.gz
 # rh.Kastner2015.nii.gz
 # rh.prf-visualrois.nii.gz
+
+# This gets the LH and RH labels for each ROI, so we can check if some participants are missing specific sub ROIS (as the NSD manual warns)
 
 3dcalc -a lh.floc-bodies.nii.gz -b rh.floc-bodies.nii.gz -expr "posval(a) + 5 * equals(b, 1) + 6 * equals(b, 2) + 7 * equals(b, 3) + 8 * equals(b, 4)" -prefix bh.floc-bodies
 3dmaskdump -mask bh.floc-bodies+orig.BRIK.gz -index -noijk -xyz -o bh.floc-bodies_ROI_labels.txt bh.floc-bodies+orig.BRIK.gz
@@ -31,3 +36,22 @@
 
 3dcalc -a lh.Kastner2015.nii.gz -b rh.Kastner2015.nii.gz -expr "posval(a) + 4 * equals(b, 1) + 5 * equals(b, 2) + 6 * equals(b, 3)" -prefix bh.Kastner2015
 3dmaskdump -mask bh.Kastner2015+orig.BRIK.gz -index -noijk -xyz -o bh.Kastner2015_ROI_labels.txt bh.Kastner2015+orig.BRIK.gz
+
+# Make individual mask dump for each whole ROI
+3dcalc -a floc-bodies.nii.gz -expr "posval(a)" -prefix posval_floc-bodies
+3dmaskdump -mask posval_floc-bodies+orig.BRIK.gz -index -noijk -xyz -o floc-bodies_ROI_labels.txt floc-bodies.nii.gz
+
+3dcalc -a floc-faces.nii.gz -expr "posval(a)" -prefix posval_floc-faces
+3dmaskdump -mask posval_floc-faces+orig.BRIK.gz -index -noijk -xyz -o floc-faces_ROI_labels.txt floc-faces.nii.gz
+
+3dcalc -a floc-places.nii.gz -expr "posval(a)" -prefix posval_floc-places
+3dmaskdump -mask posval_floc-places+orig.BRIK.gz -index -noijk -xyz -o floc-places_ROI_labels.txt floc-places.nii.gz
+
+3dcalc -a prf-visualrois.nii.gz -expr "posval(a)" -prefix posval_prf-visualrois
+3dmaskdump -mask posval_prf-visualrois+orig.BRIK.gz -index -noijk -xyz -o prf-visualrois_ROI_labels.txt prf-visualrois.nii.gz
+
+
+
+# I guess then, we could use python to concat these as a lookup table
+
+# Then combine the full masks for each participant
