@@ -68,6 +68,8 @@ def main():
                                                                           'avoid the late spikes in loss', type=str)
             parser.add_argument('--seed', default=277603, help='sets seed, 0 makes a random int', type=int)
             parser.add_argument('--gpus', default=1, help='number of gpus but just testing this', type=int)
+            parser.add_argument('--latent_dims', default=128, type=int)
+            parser.add_argument('--beta', default=0.5, type=float)
 
 
 
@@ -267,11 +269,13 @@ def main():
             loss_discriminator_real=[]
         )
 
+        beta = args.beta
+
         # Optimizers
-        optimizer_encoder = torch.optim.Adam(model.encoder.parameters(), lr=0.0001, betas=(0.5, 0.999))
-        optimizer_decoder = torch.optim.Adam(model.decoder.parameters(), lr=0.0001, betas=(0.5, 0.999))
+        optimizer_encoder = torch.optim.Adam(model.encoder.parameters(), lr=0.0001, betas=(beta, 0.999))
+        optimizer_decoder = torch.optim.Adam(model.decoder.parameters(), lr=0.0001, betas=(beta, 0.999))
         optimizer_discriminator = torch.optim.Adam(model.discriminator.parameters(), lr=0.5 * 0.0001,
-                                                   betas=(0.5, 0.999))
+                                                   betas=(beta, 0.999))
 
         lr_encoder = StepLR(optimizer_encoder, step_size=30, gamma=0.5)
         lr_decoder = StepLR(optimizer_decoder, step_size=30, gamma=0.5)
