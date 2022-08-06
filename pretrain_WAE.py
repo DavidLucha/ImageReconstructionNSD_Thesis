@@ -218,7 +218,7 @@ def main():
         writer_decoder = SummaryWriter(SAVE_PATH + '/runs_' + args.run_name + '/decoder')
         writer_discriminator = SummaryWriter(SAVE_PATH + '/runs_' + args.run_name + '/discriminator')
 
-        model = WaeGan(device=device, z_size=training_config.latent_dim).to(device)
+        model = WaeGan(device=device, z_size=args.latent_dims).to(device)
 
         # Variables for equilibrium to improve GAN stability
         margin = training_config.margin
