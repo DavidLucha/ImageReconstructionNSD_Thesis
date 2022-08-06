@@ -35,7 +35,8 @@ vi ./mask_script_subj_08.sh
 # All subjects
 for s in 1 2 3 4 5 6 7 8
 do
-    echo "Mounting Subject $s Folder"
+    echo "Mounting Subject $s Folder in /full_roi/ - to combine 3mm masks"
+
     cd /mnt/d/NSD/nsddata_betas/ppdata/subj0$s/func1pt8mm/betas_fithrf_GLMdenoise_RR/
     echo "Running Script for Subject $s"
     ./mask_script_subj_0$s.sh

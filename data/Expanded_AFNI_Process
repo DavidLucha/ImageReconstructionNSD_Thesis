@@ -17,7 +17,13 @@
 # rh.Kastner2015.nii.gz
 # rh.prf-visualrois.nii.gz
 
+# Copy all the LH and RH files
+cd d:\NSD\nsddata\ppdata\subj0${s}\func1pt8mm\roi\
+for %I in (lh.floc-bodies.nii.gz rh.floc-bodies.nii.gz lh.floc-faces.nii.gz rh.floc-faces.nii.gz lh.floc-places.nii.gz rh.floc-places.nii.gz lh.floc-words.nii.gz rh.floc-words.nii.gz lh.prf-visualrois.nii.gz rh.prf-visualrois.nii.gz) do copy %I d:\NSD\inode\full_roi\subj_0${s}\hemis\
+
+
 # This gets the LH and RH labels for each ROI, so we can check if some participants are missing specific sub ROIS (as the NSD manual warns)
+cd /mnt/d/NSD/inode/full_roi/subj_0${s}/hemis/
 
 3dcalc -a lh.floc-bodies.nii.gz -b rh.floc-bodies.nii.gz -expr "posval(a) + 5 * equals(b, 1) + 6 * equals(b, 2) + 7 * equals(b, 3) + 8 * equals(b, 4)" -prefix bh.floc-bodies
 3dmaskdump -mask bh.floc-bodies+orig.BRIK.gz -index -noijk -xyz -o bh.floc-bodies_ROI_labels.txt bh.floc-bodies+orig.BRIK.gz
@@ -34,24 +40,188 @@
 3dcalc -a lh.prf-visualrois.nii.gz -b rh.prf-visualrois.nii.gz -expr "posval(a) + 8 * equals(b, 1) + 9 * equals(b, 2) + 10 * equals(b, 3) + 11 * equals(b, 4) + 12 * equals(b, 5) + 13 * equals(b, 6) + 14 * equals(b, 7)" -prefix bh.prf-visualrois
 3dmaskdump -mask bh.prf-visualrois+orig.BRIK.gz -index -noijk -xyz -o bh.prf-visualrois_ROI_labels.txt bh.prf-visualrois+orig.BRIK.gz
 
-3dcalc -a lh.Kastner2015.nii.gz -b rh.Kastner2015.nii.gz -expr "posval(a) + 4 * equals(b, 1) + 5 * equals(b, 2) + 6 * equals(b, 3)" -prefix bh.Kastner2015
-3dmaskdump -mask bh.Kastner2015+orig.BRIK.gz -index -noijk -xyz -o bh.Kastner2015_ROI_labels.txt bh.Kastner2015+orig.BRIK.gz
+# 3dcalc -a lh.Kastner2015.nii.gz -b rh.Kastner2015.nii.gz -expr "posval(a) + 4 * equals(b, 1) + 5 * equals(b, 2) + 6 * equals(b, 3)" -prefix bh.Kastner20${s}5
+# 3dmaskdump -mask bh.Kastner2015+orig.BRIK.gz -index -noijk -xyz -o bh.Kastner2015_ROI_labels.txt bh.Kastner2015+orig.BRIK.gz
 
 # Make individual mask dump for each whole ROI
-3dcalc -a floc-bodies.nii.gz -expr "posval(a)" -prefix posval_floc-bodies
-3dmaskdump -mask posval_floc-bodies+orig.BRIK.gz -index -noijk -xyz -o floc-bodies_ROI_labels.txt floc-bodies.nii.gz
+for i in 1 2 3 4 5 6 7 8
+do
+    cd /mnt/d/NSD/inode/full_roi/subj_0${i}/
 
-3dcalc -a floc-faces.nii.gz -expr "posval(a)" -prefix posval_floc-faces
-3dmaskdump -mask posval_floc-faces+orig.BRIK.gz -index -noijk -xyz -o floc-faces_ROI_labels.txt floc-faces.nii.gz
+    3dcalc -a floc-bodies.nii.gz -expr "posval(a)" -prefix posval_floc-bodies
+    3dmaskdump -mask posval_floc-bodies+orig.BRIK.gz -index -noijk -xyz -o floc-bodies_ROI_labels.txt floc-bodies.nii.gz
 
-3dcalc -a floc-places.nii.gz -expr "posval(a)" -prefix posval_floc-places
-3dmaskdump -mask posval_floc-places+orig.BRIK.gz -index -noijk -xyz -o floc-places_ROI_labels.txt floc-places.nii.gz
+    3dcalc -a floc-faces.nii.gz -expr "posval(a)" -prefix posval_floc-faces
+    3dmaskdump -mask posval_floc-faces+orig.BRIK.gz -index -noijk -xyz -o floc-faces_ROI_labels.txt floc-faces.nii.gz
 
-3dcalc -a prf-visualrois.nii.gz -expr "posval(a)" -prefix posval_prf-visualrois
-3dmaskdump -mask posval_prf-visualrois+orig.BRIK.gz -index -noijk -xyz -o prf-visualrois_ROI_labels.txt prf-visualrois.nii.gz
+    3dcalc -a floc-places.nii.gz -expr "posval(a)" -prefix posval_floc-places
+    3dmaskdump -mask posval_floc-places+orig.BRIK.gz -index -noijk -xyz -o floc-places_ROI_labels.txt floc-places.nii.gz
 
+    3dcalc -a prf-visualrois.nii.gz -expr "posval(a)" -prefix posval_prf-visualrois
+    3dmaskdump -mask posval_prf-visualrois+orig.BRIK.gz -index -noijk -xyz -o prf-visualrois_ROI_labels.txt prf-visualrois.nii.gz
 
+done
 
 # I guess then, we could use python to concat these as a lookup table
 
 # Then combine the full masks for each participant
+
+# Combine masks per subject (1.8mm)
+# afni is ordered, when one finishes, the numbering continues
+3dcalc -a prf-visualrois.nii.gz -b floc-faces.nii.gz -c floc-places.nii.gz -d floc-bodies.nii.gz -expr "posval(a) + 8 * equals(b, 1) + 9 * equals(b, 2) + 10 * equals(b, 3) + 11 * equals(b, 4) + 12 * equals(b, 5) + 13 * equals(c, 1) + 14 * equals(c, 2) + 15 * equals(c, 3) + 16 * equals(d, 1) + 17 * equals(d, 2) + 18 * equals(d, 3) + 19 * equals(d, 4)" -prefix full_mask_v2_afni
+# non_afni suffix means we have custom labels - see NEW LIST FOR FULL onenote
+# we can determine overlapping voxels by using the values below
+3dcalc -a prf-visualrois.nii.gz -b floc-faces.nii.gz -c floc-places.nii.gz -d floc-bodies.nii.gz -expr "posval(a) + 40 * equals(b, 1) + 50 * equals(b, 2) + 60 * equals(b, 3) + 70 * equals(b, 4) + 80 * equals(b, 5) + 200 * equals(c, 1) + 300 * equals(c, 2) + 400 * equals(c, 3) + 1000 * equals(d, 1) + 2000 * equals(d, 2) + 3000 * equals(d, 3) + 4000 * equals(d, 4)" -prefix full_mask_v2
+3dmaskdump -mask full_mask_v2+orig.BRIK.gz -index -noijk -xyz -o full_mask_v2_ROI_labels.txt full_mask_v2+orig.BRIK.gz
+
+# --------------- Here go to excel, get the voxel count, to determine the voxels needed from beyond V1-V3 ----- #
+
+# -------------- COMPLETE UNTIL HERE ---------------- #
+# \/ \/ \/ \/ \/ \/ \/ \/ \ / \/ \/ \/ \/ \/ \/ \/ \/ #
+
+# HVC Voxels per subject
+# [8145, 9251, 9572, 8387, 10486, 10141, 7227, 8988]
+
+# All subjects
+for s in 1 2 3 4 5 6 7 8
+do
+    echo "Mounting Subject ${s} Folder in /full_roi/ - to combine 3mm masks"
+    cd /mnt/d/NSD/inode/full_roi/subj_0${s}/
+    # Resample the masks individually (3mm)
+    echo "Resample the masks individually (3mm)"
+    3dresample -input prf-visualrois.nii.gz -prefix prf-visualrois_3mm -dxyz 3 3 3
+    3dresample -input floc-faces.nii.gz -prefix floc-faces_3mm -dxyz 3 3 3
+    3dresample -input floc-places.nii.gz -prefix floc-places_3mm -dxyz 3 3 3
+    3dresample -input floc-bodies.nii.gz -prefix floc-bodies_3mm -dxyz 3 3 3
+
+    echo "Combine 3mm masks"
+    3dcalc -a prf-visualrois_3mm+orig.BRIK.gz -b floc-faces_3mm+orig.BRIK.gz -c floc-places_3mm+orig.BRIK.gz -d floc-bodies_3mm+orig.BRIK.gz -expr "posval(a) + 8 * equals(b, 1) + 9 * equals(b, 2) + 10 * equals(b, 3) + 11 * equals(b, 4) + 12 * equals(b, 5) + 13 * equals(c, 1) + 14 * equals(c, 2) + 15 * equals(c, 3) + 16 * equals(d, 1) + 17 * equals(d, 2) + 18 * equals(d, 3) + 19 * equals(d, 4)" -prefix full_mask_v2_afni_3mm
+    # mask dump the full mask at 3mm - not really needed
+    3dmaskdump -mask full_mask_v2_afni_3mm+orig.BRIK.gz -index -noijk -xyz -o full_mask_v2_3mm_ROI_labels.txt full_mask_v2_afni_3mm+orig.BRIK.gz
+
+    echo "Make random sample mask (study 3)"
+    # Just V1-V3 Mask
+    # Returns 1 for everything but V4
+    3dcalc -a prf-visualrois.nii.gz -expr "within(a, 0.9, 6.1)" -prefix V1_to_V3
+
+    # use visualrois to get a full brain of 1s and 0s
+    3dcalc -a prf-visualrois.nii.gz -expr "step(a) + 1 * equals(a, 0)" -prefix whole_brain_mask
+
+    # subtracts V1-V3 from whole brain
+    3dcalc -a whole_brain_mask+orig.BRIK.gz -b V1_to_V3+orig.BRIK.gz -expr "step(a) * iszero(b)" -prefix whole_brain_minus_V1_to_V3
+
+
+    echo "Mounting drive for betas"
+    cd /mnt/d/NSD/nsddata_betas/ppdata/subj0${s}/func1pt8mm/betas_fithrf_GLMdenoise_RR/
+
+    for i in 1 2 3 4 5 6 7 8 9
+    do
+        # Convert betas sessions to larger float with the division (from compression)
+        3dcalc -a betas_session0${i}.nii.gz -expr 'a/300' -prefix subj_0${s}_converted_betas_session0${i} -datum float
+
+        # Downsample converted betas
+        3dresample -input subj_0${s}_converted_betas_session0${i}+orig.BRIK -prefix subj_0${s}_converted_betas_session0${i}_3mm -dxyz 3 3 3
+
+        # get maskdump of 1.8mm converted betas - applies mask and pumps it to .txt
+        3dmaskdump -mask ../../../../../inode/full_roi/subj_0${s}/full_mask_v2+orig.BRIK.gz -index -noijk -xyz -o subj_0${s}_masked_betas_session0${i}.txt subj_0${s}_converted_betas_session0${i}+orig.BRIK
+
+        # maskdump for 3mm betas
+        3dmaskdump -mask ../../../../../inode/full_roi/subj_0${s}/full_mask_v2_afni_3mm+orig.BRIK.gz -index -noijk -xyz -o subj_0${s}_masked_betas_session0${i}_3mm.txt subj_0${s}_converted_betas_session0${i}_3mm+orig.BRIK
+
+        # maskdump random sample @ 1.8mm
+        # TODO: change n_rand per subject
+        3dmaskdump -mask ../../../../../inode/full_roi/subj_0${s}/whole_brain_minus_V1_to_V3+orig.BRIK.gz -index -noijk -xyz -o subj_0${s}_masked_betas_session0${i}_rand_samp.txt -n_rand 8145 -n_randseed 2010 subj_0${s}_converted_betas_session0${i}+orig.BRIK
+
+        # this applies the mask, but keeps it in nifti for review
+        3dcalc -a subj_0${s}_converted_betas_session0${i}+orig.BRIK -b ../../../../../inode/full_roi/subj_0${s}/full_mask_v2+orig.BRIK.gz -expr 'a * ispositive(b)' -prefix subj_0${s}_masked_converted_betas_session0${i}
+
+        # this applies the mask for 3mm, but keeps it in nifti for review
+        3dcalc -a subj_0${s}_converted_betas_session0${i}_3mm+orig.BRIK -b ../../../../../inode/full_roi/subj_0${s}/full_mask_v2_afni_3mm+orig.BRIK.gz -expr 'a * ispositive(b)' -prefix subj_0${s}_masked_converted_betas_session0${i}_3mm
+
+        # removes the large intermediate files
+        rm subj_0${s}_converted_betas_session0${i}+orig.BRIK
+        rm subj_0${s}_converted_betas_session0${i}+orig.HEAD
+        rm subj_0${s}_converted_betas_session0${i}_3mm+orig.BRIK
+        rm subj_0${s}_converted_betas_session0${i}_3mm+orig.HEAD
+    done
+
+    # Script needs to change from session 10
+    # Counts per subject are [37, 37, 29, 27, 37, 29, 37, 27]
+    # [10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37]
+    for i in 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37
+    # TODO: Change the max sessions
+    do
+        3dcalc -a betas_session${i}.nii.gz -expr 'a/300' -prefix subj_0${s}_converted_betas_session${i} -datum float
+        3dresample -input subj_0${s}_converted_betas_session${i}+orig.BRIK -prefix subj_0${s}_converted_betas_session${i}_3mm -dxyz 3 3 3
+
+        3dmaskdump -mask ../../../../../inode/full_roi/subj_0${s}/full_mask_v2+orig.BRIK.gz -index -noijk -xyz -o subj_0${s}_masked_betas_session${i}.txt subj_0${s}_converted_betas_session${i}+orig.BRIK
+        3dmaskdump -mask ../../../../../inode/full_roi/subj_0${s}/full_mask_v2_afni_3mm+orig.BRIK.gz -index -noijk -xyz -o subj_0${s}_masked_betas_session${i}_3mm.txt subj_0${s}_converted_betas_session${i}_3mm+orig.BRIK
+        # TODO: change n_rand per subject
+        3dmaskdump -mask ../../../../../inode/full_roi/subj_0${s}/whole_brain_minus_V1_to_V3+orig.BRIK.gz -index -noijk -xyz -o subj_0${s}_masked_betas_session${i}_rand_samp.txt -n_rand 8145 -n_randseed 2010 subj_0${s}_converted_betas_session${i}+orig.BRIK
+
+        3dcalc -a subj_0${s}_converted_betas_session${i}+orig.BRIK -b ../../../../../inode/full_roi/subj_0${s}/full_mask_v2+orig.BRIK.gz -expr 'a * ispositive(b)' -prefix subj_0${s}_masked_converted_betas_session${i}
+        3dcalc -a subj_0${s}_converted_betas_session${i}_3mm+orig.BRIK -b ../../../../../inode/full_roi/subj_0${s}/full_mask_v2_afni_3mm+orig.BRIK.gz -expr 'a * ispositive(b)' -prefix subj_0${s}_masked_converted_betas_session${i}_3mm
+
+        rm subj_0${s}_converted_betas_session${i}+orig.BRIK
+        rm subj_0${s}_converted_betas_session${i}+orig.HEAD
+        rm subj_0${s}_converted_betas_session${i}_3mm+orig.BRIK
+        rm subj_0${s}_converted_betas_session${i}_3mm+orig.HEAD
+    done
+
+    echo "Finished with Subject ${s}"
+done
+
+# Resample the masks individually (3mm)
+3dresample -input prf-visualrois.nii.gz -prefix prf-visualrois_3mm -dxyz 3 3 3
+3dresample -input floc-faces.nii.gz -prefix floc-faces_3mm -dxyz 3 3 3
+3dresample -input floc-places.nii.gz -prefix floc-places_3mm -dxyz 3 3 3
+3dresample -input floc-bodies.nii.gz -prefix floc-bodies_3mm -dxyz 3 3 3
+
+# Combine the 3mm versions
+3dcalc -a prf-visualrois_3mm+orig.BRIK.gz -b floc-faces_3mm+orig.BRIK.gz -c floc-places_3mm+orig.BRIK.gz -d floc-bodies_3mm+orig.BRIK.gz -expr "posval(a) + 8 * equals(b, 1) + 9 * equals(b, 2) + 10 * equals(b, 3) + 11 * equals(b, 4) + 12 * equals(b, 5) + 13 * equals(c, 1) + 14 * equals(c, 2) + 15 * equals(c, 3) + 16 * equals(d, 1) + 17 * equals(d, 2) + 18 * equals(d, 3) + 19 * equals(d, 4)" -prefix full_mask_v2_afni_3mm
+# mask dump the full mask at 3mm - not really needed
+3dmaskdump -mask full_mask_v2_afni_3mm+orig.BRIK.gz -index -noijk -xyz -o full_mask_v2_3mm_ROI_labels.txt full_mask_v2_afni_3mm+orig.BRIK.gz
+
+# --------------- Not working yet - or perhaps, hard to verify once you maskdump and no niml file ------------- #
+# What if we compared all HV areas + V1-3 and compared to the same number of voxels
+# Just V1-V3 Mask
+# Returns 1 for everything but V4
+3dcalc -a prf-visualrois.nii.gz -expr "within(a, 0.9, 6.1)" -prefix V1_to_V3
+
+# use visualrois to get a full brain of 1s and 0s
+3dcalc -a prf-visualrois.nii.gz -expr "step(a) + 1 * equals(a, 0)" -prefix whole_brain_mask
+
+# removes the V1-V3 from a larger area.
+# step takes whole brain mask, gives a 1 if larger than 0, 0 if less or equal to
+# is zero takes the V1-V3 mask, and then turns voxels in whole brain to zero where it's a possible value
+# also retains positive values elsewhere
+3dcalc -a whole_brain_mask+orig.BRIK.gz -b V1_to_V3+orig.BRIK.gz -expr "step(a) * iszero(b)" -prefix whole_brain_minus_V1_to_V3
+
+# Then randomly sample voxels from remaining brain area - mask dumps
+# If same seed, does it grab the same voxels every time? Because we will need for it to every session. - YES.
+3dmaskdump -mask whole_brain_minus_V1_to_V3+orig.BRIK.gz -index -noijk -xyz -o random_sample.txt -n_rand 8145 -n_randseed 2010 whole_brain_mask+orig.BRIK.gz
+
+# this grabs the niml file of the above function
+# TODO: NIML output doesn't work - but it seems like there's no overlap from our checks
+3dmaskdump -mask whole_brain_minus_V1_to_V3+orig.BRIK.gz -o random_sample_niml.xml -n_rand 8145 -n_randseed 2010 -niml whole_brain_niml whole_brain_mask+orig.BRIK.gz
+
+# Pull the initial mask out and see if there's any overlap
+# this would just dump the voxels but all with 1s - not super helpful
+3dmaskdump -mask V1_to_V3+orig.BRIK.gz -index -noijk -xyz -o V1_to_V3_ROI_labels.txt V1_to_V3+orig.BRIK.gz
+
+# NOTE: This seems to work, it grabs voxels that don't overlap.
+
+# ------------- TESTING THE CONSISTENCY OF THE SEED RANDOM SAMPLE ---------------------- #
+# It passes. All samples are the same.
+
+# Returns 1 for everything but V4
+3dcalc -a prf-visualrois.nii.gz -expr "within(a, 0.9, 6.1)" -prefix V1_to_V3
+
+# use visualrois to get a full brain where zeros are now ones
+3dcalc -a prf-visualrois.nii.gz -expr "1 * equals(a, 0)" -prefix whole_brain_mask
+
+3dcalc -a whole_brain_mask+orig.BRIK.gz -b V1_to_V3+orig.BRIK.gz -expr "step(a) * iszero(b)" -prefix whole_brain_minus_V1_to_V3
+
+3dmaskdump -mask whole_brain_minus_V1_to_V3+orig.BRIK.gz -index -noijk -xyz -o random_sample_1.txt -n_rand 2000 -n_randseed 2010 prf-visualrois.nii.gz
+3dmaskdump -mask whole_brain_minus_V1_to_V3+orig.BRIK.gz -index -noijk -xyz -o random_sample_2.txt -n_rand 2000 -n_randseed 2010 prf-visualrois.nii.gz
+3dmaskdump -mask whole_brain_minus_V1_to_V3+orig.BRIK.gz -index -noijk -xyz -o random_sample_3.txt -n_rand 2000 -n_randseed 2010 prf-visualrois.nii.gz

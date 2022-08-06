@@ -863,6 +863,55 @@ class WaeGan(nn.Module):
         return super(WaeGan, self).__call__(*args, **kwargs)
 
 
+class WaeGanCognitive(nn.Module):
+
+    """
+    WAE/GAN model for training in Stage II and III
+    """
+    def __init__(self, device, encoder, decoder, z_size=128, recon_level=3):
+        super(WaeGanCognitive, self).__init__()
+        # latent space size
+        self.z_size = z_size
+        self.encoder = encoder
+        self.discriminator = WaeDiscriminator(z_size=self.z_size).to(device)
+        self.device = device
+        self.decoder = decoder
+        for param in self.decoder.parameters():
+            param.requires_grad = False
+
+    def reparameterize(self, mu, logvar):
+        logvar = logvar.mul(0.5).exp_()
+        eps = Variable(logvar.data.new(logvar.size()).normal_())
+        return eps.mul(logvar).add_(mu)
+
+    def forward(self, x, gen_size=10):
+
+        if x is not None:
+            x = Variable(x).to(self.device)
+
+        if self.training:
+            mus, log_variances = self.encoder(x)
+            z = self.reparameterize(mus, log_variances)
+            x_tilde = self.decoder(mus)
+
+            z_p = Variable(torch.randn(len(mus), self.z_size).to(self.device), requires_grad=True)
+            x_p = self.decoder(z_p)
+
+            disc_class = self.discriminator(mus, x_p, "GAN")  # encoder distribution
+
+            return x_tilde, disc_class, mus, log_variances
+        else:
+            if x is None:
+                # z_p = Variable(torch.randn(gen_size, self.z_size).to(self.device), requires_grad=False)  # just sample and decode
+                z_p = Variable(torch.randn_like(x).to(self.device), requires_grad=False)
+                x_p = self.decoder(z_p)
+                return x_p
+            else:
+                mus, log_variances = self.encoder(x)
+                x_tilde = self.decoder(mus)
+                return x_tilde
+
+
 class WaeDiscriminator(nn.Module):
 
     """

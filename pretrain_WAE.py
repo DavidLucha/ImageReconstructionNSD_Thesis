@@ -34,6 +34,7 @@ def frozen_params(module: nn.Module):
     for p in module.parameters():
         p.requires_grad = False
 
+
 def main():
     try:
         timestep = time.strftime("%Y%m%d-%H%M%S")
@@ -342,7 +343,6 @@ def main():
                     loss_discriminator_fake.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
                     loss_discriminator_real.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
 
-                    # loss_discriminator.backward(retain_graph=True)
                     # [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
                     optimizer_discriminator.step()
 
@@ -362,13 +362,11 @@ def main():
                     loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x) ** 2, 1))
                     # loss_reconstruction = mse_loss(x_recon, x)
                     loss_penalty = - 10 * torch.sum(torch.log(d_real + 1e-3))
-                    # loss_wae = (loss_reconstruction + loss_penalty) / batch_size
                     encdec_params = list(model.encoder.parameters()) + list(model.decoder.parameters())
 
                     loss_reconstruction.backward(retain_graph=True, inputs=encdec_params)
                     loss_penalty.backward(inputs=encdec_params)
                     # [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
-                    # loss_wae.backward()
                     optimizer_encoder.step()
                     optimizer_decoder.step()
 
