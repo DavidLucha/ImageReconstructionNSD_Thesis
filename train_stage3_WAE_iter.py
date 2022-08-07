@@ -62,7 +62,7 @@ def main():
                                                                ', 15k for stage 3.', type=int)
             parser.add_argument('--num_workers', '-nw', default=training_config.num_workers,
                                 help='number of workers for dataloader', type=int)
-            parser.add_argument('--lr_enc', default=.001, type=float)
+            parser.add_argument('--lr_dec', default=.001, type=float)
             parser.add_argument('--lr_disc', default=.0005, type=float)
             parser.add_argument('--decay_lr', default=0.5,
                                 help='.98 in Maria, .75 in original VAE/GAN', type=float)
@@ -242,13 +242,8 @@ def main():
         NUM_VOXELS = len(train_data[0]['fmri'])
 
         # Load Stage 1 network weights
-        model_dir = os.path.join(OUTPUT_PATH, 'NSD', 'stage_1', args.pretrained_net,
-                                   'stage_1_WAE_' + args.pretrained_net + '_{}.pth'.format(args.load_epoch))
-
-        if args.load_from == 'pretrain':
-            # Used if we didn't do pretrain -> stage 1, but just pretrain and use that.
-            model_dir = os.path.join(OUTPUT_PATH, 'NSD', 'pretrain', args.pretrained_net,
-                                     'pretrained_WAE_' + args.pretrained_net + '_{}.pth'.format(args.load_epoch))
+        model_dir = os.path.join(OUTPUT_PATH, 'NSD', 'stage_2', args.pretrained_net,
+                                   'stage_2_WAE_' + args.pretrained_net + '_{}.pth'.format(args.load_epoch))
 
         logging.info('Loaded network is:', model_dir)
 
@@ -262,6 +257,8 @@ def main():
         logging.info(f'Number of voxels: {NUM_VOXELS}')
         logging.info(f'Train data length: {len(train_data)}')
         logging.info(f'Validation data length: {len(valid_data)}')
+
+        # TODO: Add the model stuff here, but it's a bit confusing (AND ABOVE)
 
         # Define model
         cognitive_encoder = CognitiveEncoder(input_size=NUM_VOXELS, z_size=args.latent_dims).to(device)
@@ -314,17 +311,17 @@ def main():
         )
 
         # Variables for equilibrium to improve GAN stability
-        lr_enc = args.lr_enc  # 0.001 - Maria
+        lr_dec = args.lr_dec  # 0.001 - Maria
         lr_disc = args.lr_disc  # 0.0005 - Maria
         beta = args.beta
 
         # Optimizers
-        optimizer_encoder = torch.optim.Adam(model.encoder.parameters(), lr=lr_enc, betas=(beta, 0.999))
-        # optimizer_decoder = torch.optim.Adam(model.decoder.parameters(), lr=0.001, betas=(0.5, 0.999))
+        # optimizer_encoder = torch.optim.Adam(model.encoder.parameters(), lr=lr_enc, betas=(beta, 0.999))
+        optimizer_decoder = torch.optim.Adam(model.decoder.parameters(), lr=lr_dec, betas=(beta, 0.999))
         optimizer_discriminator = torch.optim.Adam(model.discriminator.parameters(), lr=lr_disc, betas=(beta, 0.999))
 
-        lr_encoder = StepLR(optimizer_encoder, step_size=30, gamma=0.5)
-        # lr_decoder = StepLR(optimizer_decoder, step_size=30, gamma=0.5)
+        # lr_encoder = StepLR(optimizer_encoder, step_size=30, gamma=0.5)
+        lr_decoder = StepLR(optimizer_decoder, step_size=30, gamma=0.5)
         lr_discriminator = StepLR(optimizer_discriminator, step_size=30, gamma=0.5)
 
         # Metrics
@@ -363,40 +360,41 @@ def main():
                     for batch_idx, data_batch in enumerate(dataloader_train):
                         if step_index < max_iters:
                             model.train()
-                            frozen_params(model.decoder)
+                            frozen_params(model.encoder)
                             batch_size = len(data_batch)
-                            model.encoder.zero_grad()
+                            model.decoder.zero_grad()
                             model.discriminator.zero_grad()
 
                             x_fmri = Variable(data_batch['fmri'], requires_grad=False).float().to(device)
                             x_image = Variable(data_batch['image'], requires_grad=False).float().to(device)
-                            z, _ = trained_model.encoder(x_image)
-                            x_gt = trained_model.decoder(z)
+                            # z, _ = trained_model.encoder(x_image)
+                            # x_gt = trained_model.decoder(z)
 
                             # ----------Train discriminator-------------
 
-                            frozen_params(model.encoder)
+                            frozen_params(model.decoder)
                             free_params(model.discriminator)
 
                             z_fake, var = model.encoder(x_fmri)
-                            z_real, var = trained_model.encoder(x_image)
+                            z_real, var = teacher_model.encoder(x_image)
+                            # z_fake, var = model.encoder(x_fmri)
+                            # z_fake = Variable(torch.randn_like(z_real) * 0.5).to(device)
 
                             d_real = model.discriminator(z_real)
                             d_fake = model.discriminator(z_fake)
 
                             loss_discriminator_fake = - 10 * torch.sum(torch.log(d_fake + 1e-3))
                             loss_discriminator_real = - 10 * torch.sum(torch.log(1 - d_real + 1e-3))
-                            loss_discriminator_fake.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
-                            loss_discriminator_real.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
+                            loss_discriminator_fake.backward(retain_graph=True)
+                            loss_discriminator_real.backward(retain_graph=True)
 
+                            # loss_discriminator.backward(retain_graph=True)
                             # [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
                             optimizer_discriminator.step()
 
                             # ----------Train generator----------------
-                            # TODO: Check this - they don't zero grad, check results
-                            # model.encoder.zero_grad()
 
-                            free_params(model.encoder)
+                            free_params(model.decoder)
                             frozen_params(model.discriminator)
 
                             z_real, var = model.encoder(x_fmri)
@@ -411,14 +409,14 @@ def main():
 
                             loss_penalty = - 10 * torch.mean(torch.log(d_real + 1e-3))
 
-                            loss_reconstruction.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
-                            loss_penalty.backward(inputs=list(model.encoder.parameters()))
+                            loss_reconstruction.backward(retain_graph=True)
+                            # loss_penalty.backward()
                             # [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
-                            optimizer_encoder.step()
+                            optimizer_decoder.step()
 
                             # register mean values of the losses for logging
-                            loss_reconstruction_mean = loss_reconstruction.data.cpu().numpy()
-                            loss_penalty_mean = loss_penalty.data.cpu().numpy()
+                            loss_reconstruction_mean = loss_reconstruction.data.cpu().numpy() / batch_size
+                            loss_penalty_mean = loss_penalty.data.cpu().numpy() / batch_size
                             loss_discriminator_fake_mean = loss_discriminator_fake.data.cpu().numpy() / batch_size
                             loss_discriminator_real_mean = loss_discriminator_real.data.cpu().numpy() / batch_size
 
@@ -434,8 +432,8 @@ def main():
                             break
 
                     # EPOCH END
-                    lr_encoder.step()
-                    # lr_decoder.step()
+                    # lr_encoder.step()
+                    lr_decoder.step()
                     lr_discriminator.step()
 
                     if not idx_epoch % 2:
@@ -493,9 +491,9 @@ def main():
                             if metrics_train is not None:
                                 for key, metric in metrics_train.items():
                                     if key == 'cosine_similarity':
-                                        result_metrics_train[key] = metric(x_recon, x_gt).mean()
+                                        result_metrics_train[key] = metric(x_recon, x_image).mean()
                                     else:
-                                        result_metrics_train[key] = metric(x_recon, x_gt)
+                                        result_metrics_train[key] = metric(x_recon, x_image)
 
                             out = out.data.cpu()
 
@@ -631,8 +629,8 @@ def main():
 
                     plt.figure(figsize=(10, 5))
                     plt.title("Reconstruction Loss During Training")
-                    plt.plot(results['loss_penalty'], label="LP")
-                    plt.plot(results['loss_reconstruction'], label="LR")
+                    plt.plot(results['loss_penalty'], label="Penalty")
+                    plt.plot(results['loss_reconstruction'], label="Reconstruction")
                     plt.xlabel("iterations")
                     plt.ylabel("Loss")
                     plt.legend()
