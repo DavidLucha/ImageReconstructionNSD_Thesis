@@ -254,7 +254,7 @@ def main():
             st1_model_dir = os.path.join(OUTPUT_PATH, 'NSD', 'pretrain', args.st1_net,
                                      'pretrained_WAE_' + args.st1_net + '_{}.pth'.format(args.st1_load_epoch))
 
-        teacher_model = WaeGan(device=device, z_size=args.latent_dim).to(device)
+        teacher_model = WaeGan(device=device, z_size=args.latent_dims).to(device)
         teacher_model.load_state_dict(torch.load(st1_model_dir, map_location=device))
         # this loads teacher model with model from stage 1 - TODO: insert here
         for param in teacher_model.encoder.parameters():
@@ -264,15 +264,15 @@ def main():
         st2_model_dir = os.path.join(OUTPUT_PATH, 'NSD', 'stage_2', args.st2_net,
                                      'stage_2_WAE_' + args.st2_net + '_{}.pth'.format(args.st2_load_epoch))
 
-        decoder = Decoder(z_size=args.latent_dim, size=256).to(device)
-        cognitive_encoder = CognitiveEncoder(input_size=NUM_VOXELS, z_size=args.latent_dim).to(device)
+        decoder = Decoder(z_size=args.latent_dims, size=256).to(device)
+        cognitive_encoder = CognitiveEncoder(input_size=NUM_VOXELS, z_size=args.latent_dims).to(device)
         trained_model = WaeGanCognitive(device=device, encoder=cognitive_encoder, decoder=decoder,
-                                        z_size=args.latent_dim).to(device)
+                                        z_size=args.latent_dims).to(device)
         # This then loads the network from stage 2 (cog enc) to fix encoder in stage 3
         # It uses the components from stage 2 and builds from here for main model
         trained_model.load_state_dict(torch.load(st2_model_dir, map_location=device))
         model = WaeGanCognitive(device=device, encoder=trained_model.encoder, decoder=trained_model.decoder,
-                                z_size=args.latent_dim).to(device)
+                                z_size=args.latent_dims).to(device)
         # Fix encoder weights
         for param in model.encoder.parameters():
             param.requires_grad = False
