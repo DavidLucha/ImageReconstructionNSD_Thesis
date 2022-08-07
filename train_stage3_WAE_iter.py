@@ -78,11 +78,15 @@ def main():
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
                                                                            'vaegan_20220613-014326', type=str)
             parser.add_argument('--checkpoint_epoch', default=90, help='epoch of checkpoint network', type=int)
-            parser.add_argument('--pretrained_net', '-pretrain', default=training_config.pretrained_net,
-                                help='pretrained network', type=str)
-            parser.add_argument('--load_from',default='stage_1', help='sets whether pretrained net is from pretrain'
+            parser.add_argument('--load_from',default='pretrain', help='sets whether pretrained net is from pretrain'
                                                                       'or from stage_1 output', type=str)
-            parser.add_argument('--load_epoch', '-pretrain_epoch', default='final',
+            parser.add_argument('--st1_net', '-pretrain', default=training_config.pretrained_net,
+                                help='pretrained network from stage 1', type=str)
+            parser.add_argument('--st1_load_epoch', '-pretrain_epoch', default='final',
+                                help='epoch of the pretrained model', type=str)
+            parser.add_argument('--st2_net', '-pretrain', default=training_config.pretrained_net,
+                                help='pretrained network from stage 1', type=str)
+            parser.add_argument('--st2_load_epoch', '-pretrain_epoch', default='final',
                                 help='epoch of the pretrained model', type=str)
             parser.add_argument('--dataset', default='NSD', help='GOD, NSD', type=str)
             # Only need vox_res arg from stage 2 and 3
@@ -242,28 +246,40 @@ def main():
         NUM_VOXELS = len(train_data[0]['fmri'])
 
         # Load Stage 1 network weights
-        model_dir = os.path.join(OUTPUT_PATH, 'NSD', 'stage_2', args.pretrained_net,
-                                   'stage_2_WAE_' + args.pretrained_net + '_{}.pth'.format(args.load_epoch))
+        st1_model_dir = os.path.join(OUTPUT_PATH, 'NSD', 'stage_1', args.st1_net,
+                                 'stage_1_WAE_' + args.st1_net + '_{}.pth'.format(args.st1_load_epoch))
 
-        logging.info('Loaded network is:', model_dir)
+        if args.load_from == 'pretrain':
+            # Used if we didn't do pretrain -> stage 1, but just pretrain and use that.
+            st1_model_dir = os.path.join(OUTPUT_PATH, 'NSD', 'pretrain', args.st1_net,
+                                     'pretrained_WAE_' + args.st1_net + '_{}.pth'.format(args.st1_load_epoch))
 
-        trained_model = WaeGan(device=device, z_size=args.latent_dims).to(device)
-        trained_model.load_state_dict(torch.load(model_dir, map_location=device))
+        teacher_model = WaeGan(device=device, z_size=args.latent_dim).to(device)
+        teacher_model.load_state_dict(torch.load(st1_model_dir, map_location=device))
+        # this loads teacher model with model from stage 1 - TODO: insert here
+        for param in teacher_model.encoder.parameters():
+            param.requires_grad = False
 
-        # Fix decoder weights
-        for param in trained_model.decoder.parameters():
+        # Load Stage 2 network weights
+        st2_model_dir = os.path.join(OUTPUT_PATH, 'NSD', 'stage_2', args.st2_net,
+                                     'stage_2_WAE_' + args.st2_net + '_{}.pth'.format(args.st2_load_epoch))
+
+        decoder = Decoder(z_size=args.latent_dim, size=256).to(device)
+        cognitive_encoder = CognitiveEncoder(input_size=NUM_VOXELS, z_size=args.latent_dim).to(device)
+        trained_model = WaeGanCognitive(device=device, encoder=cognitive_encoder, decoder=decoder,
+                                        z_size=args.latent_dim).to(device)
+        # This then loads the network from stage 2 (cog enc) to fix encoder in stage 3
+        # It uses the components from stage 2 and builds from here for main model
+        trained_model.load_state_dict(torch.load(st2_model_dir, map_location=device))
+        model = WaeGanCognitive(device=device, encoder=trained_model.encoder, decoder=trained_model.decoder,
+                                z_size=args.latent_dim).to(device)
+        # Fix encoder weights
+        for param in model.encoder.parameters():
             param.requires_grad = False
 
         logging.info(f'Number of voxels: {NUM_VOXELS}')
         logging.info(f'Train data length: {len(train_data)}')
         logging.info(f'Validation data length: {len(valid_data)}')
-
-        # TODO: Add the model stuff here, but it's a bit confusing (AND ABOVE)
-
-        # Define model
-        cognitive_encoder = CognitiveEncoder(input_size=NUM_VOXELS, z_size=args.latent_dims).to(device)
-        model = WaeGanCognitive(device=device, encoder=cognitive_encoder, decoder=trained_model.decoder,
-                                z_size=args.latent_dims).to(device)
 
         # Loading Checkpoint | If you want to continue training for existing checkpoint
         # Set checkpoint path
@@ -385,14 +401,17 @@ def main():
 
                             loss_discriminator_fake = - 10 * torch.sum(torch.log(d_fake + 1e-3))
                             loss_discriminator_real = - 10 * torch.sum(torch.log(1 - d_real + 1e-3))
-                            loss_discriminator_fake.backward(retain_graph=True)
-                            loss_discriminator_real.backward(retain_graph=True)
+                            loss_discriminator_fake.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
+                            loss_discriminator_real.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
 
                             # loss_discriminator.backward(retain_graph=True)
                             # [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
                             optimizer_discriminator.step()
 
                             # ----------Train generator----------------
+                            # TODO: not sure if this helps - check the back prop method in old stage 2
+                            # it should be fine because they're repushing through the vars through model
+                            # model.decoder.zero_grad()
 
                             free_params(model.decoder)
                             frozen_params(model.discriminator)
@@ -409,7 +428,7 @@ def main():
 
                             loss_penalty = - 10 * torch.mean(torch.log(d_real + 1e-3))
 
-                            loss_reconstruction.backward(retain_graph=True)
+                            loss_reconstruction.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
                             # loss_penalty.backward()
                             # [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
                             optimizer_decoder.step()
