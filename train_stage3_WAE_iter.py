@@ -133,8 +133,8 @@ def main():
                                            'GOD_Subject{}_valid_normed.pickle'.format(args.subject))
 
         # Create directory for results
-        stage_num = 'stage_2'
-        stage = 2
+        stage_num = 'stage_3'
+        stage = 3
 
         SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, SUBJECT_PATH, stage_num,
                                  args.run_name)
@@ -261,7 +261,8 @@ def main():
             param.requires_grad = False
 
         # Load Stage 2 network weights
-        st2_model_dir = os.path.join(OUTPUT_PATH, 'NSD', 'stage_2', args.st2_net,
+        st2_model_dir = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, SUBJECT_PATH,
+                                     'stage_2', args.st2_net,
                                      'stage_2_WAE_' + args.st2_net + '_{}.pth'.format(args.st2_load_epoch))
 
         decoder = Decoder(z_size=args.latent_dims, size=256).to(device)
