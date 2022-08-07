@@ -203,19 +203,32 @@ class CognitiveEncoder(nn.Module):
     Cognitive encoder to transform fMRI to cognitive latent representations.
     Used in training on Stage II and III
     """
-    def __init__(self, input_size, z_size=128, channel_in=3):
+    def __init__(self, input_size, z_size=128, channel_in=3, lin_size=1024, lin_layers=1):
         super(CognitiveEncoder, self).__init__()
         self.size = channel_in
+        self.lin_layers = lin_layers
 
-        self.fc1 = nn.Sequential(nn.Linear(in_features=input_size, out_features=1024, bias=False),
-                                nn.BatchNorm1d(num_features=1024, momentum=0.9),
-                                nn.ReLU(True))
-        # self.fc2 = nn.Sequential(nn.Linear(in_features=1024, out_features=512, bias=False),
-        #                         nn.BatchNorm1d(num_features=512, momentum=0.9),
-        #                         nn.LeakyReLU(True))
-        # two linear to get the mu vector and the diagonal of the log_variance
-        self.l_mu = nn.Linear(in_features=1024, out_features=z_size)
-        self.l_var = nn.Linear(in_features=1024, out_features=z_size)
+        if self.lin_layers == 1:
+            self.fc1 = nn.Sequential(nn.Linear(in_features=input_size, out_features=lin_size, bias=False),
+                                    nn.BatchNorm1d(num_features=lin_size, momentum=0.9),
+                                    nn.ReLU(True))
+            # self.fc2 = nn.Sequential(nn.Linear(in_features=1024, out_features=512, bias=False),
+            #                         nn.BatchNorm1d(num_features=512, momentum=0.9),
+            #                         nn.LeakyReLU(True))
+            # two linear to get the mu vector and the diagonal of the log_variance
+            self.l_mu = nn.Linear(in_features=lin_size, out_features=z_size)
+            self.l_var = nn.Linear(in_features=lin_size, out_features=z_size)
+        else:
+            self.fc1 = nn.Sequential(nn.Linear(in_features=input_size, out_features=lin_size, bias=False),
+                                     nn.BatchNorm1d(num_features=lin_size, momentum=0.9),
+                                     nn.ReLU(True))
+            self.fc2 = nn.Sequential(nn.Linear(in_features=lin_size, out_features=int(lin_size/2), bias=False),
+                                     nn.BatchNorm1d(num_features=int(lin_size/2), momentum=0.9),
+                                     nn.ReLU(True))
+                                     # was nn.LeakyReLU(True))
+            # two linear to get the mu vector and the diagonal of the log_variance
+            self.l_mu = nn.Linear(in_features=int(lin_size/2), out_features=z_size)
+            self.l_var = nn.Linear(in_features=int(lin_size/2), out_features=z_size)
     #     self.init_parameters()
     #
     # def init_parameters(self):
@@ -233,11 +246,18 @@ class CognitiveEncoder(nn.Module):
     #                 nn.init.constant_(m.bias, 0.0)
 
     def forward(self, ten):
-        ten = self.fc1(ten)
-        # ten = self.fc2(ten)
-        mu = self.l_mu(ten)
-        logvar = self.l_var(ten)
-        return mu, logvar
+        if self.lin_layers == 1:
+            ten = self.fc1(ten)
+            # ten = self.fc2(ten)
+            mu = self.l_mu(ten)
+            logvar = self.l_var(ten)
+            return mu, logvar
+        else:
+            ten = self.fc1(ten)
+            ten = self.fc2(ten)
+            mu = self.l_mu(ten)
+            logvar = self.l_var(ten)
+            return mu, logvar
 
     def __call__(self, *args, **kwargs):
         return super(CognitiveEncoder, self).__call__(*args, **kwargs)

@@ -73,7 +73,9 @@ def main():
             parser.add_argument('--beta', default=0.5, type=float)
             parser.add_argument('--recon_loss', default='trad', type=str, help='sets whether to use pytroch mse'
                                                                                'or manual like in pretrain (manual)')
-
+            parser.add_argument('--lin_size', default=1024, type=int, help='sets the number of nuerons in cog lin layer')
+            parser.add_argument('--lin_layers', default=1, type=int, help='sets how many layers of cog network '
+                                                                          'before the mu var layers.')
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
                                                                            'vaegan_20220613-014326', type=str)
@@ -264,7 +266,9 @@ def main():
         logging.info(f'Validation data length: {len(valid_data)}')
 
         # Define model
-        cognitive_encoder = CognitiveEncoder(input_size=NUM_VOXELS, z_size=args.latent_dims).to(device)
+        # TODO: I'm testing the lin layer size
+        cognitive_encoder = CognitiveEncoder(input_size=NUM_VOXELS, z_size=args.latent_dims, lin_size=args.lin_size,
+                                             lin_layers=args.lin_layers).to(device)
         model = WaeGanCognitive(device=device, encoder=cognitive_encoder, decoder=trained_model.decoder,
                                 z_size=args.latent_dims).to(device)
 
