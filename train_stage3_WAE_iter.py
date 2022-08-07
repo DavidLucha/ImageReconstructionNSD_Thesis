@@ -82,11 +82,11 @@ def main():
                                                                       'or from stage_1 output', type=str)
             parser.add_argument('--st1_net', default=training_config.pretrained_net,
                                 help='pretrained network from stage 1', type=str)
-            parser.add_argument('--st1_load_epoch', '-pretrain_epoch', default='final',
+            parser.add_argument('--st1_load_epoch', default='final',
                                 help='epoch of the pretrained model', type=str)
             parser.add_argument('--st2_net', default=training_config.pretrained_net,
                                 help='pretrained network from stage 1', type=str)
-            parser.add_argument('--st2_load_epoch', '-pretrain_epoch', default='final',
+            parser.add_argument('--st2_load_epoch', default='final',
                                 help='epoch of the pretrained model', type=str)
             parser.add_argument('--dataset', default='NSD', help='GOD, NSD', type=str)
             # Only need vox_res arg from stage 2 and 3
