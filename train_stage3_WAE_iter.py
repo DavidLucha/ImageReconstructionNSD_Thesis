@@ -80,11 +80,11 @@ def main():
             parser.add_argument('--checkpoint_epoch', default=90, help='epoch of checkpoint network', type=int)
             parser.add_argument('--load_from',default='pretrain', help='sets whether pretrained net is from pretrain'
                                                                       'or from stage_1 output', type=str)
-            parser.add_argument('--st1_net', '-pretrain', default=training_config.pretrained_net,
+            parser.add_argument('--st1_net', default=training_config.pretrained_net,
                                 help='pretrained network from stage 1', type=str)
             parser.add_argument('--st1_load_epoch', '-pretrain_epoch', default='final',
                                 help='epoch of the pretrained model', type=str)
-            parser.add_argument('--st2_net', '-pretrain', default=training_config.pretrained_net,
+            parser.add_argument('--st2_net', default=training_config.pretrained_net,
                                 help='pretrained network from stage 1', type=str)
             parser.add_argument('--st2_load_epoch', '-pretrain_epoch', default='final',
                                 help='epoch of the pretrained model', type=str)
