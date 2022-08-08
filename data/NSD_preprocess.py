@@ -89,7 +89,7 @@ if concat:
     # Full for session range:
     #         for session in range(1, session_count[subject]+1):
     for subject in range(1, 9):
-    # for subject in [4]: # TODO: Remove this and uncomment above
+    # for subject in [1]: # TODO: Remove this and uncomment above
         print(subject)
         # subject_fmri = []
         subject_fmri_dict = []
@@ -104,6 +104,17 @@ if concat:
             # Change directory format for below and above 10
             # i.e., Sessions under 10 have 0x format
             # this can be down with leading format print("{:02d}".format(number))
+            # TODO: Add type in here '' '_3mm' or '_rand_samp'
+
+            """One way we could do it is, we need full voxels for study 1 and study 2. So that's fine.
+            Everything as normal. But then for the final study I'm trying to decide whether it's better to do either
+            of following.
+            1. Make the concat as per normal, then load in the ROI label doc, grab voxel IDs where ROI == ROI 
+                and then use that to filter out columns.
+            2. Bring the ROI labels in now, make different cocnat pickles that contain all trials, and then one for 
+                each dataset. Eg. subj_01_normed_V1_pickle and then have to grab training and trial subject from
+                each of those. I think 1 is better. Too much double handling here."""
+
             betas_dir = os.path.join(sub_dir, "subj_0{0}_masked_betas_session{1:02d}.txt".format(subject, session))
             betas_file = "subj_0{0}_masked_betas_session{1:02d}.txt".format(subject, session)
             print("Adding data from {}".format(betas_file))
