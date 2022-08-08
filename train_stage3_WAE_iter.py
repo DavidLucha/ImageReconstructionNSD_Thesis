@@ -73,6 +73,9 @@ def main():
             parser.add_argument('--beta', default=0.5, type=float)
             parser.add_argument('--recon_loss', default='trad', type=str, help='sets whether to use pytroch mse'
                                                                                'or manual like in pretrain (manual)')
+            parser.add_argument('--lin_size', default=1024, type=int,
+                                help='sets the number of nuerons in cog lin layer')
+            parser.add_argument('--lin_layers', default=1, type=int, help='sets how many layers of cog network ')
 
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
@@ -266,7 +269,8 @@ def main():
                                      'stage_2_WAE_' + args.st2_net + '_{}.pth'.format(args.st2_load_epoch))
 
         decoder = Decoder(z_size=args.latent_dims, size=256).to(device)
-        cognitive_encoder = CognitiveEncoder(input_size=NUM_VOXELS, z_size=args.latent_dims).to(device)
+        cognitive_encoder = CognitiveEncoder(input_size=NUM_VOXELS, z_size=args.latent_dims, lin_size=args.lin_size,
+                                             lin_layers=args.lin_layers).to(device)
         trained_model = WaeGanCognitive(device=device, encoder=cognitive_encoder, decoder=decoder,
                                         z_size=args.latent_dims).to(device)
         # This then loads the network from stage 2 (cog enc) to fix encoder in stage 3
