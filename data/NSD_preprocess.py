@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import pickle
 import random
-from data.NSD_process_utils import NSDProcess, nsd_data_dict_prep
+from data.NSD_process_utils import NSDProcess, nsd_data_dict_prep, nsd_data_dict_prep_3mm
 
 """
 Training/Test Split Image Extraction
@@ -82,14 +82,15 @@ concat = False
 if concat:
     data_dir = "D:/NSD/nsddata_betas/ppdata/"
     session_count = [0, 37, 37, 29, 27, 37, 29, 37, 27]
-    out_path = "D:/Lucha_Data/datasets/NSD/"
-    vox_res = "1.8mm"
-    # TODO: Change this for 3mm vox
+    out_path = "D:/Honours/nsd_pickles/"
+    # ------------- CHANGE THESE TWO -------------- #
+    vox_res = "3mm"
+    data_type = "3mm"  #  "1.8mm" is main 1.8mm, "3mm" is 3mm and "rand" is for the random selection of voxels
+    # -------------------- END -------------------- #
 
     # Full for session range:
-    #         for session in range(1, session_count[subject]+1):
     for subject in range(1, 9):
-    # for subject in [1]: # TODO: Remove this and uncomment above
+    # for subject in [1]: # Remove this and uncomment above
         print(subject)
         # subject_fmri = []
         subject_fmri_dict = []
@@ -99,12 +100,11 @@ if concat:
         subject_full_df = pd.DataFrame()
         print(session_count[subject])
         for session in range(1, session_count[subject] + 1):
-        # for session in [2, 14]:
+        # for session in [2, 14]:  # Test Line - Uncomment
             # print(session)
             # Change directory format for below and above 10
             # i.e., Sessions under 10 have 0x format
             # this can be down with leading format print("{:02d}".format(number))
-            # TODO: Add type in here '' '_3mm' or '_rand_samp'
 
             """One way we could do it is, we need full voxels for study 1 and study 2. So that's fine.
             Everything as normal. But then for the final study I'm trying to decide whether it's better to do either
@@ -114,10 +114,16 @@ if concat:
             2. Bring the ROI labels in now, make different cocnat pickles that contain all trials, and then one for 
                 each dataset. Eg. subj_01_normed_V1_pickle and then have to grab training and trial subject from
                 each of those. I think 1 is better. Too much double handling here."""
-
-            betas_dir = os.path.join(sub_dir, "subj_0{0}_masked_betas_session{1:02d}.txt".format(subject, session))
-            betas_file = "subj_0{0}_masked_betas_session{1:02d}.txt".format(subject, session)
-            print("Adding data from {}".format(betas_file))
+            if data_type == "3mm":
+                betas_dir = os.path.join(sub_dir,
+                                         "subj_0{0}_masked_betas_session{1:02d}_3mm.txt".format(subject, session))
+            elif data_type == "rand":
+                betas_dir = os.path.join(sub_dir,
+                                         "subj_0{0}_masked_betas_session{1:02d}_rand_samp.txt".format(subject, session))
+            else:
+                betas_dir = os.path.join(sub_dir, "subj_0{0}_masked_betas_session{1:02d}.txt".format(subject, session))
+            # betas_file = "subj_0{0}_masked_betas_session{1:02d}.txt".format(subject, session)
+            print("Adding data from {}".format(betas_dir))
             # Reads betas
             betas = pd.read_csv(betas_dir, sep=" ", header=None)
 
@@ -135,7 +141,7 @@ if concat:
             elif session != 1:
                 subject_full_df = subject_full_df.append(betas_b, ignore_index=True)
 
-        raw_out = False
+        raw_out = True
         save = True
 
         if raw_out:
@@ -146,7 +152,17 @@ if concat:
                 raw_pickle_out = os.path.join(out_path, vox_res, "raw_concat_pickle/")
                 if not os.path.exists(raw_pickle_out):
                     os.makedirs(raw_pickle_out)
-                subject_full_df.to_pickle(os.path.join(raw_pickle_out, "subj_0{0}_raw_concat_trial_fmri.pickle".format(subject)))
+                if data_type == "3mm":
+                    pickle_out = os.path.join(raw_pickle_out,
+                                                     "subj_0{0}_raw_concat_trial_fmri_3mm.pickle".format(subject))
+                if data_type == "rand":
+                    pickle_out = os.path.join(raw_pickle_out,
+                                                     "subj_0{0}_raw_concat_trial_fmri_rand.pickle".format(subject))
+                else:
+                    pickle_out = os.path.join(raw_pickle_out,
+                                                     "subj_0{0}_raw_concat_trial_fmri.pickle".format(subject))
+
+                subject_full_df.to_pickle(pickle_out)
 
         # Normalise, but could wait until I reload
         # Gets rid of index ordering and column names
@@ -162,7 +178,17 @@ if concat:
                 normed_pickle_out = os.path.join(out_path, vox_res, "normed_concat_pickle/")
                 if not os.path.exists(normed_pickle_out):
                     os.makedirs(normed_pickle_out)
-                normed_subject_full_df_titled.to_pickle(os.path.join(normed_pickle_out, "subj_0{0}_normed_concat_trial_fmri.pickle".format(subject)))
+                if data_type == "3mm":
+                    norm_pickle_out = os.path.join(normed_pickle_out,
+                                                     "subj_0{0}_normed_concat_trial_fmri_3mm.pickle".format(subject))
+                if data_type == "rand":
+                    norm_pickle_out = os.path.join(normed_pickle_out,
+                                                     "subj_0{0}_normed_concat_trial_fmri_rand.pickle".format(subject))
+                else:
+                    norm_pickle_out = os.path.join(normed_pickle_out,
+                                                     "subj_0{0}_normed_concat_trial_fmri.pickle".format(subject))
+
+                normed_subject_full_df_titled.to_pickle(norm_pickle_out)
 
         # raise Exception("Check normed vs non-normed")
 
@@ -189,23 +215,36 @@ Creating trainable datasets (list of dicts)
     data_type = train/test both?
 """
 
-dict_prep = False
+dict_prep = True
 
 if dict_prep:
     # Hello there. - Obi Wan
     subj_list = [1, 2, 3, 4, 5, 6, 7, 8]  # 1, 2, 3, 4, 5, 6, 7, 8
+
+    # ------ TODO: CHANGE THIS -------- #
     vox_res = "1.8mm"
     image_list_dir = "D:/NSD/trial_information"
     data_type = "both"
     save_path = os.path.join("D:/Lucha_Data/datasets/NSD", vox_res)
     # Can change to raw %age change below if you want
-    data_dir = os.path.join(save_path, "normed_concat_pickle")
+    data_dir = os.path.join("D:/Honours/nsd_pickles", vox_res, "normed_concat_pickle")
+    # -------------- END ---------------#
 
-    # Run data
-    # All data
-    nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, False)
-    # Using first presentation only
-    nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, True)
+    # Runs the 3mm process
+    mm_3 = False
+    if mm_3:
+        # Gets max, all pres - not currently planned use
+        nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, False)
+        # Using first presentation only
+        nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, True)
+
+    # Runs the 1.8mm process
+    mm_1pt8 = True
+    if mm_1pt8:
+        # All data
+        nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, False)
+        # Using first presentation only
+        nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, True)
 
 
 
