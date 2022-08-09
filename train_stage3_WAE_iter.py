@@ -76,6 +76,8 @@ def main():
             parser.add_argument('--lin_size', default=1024, type=int,
                                 help='sets the number of nuerons in cog lin layer')
             parser.add_argument('--lin_layers', default=1, type=int, help='sets how many layers of cog network ')
+            parser.add_argument('--optim_method', default='Adam',
+                                help='defines method for optimizer. Options: RMS or Adam.', type=str)
 
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
@@ -336,14 +338,23 @@ def main():
         lr_disc = args.lr_disc  # 0.0005 - Maria
         beta = args.beta
 
-        # Optimizers
-        # optimizer_encoder = torch.optim.Adam(model.encoder.parameters(), lr=lr_enc, betas=(beta, 0.999))
-        optimizer_decoder = torch.optim.Adam(model.decoder.parameters(), lr=lr_dec, betas=(beta, 0.999))
-        optimizer_discriminator = torch.optim.Adam(model.discriminator.parameters(), lr=lr_disc, betas=(beta, 0.999))
+        if args.optim_method == 'RMS':
+            # optimizer_encoder = torch.optim.RMSprop(params=model.encoder.parameters(), lr=lr_enc, alpha=0.9,)
+            optimizer_decoder = torch.optim.RMSprop(params=model.decoder.parameters(), lr=lr_dec,alpha=0.9)
+            optimizer_discriminator = torch.optim.RMSprop(params=model.discriminator.parameters(), lr=lr_disc, alpha=0.9)
+            # lr_encoder = ExponentialLR(optimizer_encoder, gamma=args.decay_lr)
+            lr_decoder = ExponentialLR(optimizer_decoder, gamma=args.decay_lr)
+            lr_discriminator = ExponentialLR(optimizer_discriminator, gamma=args.decay_lr)
 
-        # lr_encoder = StepLR(optimizer_encoder, step_size=30, gamma=0.5)
-        lr_decoder = StepLR(optimizer_decoder, step_size=30, gamma=0.5)
-        lr_discriminator = StepLR(optimizer_discriminator, step_size=30, gamma=0.5)
+        else:
+            # Optimizers
+            # optimizer_encoder = torch.optim.Adam(model.encoder.parameters(), lr=lr_enc, betas=(beta, 0.999))
+            optimizer_decoder = torch.optim.Adam(model.decoder.parameters(), lr=lr_dec, betas=(beta, 0.999))
+            optimizer_discriminator = torch.optim.Adam(model.discriminator.parameters(), lr=lr_disc, betas=(beta, 0.999))
+
+            # lr_encoder = StepLR(optimizer_encoder, step_size=30, gamma=0.5)
+            lr_decoder = StepLR(optimizer_decoder, step_size=30, gamma=0.5)
+            lr_discriminator = StepLR(optimizer_discriminator, step_size=30, gamma=0.5)
 
         # Metrics
         pearson_correlation = PearsonCorrelation()
