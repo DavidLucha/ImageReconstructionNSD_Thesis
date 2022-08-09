@@ -65,10 +65,18 @@ class FmriDataloader(object):
 
         # Applies tensor conversion to voxels
         fmri_tensor = torch.FloatTensor(voxels)
+        # Standardises the sample, mean of 0, std of 1.
+        # comment the below if you have scaled this at the whole dataset stage
+        fmri_tensor = self.standardize(fmri_tensor)
 
         transformed_sample = {'fmri': fmri_tensor, 'image': mod_stimulus}
 
         return transformed_sample
+
+    def standardize(self, fmri):
+        mu = torch.mean(fmri)
+        std = torch.std(fmri)
+        return (fmri - mu)/std
 
 
 class VQDataloader(object):

@@ -5,8 +5,19 @@ from bdpy import BData
 import csv
 import os
 import torch
+import numpy as np
+import torch.nn.functional as F
+import torchvision.transforms as transforms
+from sklearn import preprocessing
 import training_config as cfg
 import random
+
+LOAD_PATH = "D:/Lucha_Data/datasets/NSD_normed/1.8mm/train/single_pres/"
+pickle_dir = LOAD_PATH + "Subj_04_NSD_single_pres_train.pickle"
+print("Reading betas from pickle file: ", pickle_dir)
+
+with open(pickle_dir, "rb") as input_file:
+    train_data_2 = pickle.load(input_file)
 
 LOAD_PATH = "D:/Honours/nsd_pickles/1.8mm/"
 pickle_dir_norm = LOAD_PATH + "normed_concat_pickle/subj_04_normed_concat_trial_fmri_rand.pickle"
@@ -29,6 +40,39 @@ list_2 = [1,2,3]
 list_1.append(list_2)
 list_3 = [4,5,6]
 list_1.append(list_3)
+
+
+
+
+
+
+
+
+
+
+
+trans = torch.nn.Sequential(
+                transforms.Normalize([0.5],[0.5])
+            )
+
+array = np.random.uniform(-100, 100, 400)
+tens = torch.tensor(array)
+
+normed_array = preprocessing.scale(array)
+print(np.mean(normed_array))
+print(np.std(normed_array))
+
+mu = torch.mean(tens)
+std = torch.std(tens)
+new_tens = (tens - mu)/std
+
+print('new mean {:.5f} and std {:.5f}'.format(torch.mean(new_tens), torch.std(new_tens)))
+
+# tens = torch.randn(-100, 100, (20,))
+
+# norm = F.nor
+new_tens = trans(tens)
+
 
 
 

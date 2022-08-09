@@ -73,7 +73,7 @@ class NSDProcess:
         # return sdataset[image_index]
 
 
-def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, single_pres=False):
+def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, norm, single_pres=False):
     """
     Loads beta, pulls voxels from ROI and image index. (TRAINING)
     Combines these into a list of dictionaries formatted as:
@@ -95,7 +95,8 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
     :param image_list_dir: should lead to numbered list of image names:
         "D:/Honours/Object Decoding Dataset/images_passwd/images/image_training_id_nmd.csv"
 
-    Note: Works for the GOD data, unsure if this will work for NSD
+    DEFAULT was to use the normed pickles, but I think there's an issue with this.
+    I think it's best to just normalize as we go into the network.
 
     """
     train = False
@@ -204,9 +205,14 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
 
         # We'll call the images from the Lucha_Data dataset
         # FILE_NAME_OUTPUT = '/images/' + image_type  # Defines the path in the dictionary outputs
-        pickle_dir = os.path.join(data_dir, "subj_0{}_normed_concat_trial_fmri.pickle".format(s))
+        pickle_dir = os.path.join(data_dir, "subj_0{}_{}_concat_trial_fmri.pickle".format(s,norm))
         print("Reading betas from pickle file: ", pickle_dir)
         data = pd.read_pickle(pickle_dir)
+
+        # Add the rand sample data to the right of the dataframe for the last key of all array (V1-3+RAND)
+        rand_dir = os.path.join(data_dir, "subj_0{}_{}_concat_trial_fmri_rand.pickle".format(s,norm))
+        print("Reading random sample betas from pickle file: ", rand_dir)
+        rand_data = pd.read_pickle(rand_dir)
 
         if train:
             image_type = 'train/'
@@ -215,15 +221,12 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
 
             if not single_pres: # ROI selection is only for max voxels
                 for key, array in all_arrays.items():
+                    fmri_image_dataset = []
                     # Select voxels from fmri dataframe
                     # Grab columns (voxel_IDs) for each ROI array
                     fmri_voxels = data.loc[:, array]
 
                     if key == "V1_to_V3_n_rand":
-                        # Add the rand sample data to the right of the dataframe for the last key of all array (V1-3+RAND)
-                        rand_dir = os.path.join(data_dir, "subj_0{}_normed_concat_trial_fmri_rand.pickle".format(s))
-                        print("Reading random sample betas from pickle file: ", rand_dir)
-                        rand_data = pd.read_pickle(rand_dir)
                         fmri_voxels = pd.concat([fmri_voxels, rand_data], axis=1)
 
                     # cut down fmri dataframe to training trials
@@ -256,6 +259,7 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
                         pickle.dump(fmri_image_dataset, f)
 
             if single_pres:
+                fmri_image_dataset = []
                 # cut down fmri dataframe to training trials
                 fmri = data.loc[train_array]
                 # Convert fMRI data for zipping
@@ -289,15 +293,12 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
 
             if not single_pres: # ROI selection is only for max voxels
                 for key, array in all_arrays.items():
+                    fmri_image_dataset = []
                     # Select voxels from fmri dataframe
                     # Grab columns (voxel_IDs) for each ROI array
                     fmri_voxels = data.loc[:, array]
 
                     if key == "V1_to_V3_n_rand":
-                        # Add the rand sample data to the right of the dataframe for the last key of all array (V1-3+RAND)
-                        rand_dir = os.path.join(data_dir, "subj_0{}_normed_concat_trial_fmri_rand.pickle".format(s))
-                        print("Reading random sample betas from pickle file: ", rand_dir)
-                        rand_data = pd.read_pickle(rand_dir)
                         fmri_voxels = pd.concat([fmri_voxels, rand_data], axis=1)
 
                     # cut down fmri dataframe to training trials
@@ -331,6 +332,7 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
                         pickle.dump(fmri_image_dataset, f)
 
             if single_pres: # ROI selection is only for max voxels
+                fmri_image_dataset = []
                 # cut down fmri dataframe to training trials
                 fmri = data.loc[test_array]
 
@@ -362,7 +364,7 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
                     pickle.dump(fmri_image_dataset, f)
 
 
-def nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, single_pres=False):
+def nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, norm, single_pres=False):
     """
     Loads beta, pulls voxels from ROI and image index. (TRAINING)
     Combines these into a list of dictionaries formatted as:
@@ -451,7 +453,7 @@ def nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_ty
 
         # We'll call the images from the Lucha_Data dataset
         # FILE_NAME_OUTPUT = '/images/' + image_type  # Defines the path in the dictionary outputs
-        pickle_dir = os.path.join(data_dir, "subj_0{}_normed_concat_trial_fmri.pickle".format(s))
+        pickle_dir = os.path.join(data_dir, "subj_0{}_{}_concat_trial_fmri.pickle".format(s,norm))
         print("Reading betas from pickle file: ",pickle_dir)
         data = pd.read_pickle(pickle_dir)
 
