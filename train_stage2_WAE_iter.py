@@ -80,6 +80,11 @@ def main():
                                 help='defines method for optimizer. Options: RMS or Adam.', type=str)
             parser.add_argument('--standardize', default='True',
                                 help='determines whether the dataloader uses standardize.', type=str)
+            parser.add_argument('--disc_loss', default='Maria',
+                                help='determines whether we use Marias loss or the paper based one for disc', type=str)
+            parser.add_argument('--WAE_loss', default='Maria',
+                                help='determines whether we use Marias loss or the paper based one for WAE', type=str)
+            parser.add_argument('--lambda_WAE', default=1, help='sets the multiplier for paper GAN loss', type=int)
 
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
@@ -325,8 +330,7 @@ def main():
             epochs=[],
             loss_reconstruction=[],
             loss_penalty=[],
-            loss_discriminator_fake=[],
-            loss_discriminator_real=[]
+            loss_discriminator=[]
         )
 
         # Variables for equilibrium to improve GAN stability
@@ -355,10 +359,13 @@ def main():
             # lr_decoder = StepLR(optimizer_decoder, step_size=30, gamma=0.5)
             lr_discriminator = StepLR(optimizer_discriminator, step_size=30, gamma=0.5)
 
+        # Define criterion
+        bce_loss = nn.BCEWithLogitsLoss()
+        mse_loss = nn.MSELoss(reduction='none')
+
         # Metrics
         pearson_correlation = PearsonCorrelation()
         structural_similarity = StructuralSimilarity(mean=training_config.mean, std=training_config.std)
-        mse_loss = nn.MSELoss()
 
         result_metrics_train = {}
         result_metrics_valid = {}
@@ -398,36 +405,55 @@ def main():
 
                             x_fmri = Variable(data_batch['fmri'], requires_grad=False).float().to(device)
                             x_image = Variable(data_batch['image'], requires_grad=False).float().to(device)
-                            z, _ = trained_model.encoder(x_image)
-                            x_gt = trained_model.decoder(z)
 
                             # ----------Train discriminator-------------
 
                             frozen_params(model.encoder)
                             free_params(model.discriminator)
 
-                            z_fake, var = model.encoder(x_fmri)
-                            z_real, var = trained_model.encoder(x_image)
+                            z_cog_enc, var = model.encoder(x_fmri)
+                            z_vis_enc, var = trained_model.encoder(x_image)
 
-                            d_real = model.discriminator(z_real)
-                            d_fake = model.discriminator(z_fake)
+                            # WAE | Trying to make Qz more like Pz
+                            # disc output for encoded latent (cog) | Qz
+                            logits_cog_enc = model.discriminator(z_cog_enc)
+                            # disc output for visual encoder | Pz
+                            logits_vis_enc = model.discriminator(z_vis_enc)
 
-                            # THEY HAVE FUCKED UP.
-                            # here taking the BCE (1, cogenc) INCORRECT
-                            # under the assumption we want the cog enc latent to be more like the VIS ENC
-                            # the effect of this is a network which classifies a virgin cogenc as real
-                            loss_discriminator_fake = - 10 * torch.sum(torch.log(d_fake + 1e-3))
-                            # here taking the BCE of (0, vis enc)
-                            # minimizes likelihood of discriminator identifying vis enc as 0
-                            # is that the network incorrectly classifies the trained network encs as false
-                            loss_discriminator_real = - 10 * torch.sum(torch.log(1 - d_real + 1e-3))
-                            # Try this with the pretrain though.
-                            if args.disc_loss == 'David':
-                                loss_discriminator_fake = - 10 * torch.sum(torch.log(1 - d_fake + 1e-3))
-                                # Here they are getting equivalent of BCE(real, 0s)
-                                loss_discriminator_real = - 10 * torch.sum(torch.log(d_real + 1e-3))
-                            loss_discriminator_fake.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
-                            loss_discriminator_real.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
+                            if args.disc_loss == "Maria":
+                                sig_cog_enc = torch.sigmoid(logits_cog_enc)
+                                sig_vis_enc = torch.sigmoid(logits_vis_enc)
+                                # THEY HAVE FUCKED UP.
+                                # here taking the BCE (1, cogenc) INCORRECT
+                                # under the assumption we want the cog enc latent to be more like the VIS ENC
+                                # the effect of this is a network which classifies a virgin cogenc as real
+                                loss_discriminator_fake = - 10 * torch.sum(torch.log(sig_cog_enc + 1e-3))
+                                # here taking the BCE of (0, vis enc)
+                                # minimizes likelihood of discriminator identifying vis enc as 0
+                                # is that the network incorrectly classifies the trained network encs as false
+                                loss_discriminator_real = - 10 * torch.sum(torch.log(1 - sig_vis_enc + 1e-3))
+
+                                loss_discriminator = loss_discriminator_real + loss_discriminator_real
+
+                                loss_discriminator_fake.backward(retain_graph=True,
+                                                                 inputs=list(model.discriminator.parameters()))
+                                loss_discriminator_real.backward(retain_graph=True,
+                                                                 inputs=list(model.discriminator.parameters()))
+                                mean_mult = batch_size
+                            else:
+                                # set up labels
+                                labels_real = Variable(torch.ones_like(logits_vis_enc)).to(device)
+                                labels_fake = Variable(torch.zeros_like(logits_cog_enc)).to(device)
+
+                                # Qz is distribution of encoded latent space | here, the learning latent
+                                loss_Qz = bce_loss(logits_cog_enc, labels_fake)
+                                # Pz is distribution of prior (sampled) | or here, the teacher latent
+                                loss_Pz = bce_loss(logits_vis_enc, labels_real)
+
+                                loss_discriminator = args.lambda_WAE * (loss_Qz + loss_Pz)
+                                loss_discriminator.backward(retain_graph=True,
+                                                            inputs=list(model.discriminator.parameters()))
+                                mean_mult = 1
 
                             # [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
                             optimizer_discriminator.step()
@@ -439,25 +465,42 @@ def main():
                             free_params(model.encoder)
                             frozen_params(model.discriminator)
 
-                            z_real, var = model.encoder(x_fmri)
-                            x_recon = model.decoder(z_real)
-                            d_real = model.discriminator(z_real)
+                            z_cog_enc, var = model.encoder(x_fmri)
+                            x_recon = model.decoder(z_cog_enc)
+                            logits_cog_enc = model.discriminator(z_cog_enc)
 
-                            if args.recon_loss == 'manual':
-                                loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_image) ** 2, 1))
-                            elif args.recon_loss == 'feature_loss':
-                                loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_gt) ** 2, 1))
-                            else:  # trad
+                            z_vis_enc, _ = trained_model.encoder(x_image)
+                            x_gt = trained_model.decoder(z_vis_enc)
+
+                            # TODO: Revmoe recon loss and replace with WAE_loss
+                            if args.WAE_loss == 'Maria':
+                                # loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_image) ** 2, 1))
                                 mse_loss = nn.MSELoss()
                                 loss_reconstruction = mse_loss(x_recon, x_image)
+                                # This is equivalent of BCELoss(real, 1)
+                                # so we are saying the loss is the distance of the latent space of cog enc
+                                # to the real 1 (of the visual enc)
+                                loss_penalty = - 10 * torch.mean(torch.log(logits_cog_enc + 1e-3))
 
-                            # This is equivalent of BCELoss(real, 1)
-                            # so we are saying the loss is the distance of the latent space of cog enc
-                            # to the real 1 (of the visual enc)
-                            loss_penalty = - 10 * torch.mean(torch.log(d_real + 1e-3))
+                                loss_reconstruction.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
+                                loss_penalty.backward(inputs=list(model.encoder.parameters()))
+                                mean_mult = batch_size
 
-                            loss_reconstruction.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
-                            loss_penalty.backward(inputs=list(model.encoder.parameters()))
+                            else:
+                                # Adapted from original WAE paper code
+                                # label for non-saturating loss
+                                labels_saturated = Variable(torch.ones_like(logits_enc)).to(device)
+                                loss_reconstruction = torch.mean(torch.sum(mse_loss(x_recon, x), [1, 2, 3])) * 0.05
+                                # loss_reconstruction = mse_loss(x_recon, x)
+                                loss_penalty = bce_loss(logits_enc, labels_saturated)
+                                loss_WAE = loss_reconstruction + loss_penalty * args.lambda_WAE
+                                loss_WAE.backward(inputs=encdec_params)
+                                mean_mult = 1
+                                # loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_gt) ** 2, 1))
+
+
+
+
                             # [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
                             optimizer_encoder.step()
 

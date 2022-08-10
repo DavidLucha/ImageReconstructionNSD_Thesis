@@ -368,6 +368,22 @@ def main():
                         loss_discriminator_real.backward(retain_graph=True,
                                                          inputs=list(model.discriminator.parameters()))
                         mean_mult = batch_size
+                    elif args.disc_loss == "Both":
+                        # Using Maria's but with modern Pytorch BCE loss + addition of loss terms before back pass
+                        bce_loss = nn.BCEWithLogitsLoss(reduction='none')
+
+                        # set up labels
+                        labels_real = Variable(torch.ones_like(logits_samp)).to(device)
+                        labels_fake = Variable(torch.zeros_like(logits_enc)).to(device)
+
+                        # Qz is distribution of encoded latent space
+                        loss_Qz = 10 * torch.sum(bce_loss(logits_enc, labels_fake))
+                        # Pz is distribution of prior (sampled)
+                        loss_Pz = 10 * torch.sum(bce_loss(logits_samp, labels_real))
+
+                        loss_discriminator = args.lambda_WAE * (loss_Qz + loss_Pz)
+                        loss_discriminator.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
+                        mean_mult = batch_size
                     else:
                         # set up labels
                         labels_real = Variable(torch.ones_like(logits_samp)).to(device)
@@ -400,13 +416,25 @@ def main():
                     encdec_params = list(model.encoder.parameters()) + list(model.decoder.parameters())
 
                     if args.WAE_loss == 'Maria':
+                        sig_enc = torch.sigmoid(logits_enc)
                         loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x) ** 2, 1))
                         # loss_reconstruction = mse_loss(x_recon, x)
                         # non-saturating loss | taking the BCE (1, real) CORRECT
-                        loss_penalty = - 10 * torch.sum(torch.log(logits_enc + 1e-3))
+                        loss_penalty = - 10 * torch.sum(torch.log(sig_enc + 1e-3))
 
                         loss_reconstruction.backward(retain_graph=True, inputs=encdec_params)
                         loss_penalty.backward(inputs=encdec_params)
+                        mean_mult = batch_size
+                    elif args.WAE_loss == "Both":
+                        bce_loss = nn.BCEWithLogitsLoss(reduction='none')
+                        # Like Maria's but with MSE and BCE from pytorch
+                        # label for non-saturating loss
+                        labels_saturated = Variable(torch.ones_like(logits_enc)).to(device)
+                        loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x) ** 2, 1))
+                        # loss_reconstruction = mse_loss(x_recon, x)
+                        loss_penalty = 10 * torch.sum(bce_loss(logits_enc, labels_saturated))
+                        loss_WAE = loss_reconstruction + loss_penalty * args.lambda_WAE
+                        loss_WAE.backward(inputs=encdec_params)
                         mean_mult = batch_size
                     else:
                         # Adapted from original WAE paper code
