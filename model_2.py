@@ -644,6 +644,9 @@ class VaeGanCognitive(nn.Module):
         mse = torch.sum(0.5 * (hid_dis_real - hid_dis_pred) ** 2, 1)
 
         # bce for decoder and discriminator for original and reconstructed
+        # the disc output without anything is the equivalent of BCELoss(x, 1s)
+        # i.e., the the loss between real labels and the real images
+        # the disc output of 1 - x is the opposite BCELoss (x, 0s)
         bce_dis_original = -torch.log(fin_dis_real + 1e-3)
         bce_dis_predicted = -torch.log(1 - fin_dis_pred + 1e-3)
         bce_dis_sampled = -torch.log(1 - fin_dis_sampled + 1e-3)

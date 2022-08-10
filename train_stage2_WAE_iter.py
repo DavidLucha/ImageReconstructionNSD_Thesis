@@ -412,8 +412,19 @@ def main():
                             d_real = model.discriminator(z_real)
                             d_fake = model.discriminator(z_fake)
 
+                            # Here they are getting equivalent of BCE(fake, 1s)
+                            # but this doesn't make sense becuase they're saying that the loss is the distance from
+                            # 1s to fake latent, and they want to minimise that. but wouldnt they want the discrim
+                            # to correctly identify real and fake latents, so you could then use that to minimize
+                            # the encoded latent space?
                             loss_discriminator_fake = - 10 * torch.sum(torch.log(d_fake + 1e-3))
+                            # Here they are getting equivalent of BCE(real, 0s)
                             loss_discriminator_real = - 10 * torch.sum(torch.log(1 - d_real + 1e-3))
+                            # Try this with the pretrain though.
+                            if args.disc_loss == 'David':
+                                loss_discriminator_fake = - 10 * torch.sum(torch.log(1 - d_fake + 1e-3))
+                                # Here they are getting equivalent of BCE(real, 0s)
+                                loss_discriminator_real = - 10 * torch.sum(torch.log(d_real + 1e-3))
                             loss_discriminator_fake.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
                             loss_discriminator_real.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
 
@@ -433,10 +444,15 @@ def main():
 
                             if args.recon_loss == 'manual':
                                 loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_image) ** 2, 1))
+                            elif args.recon_loss == 'feature_loss':
+                                loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_gt) ** 2, 1))
                             else:  # trad
                                 mse_loss = nn.MSELoss()
                                 loss_reconstruction = mse_loss(x_recon, x_image)
 
+                            # This is equivalent of BCELoss(real, 1)
+                            # so we are saying the loss is the distance of the latent space of cog enc
+                            # to the real 1 (of the visual enc)
                             loss_penalty = - 10 * torch.mean(torch.log(d_real + 1e-3))
 
                             loss_reconstruction.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
