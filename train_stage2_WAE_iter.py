@@ -102,9 +102,6 @@ def main():
             # ROIs: V1, V2, V3, V1_to_V3, V4, HVC (faces + place + body areas), V1_to_V3_n_HVC, V1_to_V3_n_rand
             parser.add_argument('--ROI', default='VC', help='selects roi, only relevant for ROI analysis'
                                                             'otherwise default is VC.', type=str)
-            # Probably only needed stage 2/3 (though do we want to change stage 1 - depends on whether we do the full Ren...
-            # Thing where we do a smaller set for stage 1. But I think I might do a Maria and just have stage 1 with no...
-            # pretraining phase...
             parser.add_argument('--set_size', default='max', help='max:max available (including repeats), '
                                                                   'single_pres: max available single presentations,'
                                                                   '7500, 4000, 1200', type=str)
@@ -296,9 +293,10 @@ def main():
         logging.info(f'Validation data length: {len(valid_data)}')
 
         # Define model
-        # TODO: I'm testing the lin layer size
         cognitive_encoder = CognitiveEncoder(input_size=NUM_VOXELS, z_size=args.latent_dims, lin_size=args.lin_size,
                                              lin_layers=args.lin_layers).to(device)
+        # TODO: Check - aren't we supposed to be loading a trained discriminator too?
+        # no, here we would want a fresh one. saying 1 to vis enc disc, and 0 to cog enc and then move cog towards vis
         model = WaeGanCognitive(device=device, encoder=cognitive_encoder, decoder=trained_model.decoder,
                                 z_size=args.latent_dims).to(device)
 
@@ -453,7 +451,7 @@ def main():
                                                                  inputs=list(model.discriminator.parameters()))
                                 loss_discriminator_real.backward(retain_graph=True,
                                                                  inputs=list(model.discriminator.parameters()))
-                                mean_mult = batch_size
+                                mean_mult = batch_size * 10
                             elif args.disc_loss == "Both":
                                 # Using Maria's but with modern Pytorch BCE loss + addition of loss terms before back pass
                                 bce_loss = nn.BCEWithLogitsLoss(reduction='none')
@@ -470,7 +468,7 @@ def main():
                                 loss_discriminator = args.lambda_WAE * (loss_Qz + loss_Pz)
                                 loss_discriminator.backward(retain_graph=True,
                                                             inputs=list(model.discriminator.parameters()))
-                                mean_mult = batch_size
+                                mean_mult = batch_size * 10
                             else:
                                 # set up labels
                                 labels_real = Variable(torch.ones_like(logits_vis_enc)).to(device)
@@ -490,7 +488,6 @@ def main():
                             optimizer_discriminator.step()
 
                             # ----------Train generator----------------
-                            # TODO: Check this - they don't zero grad, check results
                             model.encoder.zero_grad()
 
                             free_params(model.encoder)
@@ -503,7 +500,6 @@ def main():
                             z_vis_enc, _ = trained_model.encoder(x_image)
                             x_gt = trained_model.decoder(z_vis_enc)
 
-                            # TODO: Revmoe recon loss and replace with WAE_loss
                             if args.WAE_loss == 'Maria':
                                 # loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_image) ** 2, 1))
                                 mse_loss = nn.MSELoss()
@@ -515,9 +511,10 @@ def main():
 
                                 loss_reconstruction.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
                                 loss_penalty.backward(inputs=list(model.encoder.parameters()))
-                                mean_mult = batch_size
+                                mean_mult = batch_size * 10
                             elif args.WAE_loss == "Both":
                                 # As with Maria, but with BCELogits and feature loss (using vis recon as real)
+                                # But also Maria does a MSELoss in this stage and not the manual squared diff
                                 bce_loss = nn.BCEWithLogitsLoss(reduction='none')
                                 # Like Maria's but with MSE and BCE from pytorch
                                 # label for non-saturating loss
@@ -528,7 +525,7 @@ def main():
                                 loss_penalty = 10 * torch.sum(bce_loss(logits_cog_enc, labels_saturated))
                                 loss_WAE = loss_reconstruction + loss_penalty * args.lambda_WAE
                                 loss_WAE.backward(inputs=list(model.encoder.parameters()))
-                                mean_mult = batch_size
+                                mean_mult = batch_size  # * 10?
                             else:
                                 # Adapted from original WAE paper code
                                 # label for non-saturating loss
@@ -756,8 +753,8 @@ def main():
 
                     plt.figure(figsize=(10, 5))
                     plt.title("Reconstruction Loss During Training")
-                    plt.plot(results['loss_penalty'], label="LP")
-                    plt.plot(results['loss_reconstruction'], label="LR")
+                    # plt.plot(results['loss_penalty'], label="LP")
+                    plt.plot(results['loss_reconstruction'], label="Recon")
                     plt.xlabel("iterations")
                     plt.ylabel("Loss")
                     plt.legend()
@@ -766,6 +763,20 @@ def main():
                         os.makedirs(plots_dir)
                     plot_dir = os.path.join(plots_dir, 'Recon_loss')
                     plt.savefig(plot_dir)
+
+                    plt.figure(figsize=(10, 5))
+                    plt.title("Penalty Loss During Training")
+                    plt.plot(results['loss_penalty'], label="Penalty")
+                    # plt.plot(results['loss_reconstruction'], label="LR")
+                    plt.xlabel("iterations")
+                    plt.ylabel("Loss")
+                    plt.legend()
+                    plots_dir = os.path.join(SAVE_PATH, 'plots')
+                    if not os.path.exists(plots_dir):
+                        os.makedirs(plots_dir)
+                    plot_dir = os.path.join(plots_dir, 'Penalty_loss')
+                    plt.savefig(plot_dir)
+
                     logging.info("Plots are saved")
                     # plt.show()
                     plt.close('all')

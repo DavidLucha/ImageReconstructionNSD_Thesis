@@ -23,7 +23,7 @@ from torch.optim.lr_scheduler import ExponentialLR, StepLR
 import training_config
 from model_2 import WaeGan
 from utils_2 import ImageNetDataloader, GreyToColor, evaluate, PearsonCorrelation, \
-    StructuralSimilarity, objective_assessment, parse_args, NLLNormal, potentiation
+    StructuralSimilarity, objective_assessment, parse_args, NLLNormal, potentiation, FmriDataloader
 
 def free_params(module: nn.Module):
     for p in module.parameters():
@@ -79,7 +79,11 @@ def main():
             parser.add_argument('--gpus', default=1, help='number of gpus but just testing this', type=int)
             parser.add_argument('--latent_dims', default=128, type=int)
             parser.add_argument('--beta', default=0.5, type=float)
-
+            parser.add_argument('--dataloader', default='image', help='if anything but pickle, it will just'
+                                                                      'grab all 72k images across 8 subjs. If pickle,'
+                                                                      ' then only the single pres for train and valid',
+                                type=str)
+            parser.add_argument('--subject', default=0, help='only used if dataloader is pickle', type=int)
 
 
             # Pretrained/checkpoint network components
@@ -120,6 +124,7 @@ def main():
         stage_num = 'pretrain'
         stage = 1
 
+        # TODO: If trying subject specific pretraining - then change save paths.
         SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, stage_num, args.run_name)
         if not os.path.exists(SAVE_PATH):
             os.makedirs(SAVE_PATH)
@@ -190,31 +195,74 @@ def main():
         train_data = TRAIN_DATA_PATH
         valid_data = VALID_DATA_PATH
 
-        # Load data
-        # For pretraining, images are of different aspect ratios. We apply a resize to shorter side of the image \
-        # To maintain the aspect ratio of the original image. Then apply a random crop and horizontal flip.
-        training_data = ImageNetDataloader(train_data, pickle=False,
-                                       transform=transforms.Compose([transforms.Resize(training_config.image_size),
-                                                                     transforms.RandomCrop((training_config.image_size,
-                                                                                            training_config.image_size)),
-                                                                     transforms.RandomHorizontalFlip(),
-                                                                     transforms.ToTensor(),
-                                                                     GreyToColor(training_config.image_size),
-                                                                     transforms.Normalize(training_config.mean,
-                                                                                          training_config.std)
-                                                                     ]))
+        if args.dataloader == 'pickle':
+            TRAIN_DATA_PATH = os.path.join(args.data_root, 'NSD/3mm/train/single_pres',
+                                           'Subj_0{}_NSD_single_pres_train.pickle'.format(args.subject))
+            VALID_DATA_PATH = os.path.join(args.data_root, 'NSD/3mm/valid/single_pres',
+                                           'Subj_0{}_NSD_single_pres_valid.pickle'.format(args.subject))
 
-        # We then apply CenterCrop and don't random flip to ensure that validation reconstructions match the \
-        # ground truth image grid.
-        validation_data = ImageNetDataloader(valid_data, pickle=False,
-                                       transform=transforms.Compose([transforms.Resize(training_config.image_size),
-                                                                     transforms.CenterCrop((training_config.image_size,
+            train_data = TRAIN_DATA_PATH
+            valid_data = VALID_DATA_PATH
+
+            root_path = os.path.join(args.data_root, args.dataset + '/')
+            # Used to test whether loading on an individuals subject would be better
+            # Load data
+            training_data = FmriDataloader(dataset=train_data, root_path=root_path,
+                                           transform=transforms.Compose([transforms.Resize((training_config.image_size,
                                                                                             training_config.image_size)),
-                                                                     transforms.ToTensor(),
-                                                                     GreyToColor(training_config.image_size),
-                                                                     transforms.Normalize(training_config.mean,
-                                                                                          training_config.std)
-                                                                     ]))
+                                                                         transforms.CenterCrop(
+                                                                             (training_config.image_size,
+                                                                              training_config.image_size)),
+                                                                         # RandomShift(),
+                                                                         # SampleToTensor(),
+                                                                         transforms.ToTensor(),
+                                                                         GreyToColor(training_config.image_size),
+                                                                         transforms.Normalize(training_config.mean,
+                                                                                              training_config.std)
+                                                                         ]))
+
+            validation_data = FmriDataloader(dataset=valid_data, root_path=root_path,
+                                             transform=transforms.Compose(
+                                                 [transforms.Resize((training_config.image_size,
+                                                                     training_config.image_size)),
+                                                  transforms.CenterCrop(
+                                                      (training_config.image_size,
+                                                       training_config.image_size)),
+                                                  # RandomShift(),
+                                                  # SampleToTensor(),
+                                                  transforms.ToTensor(),
+                                                  GreyToColor(training_config.image_size),
+                                                  transforms.Normalize(training_config.mean,
+                                                                       training_config.std)
+                                                  ]))
+
+        else:
+            # Load data
+            # For pretraining, images are of different aspect ratios. We apply a resize to shorter side of the image \
+            # To maintain the aspect ratio of the original image. Then apply a random crop and horizontal flip.
+            training_data = ImageNetDataloader(train_data, pickle=False,
+                                           transform=transforms.Compose([transforms.Resize(training_config.image_size),
+                                                                         transforms.RandomCrop((training_config.image_size,
+                                                                                                training_config.image_size)),
+                                                                         transforms.RandomHorizontalFlip(),
+                                                                         transforms.ToTensor(),
+                                                                         GreyToColor(training_config.image_size),
+                                                                         transforms.Normalize(training_config.mean,
+                                                                                              training_config.std)
+                                                                         ]))
+
+            # We then apply CenterCrop and don't random flip to ensure that validation reconstructions match the \
+            # ground truth image grid.
+            validation_data = ImageNetDataloader(valid_data, pickle=False,
+                                           transform=transforms.Compose([transforms.Resize(training_config.image_size),
+                                                                         transforms.CenterCrop((training_config.image_size,
+                                                                                                training_config.image_size)),
+                                                                         transforms.ToTensor(),
+                                                                         GreyToColor(training_config.image_size),
+                                                                         transforms.Normalize(training_config.mean,
+                                                                                              training_config.std)
+                                                                         ]))
+
 
         dataloader_train = DataLoader(training_data, batch_size=args.batch_size,
                                       shuffle=True, num_workers=args.num_workers)

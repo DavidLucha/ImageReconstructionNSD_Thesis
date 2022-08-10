@@ -78,6 +78,13 @@ def main():
             parser.add_argument('--lin_layers', default=1, type=int, help='sets how many layers of cog network ')
             parser.add_argument('--optim_method', default='Adam',
                                 help='defines method for optimizer. Options: RMS or Adam.', type=str)
+            parser.add_argument('--standardize', default='True',
+                                help='determines whether the dataloader uses standardize.', type=str)
+            parser.add_argument('--disc_loss', default='Maria',
+                                help='determines whether we use Marias loss or the paper based one for disc', type=str)
+            parser.add_argument('--WAE_loss', default='Maria',
+                                help='determines whether we use Marias loss or the paper based one for WAE', type=str)
+            parser.add_argument('--lambda_WAE', default=1, help='sets the multiplier for paper GAN loss', type=int)
 
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
@@ -96,9 +103,9 @@ def main():
             parser.add_argument('--dataset', default='NSD', help='GOD, NSD', type=str)
             # Only need vox_res arg from stage 2 and 3
             parser.add_argument('--vox_res', default='1.8mm', help='1.8mm, 3mm', type=str)
-            # Probably only needed stage 2/3 (though do we want to change stage 1 - depends on whether we do the full Ren...
-            # Thing where we do a smaller set for stage 1. But I think I might do a Maria and just have stage 1 with no...
-            # pretraining phase...
+            # ROIs: V1, V2, V3, V1_to_V3, V4, HVC (faces + place + body areas), V1_to_V3_n_HVC, V1_to_V3_n_rand
+            parser.add_argument('--ROI', default='VC', help='selects roi, only relevant for ROI analysis'
+                                                            'otherwise default is VC.', type=str)
             parser.add_argument('--set_size', default='max', help='max:max available (including repeats), '
                                                                   'single_pres: max available single presentations,'
                                                                   '7500, 4000, 1200', type=str)
@@ -119,12 +126,22 @@ def main():
 
         # Load training data for GOD and NSD, default is NSD
         if args.dataset == 'NSD':
-            if args.set_size == 'max' or args.set_size == 'single_pres':
+            if args.set_size == 'max':
+                # To pull for study 1 and study 3 (ROIs) - default is VC (all ROIs)
+                TRAIN_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'train', args.set_size, args.ROI,
+                                               'Subj_0{}_NSD_{}_train.pickle'.format(args.subject, args.set_size))
+                if args.vox_res == "3mm":
+                    # If needing to load max of 3mm (not in any studies for thesis) use this
+                    TRAIN_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'train', args.set_size,
+                                                   'Subj_0{}_NSD_{}_train.pickle'.format(args.subject, args.set_size))
+            elif args.set_size == 'single_pres':
                 TRAIN_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'train', args.set_size,
-                                           'Subj_0{}_NSD_{}_train.pickle'.format(args.subject, args.set_size))
+                                               'Subj_0{}_NSD_{}_train.pickle'.format(args.subject, args.set_size))
             else:
-                TRAIN_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'train', args.set_size,
-                                           'Subj_0{}_{}_NSD_single_pres_train.pickle'.format(args.subject, args.set_size))
+                # For loading 1200, 4000, 7500
+                TRAIN_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'train/single_pres', args.set_size,
+                                               'Subj_0{}_{}_NSD_single_pres_train.pickle'.format(args.subject,
+                                                                                                 args.set_size))
 
             # Currently valid data is set to 'max' meaning validation data contains multiple image presentations
             # If you only want to evaluate a single presentation of images replace both 'max' in strings below ...
@@ -141,8 +158,8 @@ def main():
         stage_num = 'stage_3'
         stage = 3
 
-        SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, SUBJECT_PATH, stage_num,
-                                 args.run_name)
+        SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, args.ROI, SUBJECT_PATH,
+                                 stage_num, args.run_name)
         if not os.path.exists(SAVE_PATH):
             os.makedirs(SAVE_PATH)
 
@@ -214,8 +231,13 @@ def main():
         else:
             shuf = False
 
+        standardize = False
+
+        if args.standardize == "True":
+            standardize = True
+
         # Load data
-        training_data = FmriDataloader(dataset=train_data, root_path=root_path,
+        training_data = FmriDataloader(dataset=train_data, root_path=root_path, standardizer=standardize,
                                            transform=transforms.Compose([transforms.Resize((training_config.image_size,
                                                                                             training_config.image_size)),
                                                                          transforms.CenterCrop(
@@ -229,7 +251,7 @@ def main():
                                                                                               training_config.std)
                                                                          ]))
 
-        validation_data = FmriDataloader(dataset=valid_data, root_path=root_path,
+        validation_data = FmriDataloader(dataset=valid_data, root_path=root_path, standardizer=standardize,
                                            transform=transforms.Compose([transforms.Resize((training_config.image_size,
                                                                                             training_config.image_size)),
                                                                          transforms.CenterCrop(
@@ -266,7 +288,7 @@ def main():
             param.requires_grad = False
 
         # Load Stage 2 network weights
-        st2_model_dir = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, SUBJECT_PATH,
+        st2_model_dir = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, args.ROI, SUBJECT_PATH,
                                      'stage_2', args.st2_net,
                                      'stage_2_WAE_' + args.st2_net + '_{}.pth'.format(args.st2_load_epoch))
 
@@ -278,8 +300,10 @@ def main():
         # This then loads the network from stage 2 (cog enc) to fix encoder in stage 3
         # It uses the components from stage 2 and builds from here for main model
         trained_model.load_state_dict(torch.load(st2_model_dir, map_location=device))
+
+        # Here we want to load the stage 1 discriminator that is good at moving the enc towards sampled
         model = WaeGanCognitive(device=device, encoder=trained_model.encoder, decoder=trained_model.decoder,
-                                z_size=args.latent_dims).to(device)
+                                discriminator=teacher_model.discriminator, z_size=args.latent_dims).to(device)
         # Fix encoder weights
         for param in model.encoder.parameters():
             param.requires_grad = False
@@ -329,13 +353,12 @@ def main():
             epochs=[],
             loss_reconstruction=[],
             loss_penalty=[],
-            loss_discriminator_fake=[],
-            loss_discriminator_real=[]
+            loss_discriminator=[]
         )
 
         # Variables for equilibrium to improve GAN stability
-        lr_dec = args.lr_dec  # 0.001 - Maria
-        lr_disc = args.lr_disc  # 0.0005 - Maria
+        lr_dec = args.lr_dec  # 0.001 - Maria | drop this here - 0.0001/3
+        lr_disc = args.lr_disc  # 0.0005 - Maria | drop this here I imagine, 0.0001 or 0.00005
         beta = args.beta
 
         if args.optim_method == 'RMS':
@@ -356,10 +379,14 @@ def main():
             lr_decoder = StepLR(optimizer_decoder, step_size=30, gamma=0.5)
             lr_discriminator = StepLR(optimizer_discriminator, step_size=30, gamma=0.5)
 
+        # Define criterion
+        bce_loss = nn.BCEWithLogitsLoss()
+        mse_loss = nn.MSELoss(reduction='none')
+
         # Metrics
         pearson_correlation = PearsonCorrelation()
         structural_similarity = StructuralSimilarity(mean=training_config.mean, std=training_config.std)
-        mse_loss = nn.MSELoss()
+        # mse_loss = nn.MSELoss()
 
         result_metrics_train = {}
         result_metrics_valid = {}
@@ -407,60 +434,132 @@ def main():
                             frozen_params(model.decoder)
                             free_params(model.discriminator)
 
-                            z_fake, var = model.encoder(x_fmri)
-                            z_real, var = teacher_model.encoder(x_image)
-                            # z_fake, var = model.encoder(x_fmri)
-                            # z_fake = Variable(torch.randn_like(z_real) * 0.5).to(device)
+                            if args.disc_loss == "Maria":
+                                z_cog_enc, var = model.encoder(x_fmri)
+                                z_vis_enc, var = teacher_model.encoder(x_image)
+                                # z_cog_enc, var = model.encoder(x_fmri)
+                                # z_cog_enc = Variable(torch.randn_like(z_vis_enc) * 0.5).to(device)
 
-                            d_real = model.discriminator(z_real)
-                            d_fake = model.discriminator(z_fake)
+                                # WAE | Trying to make Qz more like Pz
+                                # disc output for encoded latent (cog) | Qz
+                                logits_cog_enc = model.discriminator(z_cog_enc)
+                                # disc output for visual encoder | Pz
+                                logits_vis_enc = model.discriminator(z_vis_enc)
 
-                            loss_discriminator_fake = - 10 * torch.sum(torch.log(d_fake + 1e-3))
-                            loss_discriminator_real = - 10 * torch.sum(torch.log(1 - d_real + 1e-3))
-                            loss_discriminator_fake.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
-                            loss_discriminator_real.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
+                                sig_cog_enc = torch.sigmoid(logits_cog_enc)
+                                sig_vis_enc = torch.sigmoid(logits_vis_enc)
+
+                                loss_discriminator_fake = - 10 * torch.sum(torch.log(sig_cog_enc + 1e-3))
+                                loss_discriminator_real = - 10 * torch.sum(torch.log(1 - sig_vis_enc + 1e-3))
+
+                                loss_discriminator = loss_discriminator_real + loss_discriminator_real
+
+                                loss_discriminator_fake.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
+                                loss_discriminator_real.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
+                                mean_mult = batch_size * 10
+                            elif args.disc_loss == "Both":
+                                # This will be as Maria's but with the discriminator fixed
+                                z_cog_enc, var = model.encoder(x_fmri)
+                                z_vis_enc, var = teacher_model.encoder(x_image)
+                                # z_cog_enc, var = model.encoder(x_fmri)
+                                # z_cog_enc = Variable(torch.randn_like(z_vis_enc) * 0.5).to(device)
+
+                                # WAE | Trying to make Qz more like Pz
+                                # disc output for encoded latent (cog) | Qz
+                                logits_cog_enc = model.discriminator(z_cog_enc)
+                                # disc output for visual encoder | Pz
+                                logits_vis_enc = model.discriminator(z_vis_enc)
+
+                                bce_loss = nn.BCEWithLogitsLoss(reduction='none')
+
+                                # set up labels
+                                labels_real = Variable(torch.ones_like(logits_vis_enc)).to(device)
+                                labels_fake = Variable(torch.zeros_like(logits_cog_enc)).to(device)
+
+                                # Qz is distribution of encoded latent space
+                                loss_Qz = 10 * torch.sum(bce_loss(logits_cog_enc, labels_fake))
+                                # Pz is distribution of prior (sampled)
+                                loss_Pz = 10 * torch.sum(bce_loss(logits_vis_enc, labels_real))
+
+                                loss_discriminator = args.lambda_WAE * (loss_Qz + loss_Pz)
+                                loss_discriminator.backward(retain_graph=True,
+                                                            inputs=list(model.discriminator.parameters()))
+                                mean_mult = batch_size * 10
+                            elif args.disc_loss == "David":
+                                # My logic here is that like Ren's work, here we want to use the reals to refine
+                                # Similarly, we want to get the latent space closer to that inital prior now
+                                # Rather than that of the vis_enc - I'm loosely attached to this idea
+                                # Though it's possible it's still better just to get it closer to the vis_enc latent
+                                z_cog_enc, var = model.encoder(x_fmri)
+                                z_samp = Variable(torch.randn_like(z_cog_enc) * 0.5).to(device)
+                                # z_vis_enc, var = teacher_model.encoder(x_image)
+                                # z_cog_enc, var = model.encoder(x_fmri)
+                                # z_cog_enc = Variable(torch.randn_like(z_vis_enc) * 0.5).to(device)
+
+                                # WAE | Trying to make Qz more like Pz
+                                # disc output for encoded latent (cog) | Qz
+                                logits_cog_enc = model.discriminator(z_cog_enc)
+                                # disc output for visual encoder | Pz
+                                logits_samp = model.discriminator(z_samp)
+
+                                bce_loss = nn.BCEWithLogitsLoss(reduction='none')
+
+                                # set up labels
+                                labels_real = Variable(torch.ones_like(logits_samp)).to(device)
+                                labels_fake = Variable(torch.zeros_like(logits_cog_enc)).to(device)
+
+                                # Qz is distribution of encoded latent space
+                                loss_Qz = 10 * torch.sum(bce_loss(logits_cog_enc, labels_fake))
+                                # Pz is distribution of prior (sampled)
+                                loss_Pz = 10 * torch.sum(bce_loss(logits_samp, labels_real))
+
+                                loss_discriminator = args.lambda_WAE * (loss_Qz + loss_Pz)
+                                loss_discriminator.backward(retain_graph=True,
+                                                            inputs=list(model.discriminator.parameters()))
+                                mean_mult = batch_size * 10
 
                             # loss_discriminator.backward(retain_graph=True)
                             # [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
                             optimizer_discriminator.step()
 
                             # ----------Train generator----------------
-                            # TODO: not sure if this helps - check the back prop method in old stage 2
-                            # it should be fine because they're repushing through the vars through model
-                            # model.decoder.zero_grad()
+                            model.decoder.zero_grad()
 
                             free_params(model.decoder)
                             frozen_params(model.discriminator)
 
-                            z_real, var = model.encoder(x_fmri)
-                            x_recon = model.decoder(z_real)
-                            d_real = model.discriminator(z_real)
+                            z_cog_enc, var = model.encoder(x_fmri)
+                            x_recon = model.decoder(z_cog_enc)
+                            logits_cog_enc = model.discriminator(z_cog_enc)
 
-                            if args.recon_loss == 'manual':
-                                loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_image) ** 2, 1))
-                            else:  # trad
+                            if args.WAE_loss == "Maria":
                                 mse_loss = nn.MSELoss()
                                 loss_reconstruction = mse_loss(x_recon, x_image)
+                                mean_mult = 1
+                            else:
+                                loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_image) ** 2, 1))
+                                mean_mult = batch_size
 
-                            loss_penalty = - 10 * torch.mean(torch.log(d_real + 1e-3))
-
-                            loss_reconstruction.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
+                            loss_reconstruction.backward(inputs=list(model.decoder.parameters()))
                             # loss_penalty.backward()
                             # [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
                             optimizer_decoder.step()
 
+                            # loss_penalty just for reporting
+                            bce_loss = nn.BCEWithLogitsLoss(reduction='none')
+                            labels_saturated = Variable(torch.ones_like(logits_cog_enc)).to(device)
+                            loss_penalty = 10 * torch.sum(bce_loss(logits_cog_enc, labels_saturated))
+
                             # register mean values of the losses for logging
-                            loss_reconstruction_mean = loss_reconstruction.data.cpu().numpy() / batch_size
-                            loss_penalty_mean = loss_penalty.data.cpu().numpy() / batch_size
-                            loss_discriminator_fake_mean = loss_discriminator_fake.data.cpu().numpy() / batch_size
-                            loss_discriminator_real_mean = loss_discriminator_real.data.cpu().numpy() / batch_size
+                            loss_reconstruction_mean = loss_reconstruction.data.cpu().numpy() / mean_mult
+                            loss_penalty_mean = loss_penalty.data.cpu().numpy() / mean_mult * 10
+                            loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / mean_mult
 
                             logging.info(
                                 f'Epoch  {idx_epoch} {batch_idx + 1:3.0f} / {100 * (batch_idx + 1) / len(dataloader_train):2.3f}%, '
                                 f'---- recon loss: {loss_reconstruction_mean:.5f} ---- | '
                                 f'---- penalty loss: {loss_penalty_mean:.5f} ---- | '
-                                f'---- discrim fake loss: {loss_discriminator_fake:.5f} ---- | '
-                                f'---- discrim real loss: {loss_discriminator_real:.5f}')
+                                f'---- discrim fake loss: {loss_discriminator_mean:.5f}')
 
                             step_index += 1
                         else:
@@ -628,8 +727,7 @@ def main():
                     results['epochs'].append(idx_epoch + stp)
                     results['loss_reconstruction'].append(loss_reconstruction_mean)
                     results['loss_penalty'].append(loss_penalty_mean)
-                    results['loss_discriminator_fake'].append(loss_discriminator_fake_mean)
-                    results['loss_discriminator_real'].append(loss_discriminator_real_mean)
+                    results['loss_discriminator'].append(loss_discriminator_mean)
 
                     if metrics_valid is not None:
                         for key, value in result_metrics_valid.items():
@@ -664,8 +762,8 @@ def main():
 
                     plt.figure(figsize=(10, 5))
                     plt.title("Reconstruction Loss During Training")
-                    plt.plot(results['loss_penalty'], label="Penalty")
-                    plt.plot(results['loss_reconstruction'], label="Reconstruction")
+                    # plt.plot(results['loss_penalty'], label="LP")
+                    plt.plot(results['loss_reconstruction'], label="Recon")
                     plt.xlabel("iterations")
                     plt.ylabel("Loss")
                     plt.legend()
@@ -674,6 +772,20 @@ def main():
                         os.makedirs(plots_dir)
                     plot_dir = os.path.join(plots_dir, 'Recon_loss')
                     plt.savefig(plot_dir)
+
+                    plt.figure(figsize=(10, 5))
+                    plt.title("Penalty Loss During Training")
+                    plt.plot(results['loss_penalty'], label="Penalty")
+                    # plt.plot(results['loss_reconstruction'], label="LR")
+                    plt.xlabel("iterations")
+                    plt.ylabel("Loss")
+                    plt.legend()
+                    plots_dir = os.path.join(SAVE_PATH, 'plots')
+                    if not os.path.exists(plots_dir):
+                        os.makedirs(plots_dir)
+                    plot_dir = os.path.join(plots_dir, 'Penalty_loss')
+                    plt.savefig(plot_dir)
+
                     logging.info("Plots are saved")
                     # plt.show()
                     plt.close('all')

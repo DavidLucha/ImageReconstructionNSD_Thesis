@@ -892,12 +892,17 @@ class WaeGanCognitive(nn.Module):
     """
     WAE/GAN model for training in Stage II and III
     """
-    def __init__(self, device, encoder, decoder, z_size=128):
+    def __init__(self, device, encoder, decoder, discriminator=None, z_size=128):
         super(WaeGanCognitive, self).__init__()
         # latent space size
         self.z_size = z_size
         self.encoder = encoder
-        self.discriminator = WaeDiscriminator(z_size=self.z_size).to(device)
+        if discriminator is not None:
+            print('using defined discriminator...')
+            self.discriminator = discriminator
+        else:
+            print('creating new discriminator...')
+            self.discriminator = WaeDiscriminator(z_size=self.z_size).to(device)
         self.device = device
         self.decoder = decoder
         for param in self.decoder.parameters():
