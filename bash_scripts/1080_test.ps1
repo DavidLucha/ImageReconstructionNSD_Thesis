@@ -6,7 +6,7 @@ $RUN_NAME = Get-Date -Format "dd-MM-yyyy_HH-mm"
 # Pretrain one network. Used in both GOD and NSD.
 $T_NOW = Get-Date -Format "dd-MM-yyyy_HH-mm"
 echo "Running pretrain at $T_NOW"
-python C:\Users\david\Python\deepReconPyTorch\pretrain.py --data_root 'D:/Lucha_Data/datasets/' --run_name Pretrain_Maria_RMS_0003_$RUN_NAME --d_scale 0.0 --g_scale 0.0 --lr 0.0003 --gamma 1.0 --equilibrium_game y --backprop_method trad --num_workers 2 --epochs 200 --dataset both --loss_method Maria --optim_method RMS --message "400 epoch run, Maria basic, lr 0003"
+python C:\Users\david\Python\deepReconPyTorch\pretrain_WAE.py --data_root 'D:/Lucha_Data/datasets/' --run_name WAE_David_1_Test_$RUN_NAME --lr_enc 0.001 --lr_dec 0.001 --lr_disc 0.001 --disc_loss David --WAE_loss David --lambda_WAE 1 --batch_size 64 --latent_dims 1024 --num_workers 2 --epochs 120 --dataset NSD --seed 277603 --message "WAE test with original loss function, but all lr at .001."
 $T_NOW = Get-Date -Format "dd-MM-yyyy_HH-mm"
 echo "Pretrain complete at $T_NOW"
 

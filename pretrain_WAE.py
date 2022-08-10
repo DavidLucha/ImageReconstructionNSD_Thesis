@@ -298,7 +298,6 @@ def main():
         # Metrics
         pearson_correlation = PearsonCorrelation()
         structural_similarity = StructuralSimilarity(mean=training_config.mean, std=training_config.std)
-        mse_loss = nn.MSELoss()
 
         result_metrics_train = {}
         result_metrics_valid = {}
