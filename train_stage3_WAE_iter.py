@@ -146,7 +146,7 @@ def main():
             # Currently valid data is set to 'max' meaning validation data contains multiple image presentations
             # If you only want to evaluate a single presentation of images replace both 'max' in strings below ...
             # with 'single_pres'
-            VALID_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'valid', 'max',
+            VALID_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'valid', 'max', args.ROI,
                                            'Subj_0{}_NSD_max_valid.pickle'.format(args.subject))
         else:
             TRAIN_DATA_PATH = os.path.join(args.data_root, 'GOD',
