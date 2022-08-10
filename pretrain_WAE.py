@@ -234,7 +234,7 @@ def main():
         equilibrium = training_config.equilibrium
         lambda_mse = training_config.lambda_mse
         decay_mse = training_config.decay_mse
-        lr = args.lr
+        # lr = args.lr
 
         # Loading Checkpoint | If you want to continue previous training
         # Set checkpoint path
