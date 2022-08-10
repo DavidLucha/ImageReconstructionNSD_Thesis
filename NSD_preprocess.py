@@ -297,7 +297,7 @@ var_training_set = True
 if var_training_set:
     input_path = "D:/Lucha_Data/datasets/NSD/"
     array_path = "misc/dataset_randomness"
-    voxel_res = "1.8mm"
+    voxel_res = "3mm"
     fmri_path = os.path.join(input_path, voxel_res + "/train/single_pres")
     subj = [1, 2, 3, 4, 5, 6, 7, 8]
 

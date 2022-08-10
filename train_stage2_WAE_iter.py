@@ -78,6 +78,8 @@ def main():
                                                                           'before the mu var layers.')
             parser.add_argument('--optim_method', default='Adam',
                                 help='defines method for optimizer. Options: RMS or Adam.', type=str)
+            parser.add_argument('--standardize', default='True',
+                                help='determines whether the dataloader uses standardize.', type=str)
 
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
@@ -210,8 +212,15 @@ def main():
         else:
             shuf = False
 
+        standardize = False
+
+        if args.standardize == "True":
+            standardize = True
+
+        logging.info('Are we standardize the fMRI inputs into the dataloader?', standardize)
+
         # Load data
-        training_data = FmriDataloader(dataset=train_data, root_path=root_path,
+        training_data = FmriDataloader(dataset=train_data, root_path=root_path, standardizer=standardize,
                                            transform=transforms.Compose([transforms.Resize((training_config.image_size,
                                                                                             training_config.image_size)),
                                                                          transforms.CenterCrop(
@@ -225,7 +234,7 @@ def main():
                                                                                               training_config.std)
                                                                          ]))
 
-        validation_data = FmriDataloader(dataset=valid_data, root_path=root_path,
+        validation_data = FmriDataloader(dataset=valid_data, root_path=root_path, standardizer=standardize,
                                            transform=transforms.Compose([transforms.Resize((training_config.image_size,
                                                                                             training_config.image_size)),
                                                                          transforms.CenterCrop(
