@@ -749,8 +749,8 @@ def main():
 
                     plt.figure(figsize=(10, 5))
                     plt.title("Discriminator Loss During Training")
-                    plt.plot(results['loss_discriminator_real'], label="DR")
-                    plt.plot(results['loss_discriminator_fake'], label="DF")
+                    plt.plot(results['loss_discriminator'], label="Discrim")
+                    # plt.plot(results['loss_discriminator_fake'], label="DF")
                     plt.xlabel("iterations")
                     plt.ylabel("Loss")
                     plt.legend()
