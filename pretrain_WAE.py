@@ -383,7 +383,7 @@ def main():
 
                         loss_discriminator = args.lambda_WAE * (loss_Qz + loss_Pz)
                         loss_discriminator.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
-                        mean_mult = batch_size
+                        mean_mult = batch_size * 10
                     else:
                         # set up labels
                         labels_real = Variable(torch.ones_like(logits_samp)).to(device)
@@ -435,7 +435,7 @@ def main():
                         loss_penalty = 10 * torch.sum(bce_loss(logits_enc, labels_saturated))
                         loss_WAE = loss_reconstruction + loss_penalty * args.lambda_WAE
                         loss_WAE.backward(inputs=encdec_params)
-                        mean_mult = batch_size
+                        mean_mult = batch_size * 10
                     else:
                         # Adapted from original WAE paper code
                         # label for non-saturating loss
