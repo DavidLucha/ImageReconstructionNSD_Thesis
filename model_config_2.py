@@ -16,7 +16,7 @@ maria_discrim_channels = [32, 128, 256, 256]
 # paper settings
 image_size = 100
 fc_input = 13  # 8/13/14/16/28 image_size = 64/100/112/128/224
-fc_output = 2048  # Was 1024
+fc_output = 1024  # Was 1024
 fc_input_gan = 7
 fc_output_gan = 256
 stride_gan = 2
