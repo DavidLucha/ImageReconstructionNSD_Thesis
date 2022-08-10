@@ -61,12 +61,20 @@ def main():
             parser.add_argument('--epochs', default=training_config.n_epochs_pt, help='number of epochs', type=int)
             parser.add_argument('--num_workers', '-nw', default=training_config.num_workers,
                                 help='number of workers for dataloader', type=int)
-            parser.add_argument('--lr', default=0.001, type=float)
+            parser.add_argument('--lr_enc', default=0.0001, type=float)
+            parser.add_argument('--lr_dec', default=0.0001, type=float)
+            parser.add_argument('--lr_disc', default=0.0001 * 0.5, type=float)
             parser.add_argument('--decay_lr', default=0.5,
                                 help='.98 in Maria, .75 in original VAE/GAN', type=float)
             parser.add_argument('--backprop_method', default='clip', help='trad sets three diff loss functions,'
                                                                           'but clip, clips the gradients to help'
                                                                           'avoid the late spikes in loss', type=str)
+            parser.add_argument('--disc_loss', default='Maria',
+                                help='determines whether we use Marias loss or the paper based one for disc', type=str)
+            parser.add_argument('--WAE_loss', default='Maria',
+                                help='determines whether we use Marias loss or the paper based one for WAE', type=str)
+            parser.add_argument('--lambda_WAE', default=1, help='sets the multiplier for paper GAN loss', type=int)
+
             parser.add_argument('--seed', default=277603, help='sets seed, 0 makes a random int', type=int)
             parser.add_argument('--gpus', default=1, help='number of gpus but just testing this', type=int)
             parser.add_argument('--latent_dims', default=128, type=int)
@@ -266,21 +274,26 @@ def main():
             epochs=[],
             loss_reconstruction=[],
             loss_penalty=[],
-            loss_discriminator_fake=[],
-            loss_discriminator_real=[]
+            loss_discriminator=[]
         )
 
         beta = args.beta
+        lr_enc = args.lr_enc  # 0.0001 in Maria | Paper = 3e-4 (0.0003) | 0.003 probably though
+        lr_dec = args.lr_dec  # 0.0001 in Maria | Paper = 3e-4 (0.0003)
+        lr_disc = args.lr_disc  # 0.5 * 0.0001 in Maria | Paper = 1e-3 (0.001) | might be good
 
         # Optimizers
-        optimizer_encoder = torch.optim.Adam(model.encoder.parameters(), lr=0.0001, betas=(beta, 0.999))
-        optimizer_decoder = torch.optim.Adam(model.decoder.parameters(), lr=0.0001, betas=(beta, 0.999))
-        optimizer_discriminator = torch.optim.Adam(model.discriminator.parameters(), lr=0.5 * 0.0001,
-                                                   betas=(beta, 0.999))
+        optimizer_encoder = torch.optim.Adam(model.encoder.parameters(), lr=lr_enc, betas=(beta, 0.999))
+        optimizer_decoder = torch.optim.Adam(model.decoder.parameters(), lr=lr_dec, betas=(beta, 0.999))
+        optimizer_discriminator = torch.optim.Adam(model.discriminator.parameters(), lr=lr_disc, betas=(beta, 0.999))
 
         lr_encoder = StepLR(optimizer_encoder, step_size=30, gamma=0.5)
         lr_decoder = StepLR(optimizer_decoder, step_size=30, gamma=0.5)
         lr_discriminator = StepLR(optimizer_discriminator, step_size=30, gamma=0.5)
+
+        # Define criterion
+        bce_loss = nn.BCEWithLogitsLoss()
+        mse_loss = nn.MSELoss(reduction='none')
 
         # Metrics
         pearson_correlation = PearsonCorrelation()
@@ -332,16 +345,43 @@ def main():
                     frozen_params(model.encoder)
                     free_params(model.discriminator)
 
-                    z_real, var = model.encoder(x)
-                    z_fake = Variable(torch.randn_like(z_real) * 0.5).to(device)
+                    z_enc, var = model.encoder(x)
+                    z_samp = Variable(torch.randn_like(z_enc) * 0.5).to(device)
 
-                    d_real = model.discriminator(z_real)
-                    d_fake = model.discriminator(z_fake)
+                    # disc output for encoded latent | Qz
+                    logits_enc = model.discriminator(z_enc)
+                    # disc output for sampled (noise) latent | Pz
+                    logits_samp = model.discriminator(z_samp)
 
-                    loss_discriminator_fake = - 10 * torch.sum(torch.log(d_fake + 1e-3))
-                    loss_discriminator_real = - 10 * torch.sum(torch.log(1 - d_real + 1e-3))
-                    loss_discriminator_fake.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
-                    loss_discriminator_real.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
+                    if args.disc_loss == "Maria":
+                        sig_enc = torch.sigmoid(logits_enc)
+                        sig_samp = torch.sigmoid(logits_samp)
+
+                        # this is taking the BCE (1 - sampled) of the sampled CORRECT
+                        loss_discriminator_fake = - 10 * torch.sum(torch.log(sig_samp + 1e-3))
+                        # this takes the BCE (0 - encoded) of the encoded latent CORRECT
+                        loss_discriminator_real = - 10 * torch.sum(torch.log(1 - sig_enc + 1e-3))
+
+                        loss_discriminator = loss_discriminator_real + loss_discriminator_real
+
+                        loss_discriminator_fake.backward(retain_graph=True,
+                                                         inputs=list(model.discriminator.parameters()))
+                        loss_discriminator_real.backward(retain_graph=True,
+                                                         inputs=list(model.discriminator.parameters()))
+                        mean_mult = batch_size
+                    else:
+                        # set up labels
+                        labels_real = Variable(torch.ones_like(logits_samp)).to(device)
+                        labels_fake = Variable(torch.zeros_like(logits_enc)).to(device)
+
+                        # Qz is distribution of encoded latent space
+                        loss_Qz = bce_loss(logits_enc, labels_fake)
+                        # Pz is distribution of prior (sampled)
+                        loss_Pz = bce_loss(logits_samp, labels_real)
+
+                        loss_discriminator = args.lambda_WAE * (loss_Qz + loss_Pz)
+                        loss_discriminator.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
+                        mean_mult = 1
 
                     # [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
                     optimizer_discriminator.step()
@@ -354,34 +394,47 @@ def main():
                     free_params(model.decoder)
                     frozen_params(model.discriminator)
 
-                    z_real, var = model.encoder(x)
-                    x_recon = model.decoder(z_real)
-                    d_real = model.discriminator(z_real)
+                    z_enc, var = model.encoder(x)
+                    x_recon = model.decoder(z_enc)
+                    logits_enc = model.discriminator(z_enc)
 
-                    mse_loss = nn.MSELoss()
-                    loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x) ** 2, 1))
-                    # loss_reconstruction = mse_loss(x_recon, x)
-                    loss_penalty = - 10 * torch.sum(torch.log(d_real + 1e-3))
                     encdec_params = list(model.encoder.parameters()) + list(model.decoder.parameters())
 
-                    loss_reconstruction.backward(retain_graph=True, inputs=encdec_params)
-                    loss_penalty.backward(inputs=encdec_params)
+                    if args.WAE_loss == 'Maria':
+                        loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x) ** 2, 1))
+                        # loss_reconstruction = mse_loss(x_recon, x)
+                        # non-saturating loss | taking the BCE (1, real) CORRECT
+                        loss_penalty = - 10 * torch.sum(torch.log(logits_enc + 1e-3))
+
+                        loss_reconstruction.backward(retain_graph=True, inputs=encdec_params)
+                        loss_penalty.backward(inputs=encdec_params)
+                        mean_mult = batch_size
+                    else:
+                        # Adapted from original WAE paper code
+                        # label for non-saturating loss
+                        labels_saturated = Variable(torch.ones_like(logits_enc)).to(device)
+                        loss_reconstruction = torch.mean(torch.sum(mse_loss(x_recon, x), [1, 2, 3])) * 0.05
+                        # loss_reconstruction = mse_loss(x_recon, x)
+                        loss_penalty = bce_loss(logits_enc, labels_saturated)
+                        loss_WAE = loss_reconstruction + loss_penalty * args.lambda_WAE
+                        loss_WAE.backward(inputs=encdec_params)
+                        mean_mult = 1
+
                     # [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
                     optimizer_encoder.step()
                     optimizer_decoder.step()
 
                     # register mean values of the losses for logging
-                    loss_reconstruction_mean = loss_reconstruction.data.cpu().numpy() / batch_size
-                    loss_penalty_mean = loss_penalty.data.cpu().numpy() / batch_size
-                    loss_discriminator_fake_mean = loss_discriminator_fake.data.cpu().numpy() / batch_size
-                    loss_discriminator_real_mean = loss_discriminator_real.data.cpu().numpy() / batch_size
+                    loss_reconstruction_mean = loss_reconstruction.data.cpu().numpy() / mean_mult
+                    loss_penalty_mean = loss_penalty.data.cpu().numpy() / mean_mult
+                    loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / mean_mult
+                    # loss_discriminator_real_mean = loss_discriminator_real.data.cpu().numpy() / batch_size
 
                     logging.info(
                         f'Epoch  {idx_epoch} {batch_idx + 1:3.0f} / {100 * (batch_idx + 1) / len(dataloader_train):2.3f}%, '
                         f'---- recon loss: {loss_reconstruction_mean:.5f} ---- | '
                         f'---- penalty loss: {loss_penalty_mean:.5f} ---- | '
-                        f'---- discrim fake loss: {loss_discriminator_fake:.5f} ---- | '
-                        f'---- discrim real loss: {loss_discriminator_real:.5f}')
+                        f'---- discrim loss: {loss_discriminator_mean:.5f}')
 
                     step_index += 1
 
@@ -527,8 +580,8 @@ def main():
                 results['epochs'].append(idx_epoch + stp)
                 results['loss_reconstruction'].append(loss_reconstruction_mean)
                 results['loss_penalty'].append(loss_penalty_mean)
-                results['loss_discriminator_fake'].append(loss_discriminator_fake_mean)
-                results['loss_discriminator_real'].append(loss_discriminator_real_mean)
+                results['loss_discriminator'].append(loss_discriminator_mean)
+                # results['loss_discriminator_real'].append(loss_discriminator_real_mean)
 
                 if metrics_valid is not None:
                     for key, value in result_metrics_valid.items():
@@ -560,8 +613,8 @@ def main():
 
                 plt.figure(figsize=(10, 5))
                 plt.title("Discriminator Loss During Training")
-                plt.plot(results['loss_discriminator_real'], label="DR")
-                plt.plot(results['loss_discriminator_fake'], label="DF")
+                plt.plot(results['loss_discriminator'], label="Discrim")
+                # plt.plot(results['loss_discriminator_fake'], label="DF")
                 plt.xlabel("iterations")
                 plt.ylabel("Loss")
                 plt.legend()

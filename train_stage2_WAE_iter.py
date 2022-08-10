@@ -412,13 +412,14 @@ def main():
                             d_real = model.discriminator(z_real)
                             d_fake = model.discriminator(z_fake)
 
-                            # Here they are getting equivalent of BCE(fake, 1s)
-                            # but this doesn't make sense becuase they're saying that the loss is the distance from
-                            # 1s to fake latent, and they want to minimise that. but wouldnt they want the discrim
-                            # to correctly identify real and fake latents, so you could then use that to minimize
-                            # the encoded latent space?
+                            # THEY HAVE FUCKED UP.
+                            # here taking the BCE (1, cogenc) INCORRECT
+                            # under the assumption we want the cog enc latent to be more like the VIS ENC
+                            # the effect of this is a network which classifies a virgin cogenc as real
                             loss_discriminator_fake = - 10 * torch.sum(torch.log(d_fake + 1e-3))
-                            # Here they are getting equivalent of BCE(real, 0s)
+                            # here taking the BCE of (0, vis enc)
+                            # minimizes likelihood of discriminator identifying vis enc as 0
+                            # is that the network incorrectly classifies the trained network encs as false
                             loss_discriminator_real = - 10 * torch.sum(torch.log(1 - d_real + 1e-3))
                             # Try this with the pretrain though.
                             if args.disc_loss == 'David':
@@ -433,7 +434,7 @@ def main():
 
                             # ----------Train generator----------------
                             # TODO: Check this - they don't zero grad, check results
-                            # model.encoder.zero_grad()
+                            model.encoder.zero_grad()
 
                             free_params(model.encoder)
                             frozen_params(model.discriminator)

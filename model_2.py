@@ -190,7 +190,8 @@ class Discriminator(nn.Module):
 
             ten = ten.view(len(ten), -1)
             ten = self.fc(ten)
-            return torch.sigmoid(ten)
+            # removing the sigmoid and using the BCElogits loss (more stable)
+            return ten
             # return ten
         # raise Exception('testing discrimintator')
 
@@ -956,7 +957,8 @@ class WaeDiscriminator(nn.Module):
             nn.Linear(self.dim_h, self.dim_h),
             nn.ReLU(True),
             nn.Linear(self.dim_h, 1),
-            nn.Sigmoid()
+            # Removing sigmoid to use the BCELogits loss
+            # nn.Sigmoid()
         )
         for m in self.modules():
             if isinstance(m, nn.Linear):
