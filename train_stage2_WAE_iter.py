@@ -414,6 +414,7 @@ def main():
                     for batch_idx, data_batch in enumerate(dataloader_train):
                         if step_index < max_iters:
                             model.train()
+
                             frozen_params(model.decoder)
                             batch_size = len(data_batch)
                             model.encoder.zero_grad()
@@ -617,6 +618,8 @@ def main():
                         with no_grad():
 
                             model.eval()
+                            trained_model.eval()
+
                             data_in = Variable(data_batch['fmri'], requires_grad=False).float().to(device)
                             data_img = Variable(data_batch['image'], requires_grad=False).float().to(device)
                             out, logits_out = model(data_in)
