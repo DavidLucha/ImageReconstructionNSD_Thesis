@@ -10,6 +10,7 @@ import argparse
 import pandas as pd
 import matplotlib.pyplot as plt
 import random
+import math
 
 import torchvision
 from torch import nn, no_grad
@@ -561,6 +562,12 @@ def main():
                     # lr_decoder.step()
                     lr_discriminator.step()
 
+                    # plot arrangements
+                    grid_count = batch_size
+                    if batch_size == 64:
+                        grid_count = 25
+                    nrow = int(math.sqrt(grid_count))
+
                     if not idx_epoch % 2:
                         # Save train examples
                         images_dir = os.path.join(SAVE_PATH, 'images', 'train')
@@ -571,7 +578,7 @@ def main():
                         ax.set_xticks([])
                         ax.set_yticks([])
                         ax.set_title('Training Ground Truth at Epoch {}'.format(idx_epoch))
-                        ax.imshow(make_grid(x_image[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                        ax.imshow(make_grid(x_image[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                         gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                         plt.savefig(gt_dir)
 
@@ -580,7 +587,7 @@ def main():
                         # ax.set_yticks([])
                         # ax.set_title('Training Vis Enc Reconstruction (Real) at Epoch {}'.format(idx_epoch))
                         # ax.imshow(
-                        #     make_grid(x_gt[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                        #     make_grid(x_gt[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                         # gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
                         # plt.savefig(gt_dir)
 
@@ -588,7 +595,7 @@ def main():
                         ax.set_xticks([])
                         ax.set_yticks([])
                         ax.set_title('Training Reconstruction at Epoch {}'.format(idx_epoch))
-                        ax.imshow(make_grid(x_recon[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                        ax.imshow(make_grid(x_recon[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                         output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
                         plt.savefig(output_dir)
 
@@ -636,7 +643,7 @@ def main():
                             ax.set_yticks([])
                             ax.set_title('Validation Ground Truth')
                             ax.imshow(
-                                make_grid(data_target[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                                make_grid(data_target[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                             gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                             plt.savefig(gt_dir)
 
@@ -644,7 +651,7 @@ def main():
                             # ax.set_xticks([])
                             # ax.set_yticks([])
                             # ax.set_title('Validation Vis Enc Reconstruction at Epoch {}'.format(idx_epoch))
-                            # ax.imshow(make_grid(vis_out[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                            # ax.imshow(make_grid(vis_out[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                             # output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
                             # plt.savefig(output_dir)
 
@@ -654,7 +661,7 @@ def main():
                                 ax.set_xticks([])
                                 ax.set_yticks([])
                                 ax.set_title('Validation Ground Truth')
-                                ax.imshow(make_grid(data_target[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                                ax.imshow(make_grid(data_target[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                                 gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                                 plt.savefig(gt_dir)
 
@@ -663,7 +670,7 @@ def main():
                                 # ax.set_yticks([])
                                 # ax.set_title('Validation Vis Enc Reconstruction at Epoch {}'.format(idx_epoch))
                                 # ax.imshow(
-                                #     make_grid(vis_out[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                                #     make_grid(vis_out[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                                 # output_dir = os.path.join(images_dir,
                                 #                           'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
                                 # plt.savefig(output_dir)
@@ -672,7 +679,7 @@ def main():
                         ax.set_xticks([])
                         ax.set_yticks([])
                         ax.set_title('Validation Reconstruction at Epoch {}'.format(idx_epoch))
-                        ax.imshow(make_grid(out[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                        ax.imshow(make_grid(out[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                         output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
                         plt.savefig(output_dir)
 
