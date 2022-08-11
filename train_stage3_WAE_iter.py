@@ -303,8 +303,21 @@ def main():
         trained_model.load_state_dict(torch.load(st2_model_dir, map_location=device))
 
         # Here we want to load the stage 1 discriminator that is good at moving the enc towards sampled
-        model = WaeGanCognitive(device=device, encoder=trained_model.encoder, decoder=trained_model.decoder,
-                                discriminator=teacher_model.discriminator, z_size=args.latent_dims).to(device)
+        # Maria uses a fresh discriminator but that doesn't make sense
+        if args.disc_loss == "David":
+            # Here since we're moving the latent to the sampled, we borrow the stage 1 disc which is good at classifying
+            model = WaeGanCognitive(device=device, encoder=trained_model.encoder, decoder=trained_model.decoder,
+                                    discriminator=teacher_model.discriminator, z_size=args.latent_dims).to(device)
+        elif args.disc_loss == "Both":
+            # Here since we want the latent to be more like the visual encoder, we use the stage 2 that has been trained
+            # ... on the vis enc latent classification
+            model = WaeGanCognitive(device=device, encoder=trained_model.encoder, decoder=trained_model.decoder,
+                                    discriminator=trained_model.discriminator, z_size=args.latent_dims).to(device)
+        else:
+            # Maria's
+            model = WaeGanCognitive(device=device, encoder=trained_model.encoder, decoder=trained_model.decoder,
+                                    z_size=args.latent_dims).to(device)
+
         # Fix encoder weights
         for param in model.encoder.parameters():
             param.requires_grad = False
@@ -627,6 +640,7 @@ def main():
 
                             model.eval()
                             trained_model.eval()
+                            teacher_model.eval()
 
                             data_in = Variable(data_batch['fmri'], requires_grad=False).float().to(device)
                             data_target = Variable(data_batch['image'], requires_grad=False).float().to(device)
@@ -634,17 +648,30 @@ def main():
 
                             bce_loss = nn.BCEWithLogitsLoss(reduction='none')
 
+                            # Note: below will not match training if using Maria. Assumes, David + Both | or both + both
                             # Discriminator loss
-                            z_target = Variable(torch.randn_like(z_cog_enc, requires_grad=False) * 0.5).to(device)
-                            logits_target = model.discriminator(z_target)
+                            if args.disc_loss == "David":
+                                z_target = Variable(torch.randn_like(z_cog_enc, requires_grad=False) * 0.5).to(device)
+                                logits_target = model.discriminator(z_target)
 
-                            labels_real_eval = Variable(torch.ones_like(logits_target, requires_grad=False)).to(device)
-                            labels_fake_eval = Variable(torch.zeros_like(logits_out, requires_grad=False)).to(device)
+                                labels_real_eval = Variable(torch.ones_like(logits_target, requires_grad=False)).to(device)
+                                labels_fake_eval = Variable(torch.zeros_like(logits_out, requires_grad=False)).to(device)
 
-                            loss_out_fake = 10 * torch.sum(bce_loss(logits_out, labels_fake_eval))
-                            loss_target_real = 10 * torch.sum(bce_loss(logits_target, labels_real_eval))
-                            mean_mult = batch_size * 10
-                            loss_discriminator_mean_eval = (loss_out_fake + loss_target_real) / mean_mult
+                                loss_out_fake = 10 * torch.sum(bce_loss(logits_out, labels_fake_eval))
+                                loss_target_real = 10 * torch.sum(bce_loss(logits_target, labels_real_eval))
+                                mean_mult = batch_size * 10
+                                loss_discriminator_mean_eval = (loss_out_fake + loss_target_real) / mean_mult
+                            else:
+                                data_target, z_target = teacher_model(data_target)
+                                logits_target = model.discriminator(z_target)
+                                labels_real_eval = Variable(torch.ones_like(logits_target, requires_grad=False)).to(
+                                    device)
+                                labels_fake_eval = Variable(torch.zeros_like(logits_out, requires_grad=False)).to(
+                                    device)
+                                loss_out_fake = 10 * torch.sum(bce_loss(logits_out, labels_fake_eval))
+                                loss_target_real = 10 * torch.sum(bce_loss(logits_target, labels_real_eval))
+                                mean_mult = batch_size * 10
+                                loss_discriminator_mean_eval = (loss_out_fake + loss_target_real) / mean_mult
 
                             # Recon loss
                             loss_reconstruction_eval = torch.sum(torch.sum(0.5 * (out - data_target) ** 2, 1))

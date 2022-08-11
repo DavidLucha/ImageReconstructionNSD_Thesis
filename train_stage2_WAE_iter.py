@@ -633,6 +633,7 @@ def main():
 
                             bce_loss = nn.BCEWithLogitsLoss(reduction='none')
 
+                            # Note the below is only accurate if using 'both' for WAE and disc loss
                             # Discriminator loss
                             labels_real_eval = Variable(torch.ones_like(logits_target, requires_grad=False)).to(device)
                             labels_fake_eval = Variable(torch.zeros_like(logits_out, requires_grad=False)).to(device)
