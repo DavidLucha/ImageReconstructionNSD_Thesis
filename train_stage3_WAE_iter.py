@@ -627,6 +627,7 @@ def main():
 
                             model.eval()
                             trained_model.eval()
+
                             data_in = Variable(data_batch['fmri'], requires_grad=False).float().to(device)
                             data_target = Variable(data_batch['image'], requires_grad=False).float().to(device)
                             out, logits_out = model(data_in)
@@ -634,13 +635,25 @@ def main():
                             bce_loss = nn.BCEWithLogitsLoss(reduction='none')
 
                             # Discriminator loss
-                            z_samp = Variable(torch.randn_like(z_cog_enc) * 0.5).to(device)
-                            labels_real = Variable(torch.ones_like(logits_samp)).to(device)
-                            labels_fake = Variable(torch.zeros_like(logits_out)).to(device)
-                            loss_Qz = 10 * torch.sum(bce_loss(logits_out, labels_fake))
-                            loss_Pz = 10 * torch.sum(bce_loss(logits_samp, labels_real))
+                            z_target = Variable(torch.randn_like(z_cog_enc, requires_grad=False) * 0.5).to(device)
+                            logits_target = model.discriminator(z_target)
 
-                            loss_discriminator = args.lambda_WAE * (loss_Qz + loss_Pz)
+                            labels_real_eval = Variable(torch.ones_like(logits_target, requires_grad=False)).to(device)
+                            labels_fake_eval = Variable(torch.zeros_like(logits_out, requires_grad=False)).to(device)
+
+                            loss_out_fake = 10 * torch.sum(bce_loss(logits_out, labels_fake_eval))
+                            loss_target_real = 10 * torch.sum(bce_loss(logits_target, labels_real_eval))
+                            mean_mult = batch_size * 10
+                            loss_discriminator_mean_eval = (loss_out_fake + loss_target_real) / mean_mult
+
+                            # Recon loss
+                            loss_reconstruction_eval = torch.sum(torch.sum(0.5 * (out - data_target) ** 2, 1))
+                            labels_saturated_eval = Variable(torch.ones_like(logits_out, requires_grad=False)).to(
+                                device)
+                            loss_penalty_eval = 10 * torch.sum(bce_loss(logits_out, labels_saturated_eval))
+                            mean_mult = batch_size
+                            loss_reconstruction_mean_eval = loss_reconstruction_eval / mean_mult
+                            loss_penalty_mean_eval = loss_penalty_eval / mean_mult
 
                             # Validation metrics for the first validation batch
                             if metrics_valid is not None:
