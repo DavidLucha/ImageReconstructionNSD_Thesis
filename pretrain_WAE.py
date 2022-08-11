@@ -552,7 +552,7 @@ def main():
                     model.eval()
                     data_in = Variable(data_batch, requires_grad=False).float().to(device)
                     data_target = Variable(data_batch, requires_grad=False).float().to(device)
-                    out = model(data_in)
+                    out, _ = model(data_in)
 
                     # Validation metrics for the first validation batch
                     if metrics_valid is not None:

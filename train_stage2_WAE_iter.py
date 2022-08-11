@@ -342,7 +342,10 @@ def main():
             epochs=[],
             loss_reconstruction=[],
             loss_penalty=[],
-            loss_discriminator=[]
+            loss_discriminator=[],
+            loss_reconstruction_eval=[],
+            loss_penalty_eval=[],
+            loss_discriminator_eval=[]
         )
 
         # Variables for equilibrium to improve GAN stability
@@ -562,11 +565,18 @@ def main():
                     # lr_decoder.step()
                     lr_discriminator.step()
 
+                    # Record losses & scores
+                    results['epochs'].append(idx_epoch + stp)
+                    results['loss_reconstruction'].append(loss_reconstruction_mean)
+                    results['loss_penalty'].append(loss_penalty_mean)
+                    results['loss_discriminator'].append(loss_discriminator_mean)
+
                     # plot arrangements
-                    grid_count = batch_size
-                    if batch_size == 64:
-                        grid_count = 25
-                    nrow = int(math.sqrt(grid_count))
+                    grid_count = 25
+                    nrow = 5
+                    # if batch_size == 64:
+                    #     grid_count = 25
+                    # nrow = int(math.sqrt(grid_count))
 
                     if not idx_epoch % 2:
                         # Save train examples
@@ -608,8 +618,33 @@ def main():
 
                             model.eval()
                             data_in = Variable(data_batch['fmri'], requires_grad=False).float().to(device)
-                            data_target = Variable(data_batch['image'], requires_grad=False).float().to(device)
-                            out = model(data_in)
+                            data_img = Variable(data_batch['image'], requires_grad=False).float().to(device)
+                            out, logits_out = model(data_in)
+                            data_target, z_target = trained_model(data_img)
+
+                            # z_cog_enc, _ = model.encoder(x_fmri)
+                            # z_vis_enc, _ = trained_model.encoder(x_image)
+
+                            # logits_cog_enc = model.discriminator(z_cog_enc)
+                            logits_target = model.discriminator(z_target)
+
+                            bce_loss = nn.BCEWithLogitsLoss(reduction='none')
+
+                            # Discriminator loss
+                            labels_real_eval = Variable(torch.ones_like(logits_target), requires_grad=False).to(device)
+                            labels_fake_eval = Variable(torch.zeros_like(logits_out), requires_grad=False).to(device)
+                            loss_out_fake = 10 * torch.sum(bce_loss(logits_out, labels_fake_eval))
+                            loss_target_real = 10 * torch.sum(bce_loss(logits_target, labels_real_eval))
+                            mean_mult = batch_size * 10
+                            loss_discriminator_mean_eval = (loss_out_fake + loss_target_real) / mean_mult
+
+                            # Recon and penalty loss
+                            labels_saturated_eval = Variable(torch.ones_like(logits_out)).to(device)
+                            loss_reconstruction_eval = torch.sum(torch.sum(0.5 * (out - data_target) ** 2, 1))
+                            loss_penalty_eval = 10 * torch.sum(bce_loss(logits_out, labels_saturated_eval))
+                            mean_mult = batch_size  # * 10?
+                            loss_reconstruction_mean_eval = loss_reconstruction_eval / mean_mult
+                            loss_penalty_mean_eval = loss_penalty_eval / mean_mult
 
                             # Validation metrics for the first validation batch
                             if metrics_valid is not None:
@@ -683,8 +718,8 @@ def main():
                         output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
                         plt.savefig(output_dir)
 
-                        out = (out + 1) / 2
-                        out = make_grid(out, nrow=8)
+                        # out = (out + 1) / 2
+                        # out = make_grid(out, nrow=8)
 
                         # out = model(None, 100)
                         # out = out.data.cpu()
@@ -692,9 +727,9 @@ def main():
                         # out = make_grid(out, nrow=8)
                         # writer.add_image("generated", out, step_index)
 
-                        out = data_target.data.cpu()
-                        out = (out + 1) / 2
-                        out = make_grid(out, nrow=8)
+                        # out = data_target.data.cpu()
+                        # out = (out + 1) / 2
+                        # out = make_grid(out, nrow=8)
 
                         if metrics_valid is not None:
                             for key, values in result_metrics_valid.items():
@@ -717,15 +752,14 @@ def main():
                         # only for one batch due to memory issue
                         break
 
+                    # Record losses & scores for eval
+                    results['loss_reconstruction_eval'].append(loss_reconstruction_mean_eval)
+                    results['loss_penalty_eval'].append(loss_penalty_mean_eval)
+                    results['loss_discriminator_eval'].append(loss_discriminator_mean_eval)
+
                     if not idx_epoch % 10 or idx_epoch == epochs_n-1:
                         torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
                         logging.info('Saving model')
-
-                    # Record losses & scores
-                    results['epochs'].append(idx_epoch + stp)
-                    results['loss_reconstruction'].append(loss_reconstruction_mean)
-                    results['loss_penalty'].append(loss_penalty_mean)
-                    results['loss_discriminator'].append(loss_discriminator_mean)
 
                     if metrics_valid is not None:
                         for key, value in result_metrics_valid.items():
@@ -746,9 +780,9 @@ def main():
                 finally:
 
                     plt.figure(figsize=(10, 5))
-                    plt.title("Discriminator Loss During Training")
-                    plt.plot(results['loss_discriminator'], label="Discrim")
-                    # plt.plot(results['loss_discriminator_fake'], label="DF")
+                    plt.title("Discriminator Loss | Training & Eval")
+                    plt.plot(results['loss_discriminator'], label="Disc Training")
+                    plt.plot(results['loss_discriminator_eval'], label="Disc Eval")
                     plt.xlabel("iterations")
                     plt.ylabel("Loss")
                     plt.legend()
@@ -759,9 +793,9 @@ def main():
                     plt.savefig(plot_dir)
 
                     plt.figure(figsize=(10, 5))
-                    plt.title("Reconstruction Loss During Training")
-                    # plt.plot(results['loss_penalty'], label="LP")
-                    plt.plot(results['loss_reconstruction'], label="Recon")
+                    plt.title("Reconstruction Loss | Training & Eval")
+                    plt.plot(results['loss_reconstruction'], label="Recon Training")
+                    plt.plot(results['loss_reconstruction_eval'], label="Recon Eval")
                     plt.xlabel("iterations")
                     plt.ylabel("Loss")
                     plt.legend()
@@ -772,8 +806,9 @@ def main():
                     plt.savefig(plot_dir)
 
                     plt.figure(figsize=(10, 5))
-                    plt.title("Penalty Loss During Training")
-                    plt.plot(results['loss_penalty'], label="Penalty")
+                    plt.title("Penalty Loss | Training & Eval")
+                    plt.plot(results['loss_penalty'], label="Penalty Training")
+                    plt.plot(results['loss_penalty_eval'], label="Penalty Eval")
                     # plt.plot(results['loss_reconstruction'], label="LR")
                     plt.xlabel("iterations")
                     plt.ylabel("Loss")
@@ -783,6 +818,38 @@ def main():
                         os.makedirs(plots_dir)
                     plot_dir = os.path.join(plots_dir, 'Penalty_loss')
                     plt.savefig(plot_dir)
+
+                    for key, value in result_metrics_valid.items():
+                        # metric_value = value.detach().clone().item()
+                        # results[key].append(metric_value)
+                        plt.figure(figsize=(10, 5))
+                        plt.title("{} During Validation".format(key))
+                        plt.plot(results[key], label=key)
+                        # plt.plot(results['loss_discriminator_fake'], label="DF")
+                        plt.xlabel("iterations")
+                        plt.ylabel(key)
+                        plt.legend()
+                        plots_dir = os.path.join(SAVE_PATH, 'plots/valid_metrics/')
+                        if not os.path.exists(plots_dir):
+                            os.makedirs(plots_dir)
+                        plot_dir = os.path.join(plots_dir, '{}_plot_valid'.format(key))
+                        plt.savefig(plot_dir)
+
+                    for key, value in result_metrics_train.items():
+                        # metric_value = value.detach().clone().item()
+                        # results[key].append(metric_value)
+                        plt.figure(figsize=(10, 5))
+                        plt.title("{} During Training".format(key))
+                        plt.plot(results[key], label=key)
+                        # plt.plot(results['loss_discriminator_fake'], label="DF")
+                        plt.xlabel("iterations")
+                        plt.ylabel(key)
+                        plt.legend()
+                        plots_dir = os.path.join(SAVE_PATH, 'plots/train_metrics/')
+                        if not os.path.exists(plots_dir):
+                            os.makedirs(plots_dir)
+                        plot_dir = os.path.join(plots_dir, '{}_plot_train'.format(key))
+                        plt.savefig(plot_dir)
 
                     logging.info("Plots are saved")
                     # plt.show()

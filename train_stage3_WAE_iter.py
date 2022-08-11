@@ -572,10 +572,11 @@ def main():
                     lr_discriminator.step()
 
                     # plot arrangements
-                    grid_count = batch_size
-                    if batch_size == 64:
-                        grid_count = 25
-                    nrow = int(math.sqrt(grid_count))
+                    grid_count = 25
+                    nrow = 5
+                    # if batch_size == 64:
+                    #     grid_count = 25
+                    # nrow = int(math.sqrt(grid_count))
 
                     if not idx_epoch % 2:
                         # Save train examples

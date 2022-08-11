@@ -881,7 +881,9 @@ class WaeGan(nn.Module):
             else:
                 mus, log_variances = self.encoder(x)
                 x_tilde = self.decoder(mus)
-                return x_tilde
+
+                # logits = self.discriminator(mus)
+                return x_tilde, mus
 
     def __call__(self, *args, **kwargs):
         return super(WaeGan, self).__call__(*args, **kwargs)
@@ -938,7 +940,9 @@ class WaeGanCognitive(nn.Module):
             else:
                 mus, log_variances = self.encoder(x)
                 x_tilde = self.decoder(mus)
-                return x_tilde
+
+                logits = self.discriminator(mus)
+                return x_tilde, logits
 
 
 class WaeDiscriminator(nn.Module):
