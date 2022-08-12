@@ -455,7 +455,7 @@ def main():
                                 # is that the network incorrectly classifies the trained network encs as false
                                 loss_discriminator_real = - args.lambda_GAN * torch.sum(torch.log(1 - sig_vis_enc + 1e-3))
 
-                                loss_discriminator = loss_discriminator_real + loss_discriminator_real
+                                loss_discriminator = loss_discriminator_fake + loss_discriminator_real
 
                                 loss_discriminator_fake.backward(retain_graph=True,
                                                                  inputs=list(model.discriminator.parameters()))
@@ -660,14 +660,23 @@ def main():
 
                             bce_loss = nn.BCEWithLogitsLoss(reduction='none')
 
-                            # Note the below is only accurate if using 'both' for WAE and disc loss
-                            # Discriminator loss
-                            labels_real_eval = Variable(torch.ones_like(logits_target, requires_grad=False)).to(device)
-                            labels_fake_eval = Variable(torch.zeros_like(logits_out, requires_grad=False)).to(device)
-                            loss_out_fake = args.lambda_GAN * torch.sum(bce_loss(logits_out, labels_fake_eval))
-                            loss_target_real = args.lambda_GAN * torch.sum(bce_loss(logits_target, labels_real_eval))
-                            mean_mult = batch_size * args.lambda_GAN
-                            loss_discriminator_mean_eval = (loss_out_fake + loss_target_real) / mean_mult
+                            if args.disc_loss == "Maria":
+                                sig_out = torch.sigmoid(logits_out)
+                                sig_target = torch.sigmoid(logits_target)
+                                loss_out_fake = - args.lambda_GAN * torch.sum(torch.log(sig_out + 1e-3))
+                                loss_out_real = - args.lambda_GAN * torch.sum(torch.log(1 - sig_target + 1e-3))
+
+                                loss_discriminator_eval = loss_out_fake + loss_out_real
+                                loss_discriminator_mean_eval = loss_discriminator_eval / (batch_size * args.lambda_GAN)
+                            else:
+                                # Note the below is only accurate if using 'both' for WAE and disc loss
+                                # Discriminator loss
+                                labels_real_eval = Variable(torch.ones_like(logits_target, requires_grad=False)).to(device)
+                                labels_fake_eval = Variable(torch.zeros_like(logits_out, requires_grad=False)).to(device)
+                                loss_out_fake = args.lambda_GAN * torch.sum(bce_loss(logits_out, labels_fake_eval))
+                                loss_target_real = args.lambda_GAN * torch.sum(bce_loss(logits_target, labels_real_eval))
+                                mean_mult = batch_size * args.lambda_GAN
+                                loss_discriminator_mean_eval = (loss_out_fake + loss_target_real) / mean_mult
 
                             # Recon and penalty loss
                             labels_saturated_eval = Variable(torch.ones_like(logits_out, requires_grad=False)).to(device)
@@ -680,6 +689,13 @@ def main():
 
                                 loss_penalty_eval = args.lambda_GAN * bce_loss(logits_out, labels_saturated_eval)
                                 loss_penalty_mean_eval = loss_penalty_eval
+                            if args.WAE_loss == "Maria":
+                                mse_loss = nn.MSELoss()
+                                loss_reconstruction_eval_mean = mse_loss(out, data_img)
+                                loss_penalty_eval_mean = - args.lambda_GAN * torch.mean(torch.log(logits_out + 1e-3))
+
+                                # mean_mult_pen = batch_size * args.lambda_GAN
+                                # mean_mult_rec = 1
                             else:
                                 loss_reconstruction_eval = torch.sum(torch.sum(0.5 * (out - data_target) ** 2, 1))
                                 loss_reconstruction_mean_eval = loss_reconstruction_eval / batch_size
