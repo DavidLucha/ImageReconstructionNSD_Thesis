@@ -669,7 +669,7 @@ def main():
                                 bce_loss = nn.BCEWithLogitsLoss(reduction='mean')
                                 mse_loss = nn.MSELoss(reduction='mean')
 
-                                loss_reconstruction_eval = mse_loss(x_recon, x_gt)
+                                loss_reconstruction_eval = mse_loss(out, data_target)
                                 loss_reconstruction_mean_eval = loss_reconstruction_eval
 
                                 loss_penalty_eval = args.lambda_GAN * bce_loss(logits_out, labels_saturated_eval)
