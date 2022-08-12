@@ -651,6 +651,9 @@ def main():
 
                             bce_loss = nn.BCEWithLogitsLoss(reduction='none')
 
+                            labels_saturated_eval = Variable(torch.ones_like(logits_out, requires_grad=False)).to(
+                                device)
+
                             # Note: below will not match training if using Maria. Assumes, David + Both | or both + both
                             # Discriminator loss
                             if args.disc_loss == "Maria":
@@ -702,8 +705,6 @@ def main():
                                 loss_reconstruction_eval = torch.sum(torch.sum(0.5 * (out - data_target) ** 2, 1))
                                 loss_reconstruction_mean_eval = loss_reconstruction_eval / batch_size
 
-                                labels_saturated_eval = Variable(torch.ones_like(logits_out, requires_grad=False)).to(
-                                    device)
                                 loss_penalty_eval = args.lambda_GAN * torch.sum(bce_loss(logits_out, labels_saturated_eval))
 
                                 loss_penalty_mean_eval = loss_penalty_eval / batch_size * args.lambda_GAN
