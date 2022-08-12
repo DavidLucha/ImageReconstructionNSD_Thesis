@@ -41,7 +41,7 @@ do
   # Study 1
   # Run stage 2
   echo "Running stage 2 at $(date +%Y%m%d-%H%M%S)"
-  srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/train_stage2_WAE_iter.py --run_name WAE_Stage2_${SUBJ}_${RUN_NAME}_${RUN_TIME} --load_from ${LOAD_FROM} --standardize none --pretrained_net ${STAGE_1_NET} --load_epoch ${STAGE_1_EPOCH} --disc_loss Both --WAE_loss MSE --lambda_WAE 1 --lambda_GAN 10 --lambda_recon 2 --batch_size ${BATCH_SIZE} --lr_enc 0.001 --lr_disc 0.0005 --valid_shuffle True --latent_dims 1024 --lin_size 2048 --lin_layers 2 --clip_gradients True --vox_res 1.8mm --set_size max --subject ${SUBJ} --ROI VC --num_workers 2 --epochs 40 --iters 15000 --dataset NSD --seed 277603 --message "combination of Maria style fixed, with maria LR, but iwht no norm, clipped gradients and bs 100, and higher model complexity"
+  srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/train_stage2_WAE_iter.py --run_name WAE_Stage2_${SUBJ}_${RUN_NAME}_${RUN_TIME} --load_from ${LOAD_FROM} --standardize none --pretrained_net ${STAGE_1_NET} --load_epoch ${STAGE_1_EPOCH} --disc_loss Both --WAE_loss MSE --lambda_WAE 1 --lambda_GAN 10 --lambda_recon 2 --batch_size ${BATCH_SIZE} --lr_enc 0.001 --lr_disc 0.0005 --valid_shuffle True --latent_dims 1024 --lin_size 2048 --lin_layers 2 --clip_gradients False --vox_res 1.8mm --set_size max --subject ${SUBJ} --ROI VC --num_workers 2 --epochs 40 --iters 15000 --dataset NSD --seed 277603 --message "combination of Maria style fixed, with maria LR, but iwht no norm, unclipped gradients and bs 100, and higher model complexity"
   echo "Stage 2 complete at $(date +%Y%m%d-%H%M%S)"
 
   # Run stage 3
