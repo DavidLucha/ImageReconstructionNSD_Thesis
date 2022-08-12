@@ -569,6 +569,7 @@ def main():
                                 # loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_gt) ** 2, 1))
 
                             if args.clip_gradients == "True":
+                                # This isn't working.
                                 [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
                             optimizer_encoder.step()
 

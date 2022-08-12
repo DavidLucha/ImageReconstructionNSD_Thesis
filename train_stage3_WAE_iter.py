@@ -232,13 +232,13 @@ def main():
         else:
             shuf = False
 
-        standardize = False
+        # standardize = False
 
-        if args.standardize == "True":
-            standardize = True
+        # if args.standardize == "True":
+        #     standardize = True
 
         # Load data
-        training_data = FmriDataloader(dataset=train_data, root_path=root_path, standardizer=standardize,
+        training_data = FmriDataloader(dataset=train_data, root_path=root_path, standardizer=args.standardize,
                                            transform=transforms.Compose([transforms.Resize((training_config.image_size,
                                                                                             training_config.image_size)),
                                                                          transforms.CenterCrop(
@@ -252,7 +252,7 @@ def main():
                                                                                               training_config.std)
                                                                          ]))
 
-        validation_data = FmriDataloader(dataset=valid_data, root_path=root_path, standardizer=standardize,
+        validation_data = FmriDataloader(dataset=valid_data, root_path=root_path, standardizer=args.standardize,
                                            transform=transforms.Compose([transforms.Resize((training_config.image_size,
                                                                                             training_config.image_size)),
                                                                          transforms.CenterCrop(
