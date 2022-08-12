@@ -43,7 +43,7 @@ do
     # Study 1
     # Run stage 2
     echo "Running stage 2 at $(date +%Y%m%d-%H%M%S)"
-    srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/train_stage2_WAE_iter.py --run_name WAE_Stage2_${SUBJ}_${RUN_NAME}_${RUN_TIME} --load_from ${LOAD_FROM} --pretrained_net ${STAGE_1_NET} --load_epoch ${STAGE_1_EPOCH} --disc_loss Both --WAE_loss Both --lambda_WAE 1 --lambda_GAN 2 --batch_size ${BATCH_SIZE} --lr_enc ${LR} --lr_disc 0.00005 --valid_shuffle True --latent_dims 512 --vox_res 1.8mm --set_size max --subject ${SUBJ} --ROI VC --num_workers 2 --epochs 40 --iters 15000 --dataset NSD --seed 277603 --message "Testing MSE loss, with lower lr and low gan lambda (2)"
+    srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/train_stage2_WAE_iter.py --run_name WAE_Stage2_${SUBJ}_${RUN_NAME}_${RUN_TIME} --load_from ${LOAD_FROM} --pretrained_net ${STAGE_1_NET} --load_epoch ${STAGE_1_EPOCH} --disc_loss Both --WAE_loss MSE --lambda_WAE 1 --lambda_GAN 2 --batch_size ${BATCH_SIZE} --lr_enc ${LR} --lr_disc 0.00005 --valid_shuffle True --latent_dims 512 --vox_res 1.8mm --set_size max --subject ${SUBJ} --ROI VC --num_workers 2 --epochs 40 --iters 15000 --dataset NSD --seed 277603 --message "Testing MSE loss, with lower lr and low gan lambda (2)"
     echo "Stage 2 complete at $(date +%Y%m%d-%H%M%S)"
 
     # Run stage 3
