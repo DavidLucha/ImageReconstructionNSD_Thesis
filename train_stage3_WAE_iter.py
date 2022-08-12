@@ -662,7 +662,7 @@ def main():
                                 mean_mult = batch_size * 10
                                 loss_discriminator_mean_eval = (loss_out_fake + loss_target_real) / mean_mult
                             else:
-                                data_target, z_target = teacher_model(data_target)
+                                _, z_target = teacher_model(data_target)
                                 logits_target = model.discriminator(z_target)
                                 labels_real_eval = Variable(torch.ones_like(logits_target, requires_grad=False)).to(
                                     device)

@@ -85,7 +85,9 @@ def main():
                                 help='determines whether we use Marias loss or the paper based one for disc', type=str)
             parser.add_argument('--WAE_loss', default='Maria',
                                 help='determines whether we use Marias loss or the paper based one for WAE', type=str)
-            parser.add_argument('--lambda_WAE', default=1, help='sets the multiplier for paper GAN loss', type=int)
+            parser.add_argument('--lambda_WAE', default=1, help='sets the multiplier for paper WAE loss', type=int)
+            parser.add_argument('--lambda_GAN', default=10, help='sets the multiplier for individual GAN losses',
+                                type=int)
 
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
@@ -512,11 +514,11 @@ def main():
                                 # This is equivalent of BCELoss(real, 1)
                                 # so we are saying the loss is the distance of the latent space of cog enc
                                 # to the real 1 (of the visual enc)
-                                loss_penalty = - 10 * torch.mean(torch.log(logits_cog_enc + 1e-3))
+                                loss_penalty = - args.lambda_GAN * torch.mean(torch.log(logits_cog_enc + 1e-3))
 
                                 loss_reconstruction.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
                                 loss_penalty.backward(inputs=list(model.encoder.parameters()))
-                                mean_mult = batch_size * 10
+                                mean_mult = batch_size * args.lambda_GAN
                             elif args.WAE_loss == "Both":
                                 # As with Maria, but with BCELogits and feature loss (using vis recon as real)
                                 # But also Maria does a MSELoss in this stage and not the manual squared diff
@@ -527,7 +529,21 @@ def main():
                                 # Only thing, is in here stage 2 she uses mse mean rather than the weighted sum below
                                 loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_gt) ** 2, 1))
                                 # loss_reconstruction = mse_loss(x_recon, x_gt)
-                                loss_penalty = 10 * torch.sum(bce_loss(logits_cog_enc, labels_saturated))
+                                loss_penalty = args.lambda_GAN * torch.sum(bce_loss(logits_cog_enc, labels_saturated))
+                                loss_WAE = loss_reconstruction + loss_penalty * args.lambda_WAE
+                                loss_WAE.backward(inputs=list(model.encoder.parameters()))
+                                mean_mult = batch_size  # * 10?
+                            elif args.WAE_loss == "MSE":
+                                # As with Maria, but with BCELogits and feature loss (using vis recon as real)
+                                # But also Maria does a MSELoss in this stage and not the manual squared diff
+                                bce_loss = nn.BCEWithLogitsLoss(reduction='none')
+                                # Like Maria's but with MSE and BCE from pytorch
+                                # label for non-saturating loss
+                                labels_saturated = Variable(torch.ones_like(logits_cog_enc)).to(device)
+                                # Only thing, is in here stage 2 she uses mse mean rather than the weighted sum below
+                                # loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_gt) ** 2, 1))
+                                loss_reconstruction = mse_loss(x_recon, x_gt)
+                                loss_penalty = args.lambda_GAN * torch.sum(bce_loss(logits_cog_enc, labels_saturated))
                                 loss_WAE = loss_reconstruction + loss_penalty * args.lambda_WAE
                                 loss_WAE.backward(inputs=list(model.encoder.parameters()))
                                 mean_mult = batch_size  # * 10?
@@ -637,15 +653,18 @@ def main():
                             # Discriminator loss
                             labels_real_eval = Variable(torch.ones_like(logits_target, requires_grad=False)).to(device)
                             labels_fake_eval = Variable(torch.zeros_like(logits_out, requires_grad=False)).to(device)
-                            loss_out_fake = 10 * torch.sum(bce_loss(logits_out, labels_fake_eval))
-                            loss_target_real = 10 * torch.sum(bce_loss(logits_target, labels_real_eval))
-                            mean_mult = batch_size * 10
+                            loss_out_fake = args.lambda_GAN * torch.sum(bce_loss(logits_out, labels_fake_eval))
+                            loss_target_real = args.lambda_GAN * torch.sum(bce_loss(logits_target, labels_real_eval))
+                            mean_mult = batch_size * args.lambda_GAN
                             loss_discriminator_mean_eval = (loss_out_fake + loss_target_real) / mean_mult
 
                             # Recon and penalty loss
                             labels_saturated_eval = Variable(torch.ones_like(logits_out, requires_grad=False)).to(device)
-                            loss_reconstruction_eval = torch.sum(torch.sum(0.5 * (out - data_target) ** 2, 1))
-                            loss_penalty_eval = 10 * torch.sum(bce_loss(logits_out, labels_saturated_eval))
+                            if args.WAE_loss == "MSE":
+                                loss_reconstruction_eval = mse_loss(x_recon, x_gt)
+                            else:
+                                loss_reconstruction_eval = torch.sum(torch.sum(0.5 * (out - data_target) ** 2, 1))
+                            loss_penalty_eval = args.lambda_GAN * torch.sum(bce_loss(logits_out, labels_saturated_eval))
                             mean_mult = batch_size  # * 10?
                             loss_reconstruction_mean_eval = loss_reconstruction_eval / mean_mult
                             loss_penalty_mean_eval = loss_penalty_eval / mean_mult
