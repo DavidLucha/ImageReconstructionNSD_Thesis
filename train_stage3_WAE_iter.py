@@ -86,6 +86,9 @@ def main():
             parser.add_argument('--WAE_loss', default='Maria',
                                 help='determines whether we use Marias loss or the paper based one for WAE', type=str)
             parser.add_argument('--lambda_WAE', default=1, help='sets the multiplier for paper GAN loss', type=int)
+            parser.add_argument('--lambda_GAN', default=10, help='sets the multiplier for individual GAN losses',
+                                type=int)
+            parser.add_argument('--lambda_recon', default=1, help='weight of recon loss', type=int)
 
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
@@ -466,14 +469,14 @@ def main():
                                 sig_cog_enc = torch.sigmoid(logits_cog_enc)
                                 sig_vis_enc = torch.sigmoid(logits_vis_enc)
 
-                                loss_discriminator_fake = - 10 * torch.sum(torch.log(sig_cog_enc + 1e-3))
-                                loss_discriminator_real = - 10 * torch.sum(torch.log(1 - sig_vis_enc + 1e-3))
+                                loss_discriminator_fake = - args.lambda_GAN * torch.sum(torch.log(sig_cog_enc + 1e-3))
+                                loss_discriminator_real = - args.lambda_GAN * torch.sum(torch.log(1 - sig_vis_enc + 1e-3))
 
                                 loss_discriminator = loss_discriminator_real + loss_discriminator_real
 
                                 loss_discriminator_fake.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
                                 loss_discriminator_real.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
-                                mean_mult = batch_size * 10
+                                mean_mult = batch_size * args.lambda_GAN
                             elif args.disc_loss == "Both":
                                 # This will be as Maria's but with the discriminator fixed
                                 z_cog_enc, var = model.encoder(x_fmri)
@@ -494,14 +497,14 @@ def main():
                                 labels_fake = Variable(torch.zeros_like(logits_cog_enc)).to(device)
 
                                 # Qz is distribution of encoded latent space
-                                loss_Qz = 10 * torch.sum(bce_loss(logits_cog_enc, labels_fake))
+                                loss_Qz = args.lambda_GAN * torch.sum(bce_loss(logits_cog_enc, labels_fake))
                                 # Pz is distribution of prior (sampled)
-                                loss_Pz = 10 * torch.sum(bce_loss(logits_vis_enc, labels_real))
+                                loss_Pz = args.lambda_GAN * torch.sum(bce_loss(logits_vis_enc, labels_real))
 
                                 loss_discriminator = args.lambda_WAE * (loss_Qz + loss_Pz)
                                 loss_discriminator.backward(retain_graph=True,
                                                             inputs=list(model.discriminator.parameters()))
-                                mean_mult = batch_size * 10
+                                mean_mult = batch_size * args.lambda_GAN
                             elif args.disc_loss == "David":
                                 # My logic here is that like Ren's work, here we want to use the reals to refine
                                 # Similarly, we want to get the latent space closer to that inital prior now
@@ -526,14 +529,14 @@ def main():
                                 labels_fake = Variable(torch.zeros_like(logits_cog_enc)).to(device)
 
                                 # Qz is distribution of encoded latent space
-                                loss_Qz = 10 * torch.sum(bce_loss(logits_cog_enc, labels_fake))
+                                loss_Qz = args.lambda_GAN * torch.sum(bce_loss(logits_cog_enc, labels_fake))
                                 # Pz is distribution of prior (sampled)
-                                loss_Pz = 10 * torch.sum(bce_loss(logits_samp, labels_real))
+                                loss_Pz = args.lambda_GAN * torch.sum(bce_loss(logits_samp, labels_real))
 
                                 loss_discriminator = args.lambda_WAE * (loss_Qz + loss_Pz)
                                 loss_discriminator.backward(retain_graph=True,
                                                             inputs=list(model.discriminator.parameters()))
-                                mean_mult = batch_size * 10
+                                mean_mult = batch_size * args.lambda_GAN
 
                             # loss_discriminator.backward(retain_graph=True)
                             # [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
@@ -551,8 +554,8 @@ def main():
 
                             if args.WAE_loss == "Maria":
                                 mse_loss = nn.MSELoss()
-                                loss_reconstruction = mse_loss(x_recon, x_image)
-                                mean_mult = 1
+                                loss_reconstruction = mse_loss(x_recon, x_image) * args.lambda_recon
+                                mean_mult = 1 * args.lambda_recon
                             else:
                                 loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_image) ** 2, 1))
                                 mean_mult = batch_size
@@ -565,11 +568,11 @@ def main():
                             # loss_penalty just for reporting
                             bce_loss = nn.BCEWithLogitsLoss(reduction='none')
                             labels_saturated = Variable(torch.ones_like(logits_cog_enc)).to(device)
-                            loss_penalty = 10 * torch.sum(bce_loss(logits_cog_enc, labels_saturated))
+                            loss_penalty = args.lambda_GAN * torch.sum(bce_loss(logits_cog_enc, labels_saturated))
 
                             # register mean values of the losses for logging
                             loss_reconstruction_mean = loss_reconstruction.data.cpu().numpy() / mean_mult
-                            loss_penalty_mean = loss_penalty.data.cpu().numpy() / mean_mult * 10
+                            loss_penalty_mean = loss_penalty.data.cpu().numpy() / mean_mult * args.lambda_GAN
                             loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / mean_mult
 
                             logging.info(
@@ -650,16 +653,27 @@ def main():
 
                             # Note: below will not match training if using Maria. Assumes, David + Both | or both + both
                             # Discriminator loss
-                            if args.disc_loss == "David":
+                            if args.disc_loss == "Maria":
+                                _, z_target = teacher_model(data_target)
+                                logits_target = model.discriminator(z_target)
+
+                                sig_out = torch.sigmoid(logits_out)
+                                sig_target = torch.sigmoid(logits_target)
+                                loss_out_fake = - args.lambda_GAN * torch.sum(torch.log(sig_out + 1e-3))
+                                loss_out_real = - args.lambda_GAN * torch.sum(torch.log(1 - sig_target + 1e-3))
+
+                                loss_discriminator_eval = loss_out_fake + loss_out_real
+                                loss_discriminator_mean_eval = loss_discriminator_eval / (batch_size * args.lambda_GAN)
+                            elif args.disc_loss == "David":
                                 z_target = Variable(torch.randn_like(z_cog_enc, requires_grad=False) * 0.5).to(device)
                                 logits_target = model.discriminator(z_target)
 
                                 labels_real_eval = Variable(torch.ones_like(logits_target, requires_grad=False)).to(device)
                                 labels_fake_eval = Variable(torch.zeros_like(logits_out, requires_grad=False)).to(device)
 
-                                loss_out_fake = 10 * torch.sum(bce_loss(logits_out, labels_fake_eval))
-                                loss_target_real = 10 * torch.sum(bce_loss(logits_target, labels_real_eval))
-                                mean_mult = batch_size * 10
+                                loss_out_fake = args.lambda_GAN * torch.sum(bce_loss(logits_out, labels_fake_eval))
+                                loss_target_real = args.lambda_GAN * torch.sum(bce_loss(logits_target, labels_real_eval))
+                                mean_mult = batch_size * args.lambda_GAN
                                 loss_discriminator_mean_eval = (loss_out_fake + loss_target_real) / mean_mult
                             else:
                                 _, z_target = teacher_model(data_target)
@@ -668,19 +682,31 @@ def main():
                                     device)
                                 labels_fake_eval = Variable(torch.zeros_like(logits_out, requires_grad=False)).to(
                                     device)
-                                loss_out_fake = 10 * torch.sum(bce_loss(logits_out, labels_fake_eval))
-                                loss_target_real = 10 * torch.sum(bce_loss(logits_target, labels_real_eval))
-                                mean_mult = batch_size * 10
+                                loss_out_fake = args.lambda_GAN * torch.sum(bce_loss(logits_out, labels_fake_eval))
+                                loss_target_real = args.lambda_GAN * torch.sum(bce_loss(logits_target, labels_real_eval))
+                                mean_mult = batch_size * args.lambda_GAN
                                 loss_discriminator_mean_eval = (loss_out_fake + loss_target_real) / mean_mult
 
                             # Recon loss
-                            loss_reconstruction_eval = torch.sum(torch.sum(0.5 * (out - data_target) ** 2, 1))
-                            labels_saturated_eval = Variable(torch.ones_like(logits_out, requires_grad=False)).to(
-                                device)
-                            loss_penalty_eval = 10 * torch.sum(bce_loss(logits_out, labels_saturated_eval))
-                            mean_mult = batch_size
-                            loss_reconstruction_mean_eval = loss_reconstruction_eval / mean_mult
-                            loss_penalty_mean_eval = loss_penalty_eval / mean_mult
+                            if args.WAE_loss == "Maria": # and MSE
+                                bce_loss = nn.BCEWithLogitsLoss(reduction='mean')
+                                mse_loss = nn.MSELoss(reduction='mean')
+
+                                loss_reconstruction_eval = mse_loss(out, data_target) * args.lambda_recon
+                                loss_reconstruction_mean_eval = loss_reconstruction_eval / args.lambda_recon
+
+                                loss_penalty_eval = args.lambda_GAN * bce_loss(logits_out, labels_saturated_eval)
+                                loss_penalty_mean_eval = loss_penalty_eval
+                            else: # both
+                                bce_loss = nn.BCEWithLogitsLoss(reduction='none')
+                                loss_reconstruction_eval = torch.sum(torch.sum(0.5 * (out - data_target) ** 2, 1))
+                                loss_reconstruction_mean_eval = loss_reconstruction_eval / batch_size
+
+                                labels_saturated_eval = Variable(torch.ones_like(logits_out, requires_grad=False)).to(
+                                    device)
+                                loss_penalty_eval = args.lambda_GAN * torch.sum(bce_loss(logits_out, labels_saturated_eval))
+
+                                loss_penalty_mean_eval = loss_penalty_eval / batch_size * args.lambda_GAN
 
                             # Validation metrics for the first validation batch
                             if metrics_valid is not None:
