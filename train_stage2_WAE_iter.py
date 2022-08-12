@@ -79,7 +79,7 @@ def main():
                                                                           'before the mu var layers.')
             parser.add_argument('--optim_method', default='Adam',
                                 help='defines method for optimizer. Options: RMS or Adam.', type=str)
-            parser.add_argument('--standardize', default='True',
+            parser.add_argument('--standardize', default='z',
                                 help='determines whether the dataloader uses standardize.', type=str)
             parser.add_argument('--disc_loss', default='Maria',
                                 help='determines whether we use Marias loss or the paper based one for disc', type=str)
@@ -230,10 +230,10 @@ def main():
         else:
             shuf = False
 
-        standardize = False
+        # standardize = False
 
-        if args.standardize == "True":
-            standardize = True
+        # if args.standardize == "True":
+        #     standardize = True
 
         logging.info('Are we standardize the fMRI inputs into the dataloader?', standardize)
 

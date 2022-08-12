@@ -38,6 +38,27 @@ with open(pickle_dir_norm, "rb") as input_file:
 with open(pickle_dir_raw, "rb") as input_file:
     train_data_raw = pickle.load(input_file)
 
+col = train_data_raw.iloc[[4]]
+col = col.to_numpy()
+col_tens = torch.FloatTensor(col)
+col_norm = F.normalize(col_tens)
+col_norm_np = col_norm.numpy()
+
+col_stand = standardize(col_tens)
+col_stand_np = col_stand.numpy()
+
+col_normalize = (col - 0.5) / 0.5
+# col_normalize_np = col_normalize.numpy()
+
+col_sknorm = preprocessing.normalize(col)
+col_skscale = preprocessing.scale(col)
+
+
+def standardize(fmri):
+    mu = torch.mean(fmri)
+    std = torch.std(fmri)
+    return (fmri - mu) / std
+
 
 list_1 = []
 list_2 = [1,2,3]

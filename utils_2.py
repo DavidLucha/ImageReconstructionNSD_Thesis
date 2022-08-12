@@ -35,7 +35,7 @@ class FmriDataloader(object):
     https://ndownloader.figshare.com/files/12965447
     """
 
-    def __init__(self, dataset, root_path=None, transform=None, standardizer=False):
+    def __init__(self, dataset, root_path=None, transform=None, standardizer="z"):
         """
         The constructor to initialized paths to images and fmri data
         :param data_dir: directories to fmri and image data
@@ -68,8 +68,10 @@ class FmriDataloader(object):
         fmri_tensor = torch.FloatTensor(voxels)
         # Standardises the sample, mean of 0, std of 1.
         # comment the below if you have scaled this at the whole dataset stage
-        if self.standardizer:
+        if self.standardizer == "z":
             fmri_tensor = self.standardize(fmri_tensor)
+        elif self.standardizer == "norm:":
+            fmri_tensor = F.normalize((fmri_tensor))
 
         transformed_sample = {'fmri': fmri_tensor, 'image': mod_stimulus}
 
