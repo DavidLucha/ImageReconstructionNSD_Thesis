@@ -16,6 +16,10 @@ LOAD_PATH = "D:/Lucha_Data/datasets/NSD_normed/1.8mm/train/single_pres/"
 pickle_dir = LOAD_PATH + "Subj_04_NSD_single_pres_train.pickle"
 print("Reading betas from pickle file: ", pickle_dir)
 
+LOAD_PATH = "D:/Lucha_Data/datasets/NSD/1.8mm/valid/max/VC/"
+pickle_dir = LOAD_PATH + "Subj_04_NSD_max_valid.pickle"
+print("Reading betas from pickle file: ", pickle_dir)
+
 with open(pickle_dir, "rb") as input_file:
     train_data_2 = pickle.load(input_file)
 
