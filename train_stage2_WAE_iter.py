@@ -533,22 +533,23 @@ def main():
                                 loss_penalty = args.lambda_GAN * torch.sum(bce_loss(logits_cog_enc, labels_saturated))
                                 loss_WAE = loss_reconstruction + loss_penalty * args.lambda_WAE
                                 loss_WAE.backward(inputs=list(model.encoder.parameters()))
-                                mean_mult_pen = batch_size  # * 10?
+                                mean_mult_pen = batch_size * args.lambda_GAN
                                 mean_mult_rec = batch_size
                             elif args.WAE_loss == "MSE":
                                 # As with Maria, but with BCELogits and feature loss (using vis recon as real)
                                 # But also Maria does a MSELoss in this stage and not the manual squared diff
-                                bce_loss = nn.BCEWithLogitsLoss(reduction='none')
+                                bce_loss = nn.BCEWithLogitsLoss(reduction='mean')
+                                mse_loss = nn.MSELoss(reduction='mean')
                                 # Like Maria's but with MSE and BCE from pytorch
                                 # label for non-saturating loss
                                 labels_saturated = Variable(torch.ones_like(logits_cog_enc)).to(device)
                                 # Only thing, is in here stage 2 she uses mse mean rather than the weighted sum below
                                 # loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_gt) ** 2, 1))
                                 loss_reconstruction = mse_loss(x_recon, x_gt)
-                                loss_penalty = args.lambda_GAN * torch.sum(bce_loss(logits_cog_enc, labels_saturated))
+                                loss_penalty = args.lambda_GAN * bce_loss(logits_cog_enc, labels_saturated)
                                 loss_WAE = loss_reconstruction + loss_penalty * args.lambda_WAE
                                 loss_WAE.backward(inputs=list(model.encoder.parameters()))
-                                mean_mult_pen = batch_size  # * 10?
+                                mean_mult_pen = 1  # * 10?
                                 mean_mult_rec = 1
                             else:
                                 # Adapted from original WAE paper code
@@ -665,14 +666,20 @@ def main():
                             # Recon and penalty loss
                             labels_saturated_eval = Variable(torch.ones_like(logits_out, requires_grad=False)).to(device)
                             if args.WAE_loss == "MSE":
+                                bce_loss = nn.BCEWithLogitsLoss(reduction='mean')
+                                mse_loss = nn.MSELoss(reduction='mean')
+
                                 loss_reconstruction_eval = mse_loss(x_recon, x_gt)
                                 loss_reconstruction_mean_eval = loss_reconstruction_eval
+
+                                loss_penalty_eval = args.lambda_GAN * bce_loss(logits_out, labels_saturated_eval)
+                                loss_penalty_mean_eval = loss_penalty_eval
                             else:
                                 loss_reconstruction_eval = torch.sum(torch.sum(0.5 * (out - data_target) ** 2, 1))
-                                loss_reconstruction_mean_eval = loss_reconstruction_eval / mean_mult
-                            loss_penalty_eval = args.lambda_GAN * torch.sum(bce_loss(logits_out, labels_saturated_eval))
-                            mean_mult = batch_size  # * 10?
-                            loss_penalty_mean_eval = loss_penalty_eval / mean_mult
+                                loss_reconstruction_mean_eval = loss_reconstruction_eval / batch_size
+                                loss_penalty_eval = args.lambda_GAN * torch.sum(bce_loss(logits_out, labels_saturated_eval))
+                                # mean_mult = batch_size  # * 10?
+                                loss_penalty_mean_eval = loss_penalty_eval / batch_size * args.lambda_GAN
 
                             # Validation metrics for the first validation batch
                             if metrics_valid is not None:
