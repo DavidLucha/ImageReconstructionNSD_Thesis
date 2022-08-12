@@ -691,8 +691,8 @@ def main():
                                 loss_penalty_mean_eval = loss_penalty_eval
                             if args.WAE_loss == "Maria":
                                 mse_loss = nn.MSELoss()
-                                loss_reconstruction_eval_mean = mse_loss(out, data_img)
-                                loss_penalty_eval_mean = - args.lambda_GAN * torch.mean(torch.log(logits_out + 1e-3))
+                                loss_reconstruction_mean_eval = mse_loss(out, data_img)
+                                loss_penalty_mean_eval = - args.lambda_GAN * torch.mean(torch.log(logits_out + 1e-3))
 
                                 # mean_mult_pen = batch_size * args.lambda_GAN
                                 # mean_mult_rec = 1
