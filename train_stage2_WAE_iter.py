@@ -88,6 +88,9 @@ def main():
             parser.add_argument('--lambda_WAE', default=1, help='sets the multiplier for paper WAE loss', type=int)
             parser.add_argument('--lambda_GAN', default=10, help='sets the multiplier for individual GAN losses',
                                 type=int)
+            parser.add_argument('--lambda_recon', default=1, help='weight of recon loss', type=int)
+            parser.add_argument('--clip_gradients', default='False',
+                                help='determines whether to clip gradients or not', type=str)
 
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
@@ -491,7 +494,8 @@ def main():
                                                             inputs=list(model.discriminator.parameters()))
                                 mean_mult = 1
 
-                            # [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
+                            if args.clip_gradients == "True":
+                                [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
                             optimizer_discriminator.step()
 
                             # ----------Train generator----------------
@@ -545,12 +549,12 @@ def main():
                                 labels_saturated = Variable(torch.ones_like(logits_cog_enc)).to(device)
                                 # Only thing, is in here stage 2 she uses mse mean rather than the weighted sum below
                                 # loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_gt) ** 2, 1))
-                                loss_reconstruction = mse_loss(x_recon, x_gt)
+                                loss_reconstruction = mse_loss(x_recon, x_gt) * args.lambda_recon
                                 loss_penalty = args.lambda_GAN * bce_loss(logits_cog_enc, labels_saturated)
                                 loss_WAE = loss_reconstruction + loss_penalty * args.lambda_WAE
                                 loss_WAE.backward(inputs=list(model.encoder.parameters()))
                                 mean_mult_pen = 1  # * 10?
-                                mean_mult_rec = 1
+                                mean_mult_rec = 1 * args.lambda_recon
                             else:
                                 # Adapted from original WAE paper code
                                 # label for non-saturating loss
@@ -564,7 +568,8 @@ def main():
                                 mean_mult_rec = 1
                                 # loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_gt) ** 2, 1))
 
-                            # [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
+                            if args.clip_gradients == "True":
+                                [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
                             optimizer_encoder.step()
 
                             # register mean values of the losses for logging
@@ -669,8 +674,8 @@ def main():
                                 bce_loss = nn.BCEWithLogitsLoss(reduction='mean')
                                 mse_loss = nn.MSELoss(reduction='mean')
 
-                                loss_reconstruction_eval = mse_loss(out, data_target)
-                                loss_reconstruction_mean_eval = loss_reconstruction_eval
+                                loss_reconstruction_eval = mse_loss(out, data_target) * args.lambda_recon
+                                loss_reconstruction_mean_eval = loss_reconstruction_eval / args.lambda_recon
 
                                 loss_penalty_eval = args.lambda_GAN * bce_loss(logits_out, labels_saturated_eval)
                                 loss_penalty_mean_eval = loss_penalty_eval
