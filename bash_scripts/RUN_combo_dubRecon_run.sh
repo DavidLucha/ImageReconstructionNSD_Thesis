@@ -30,7 +30,7 @@ SET_SIZE="max"
 ROI="VC"
 LOAD_FROM="pretrain"
 STAGE_1_NET="WAE_1024_Test_20220806-125520"
-STAGE_1_EPOCH="1249"
+STAGE_1_EPOCH="249"
 # Maria default - but with the fixed real/fake thing.
 # ------ CHANGE THESE ------- #
 STAGE_3_NAME=WAE_Stage3_${SUBJ}_${RUN_NAME}_${RUN_TIME}
