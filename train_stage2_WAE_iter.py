@@ -235,10 +235,10 @@ def main():
         # if args.standardize == "True":
         #     standardize = True
 
-        logging.info('Are we standardize the fMRI inputs into the dataloader?', standardize)
+        logging.info('Are we standardize the fMRI inputs into the dataloader?', args.standardize)
 
         # Load data
-        training_data = FmriDataloader(dataset=train_data, root_path=root_path, standardizer=standardize,
+        training_data = FmriDataloader(dataset=train_data, root_path=root_path, standardizer=args.standardize,
                                            transform=transforms.Compose([transforms.Resize((training_config.image_size,
                                                                                             training_config.image_size)),
                                                                          transforms.CenterCrop(
@@ -252,7 +252,7 @@ def main():
                                                                                               training_config.std)
                                                                          ]))
 
-        validation_data = FmriDataloader(dataset=valid_data, root_path=root_path, standardizer=standardize,
+        validation_data = FmriDataloader(dataset=valid_data, root_path=root_path, standardizer=args.standardize,
                                            transform=transforms.Compose([transforms.Resize((training_config.image_size,
                                                                                             training_config.image_size)),
                                                                          transforms.CenterCrop(
