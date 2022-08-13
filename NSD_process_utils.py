@@ -131,9 +131,15 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
             # Load the master ROI list
             ROI_list_dir = os.path.join(ROI_list_root, "subj_0{}_ROI_labels.csv".format(s))
             print("ROI list is located at: {}".format(ROI_list_dir))
+            betas_dir = "D:/NSD/nsddata_betas/ppdata/subj0{}/func1pt8mm/betas_fithrf_GLMdenoise_RR"
+            rand_ROI_dir = os.path.join(betas_dir, "/subj_0{}_masked_betas_session01_rand_samp.txt")
 
             with open(ROI_list_dir, 'r') as f:
                 ROI_list = pd.read_csv(f, sep=",", dtype=int)
+
+            with open(rand_ROI_dir, 'r') as f:
+                # Grab ROI IDs of random voxel selection
+                rand_array = pd.read_csv(f, sep=" ", header=None)[0]
 
             # Gets the voxel IDs of those matching ROI label (see supplementary for data manual)
             # .isin checks ROI_Label for those values and returns them
@@ -149,9 +155,11 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
             HVC_array = ROI_list[ROI_list['ROI_Label'] >= 8]['Voxel_ID']
             # Everything but V4
             V1toV3_HVC_array = ROI_list[ROI_list['ROI_Label'] != 7]['Voxel_ID']
+            # Add the rand IDs onto V1-V3 array
+            V1toV3_rand_array = V1toV3_array.append(rand_array, ignore_index=True)
 
             all_arrays = {
-                "VC": VC_array, # TODO: uncomment
+                "VC": VC_array,
                 "V1": V1_array,
                 "V2": V2_array,
                 "V3": V3_array,
@@ -159,7 +167,7 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
                 "V4": V4_array,
                 "HVC": HVC_array,
                 "V1_to_V3_n_HVC": V1toV3_HVC_array,
-                "V1_to_V3_n_rand": V1toV3_array}
+                "V1_to_V3_n_rand": V1toV3_rand_array}
 
             # for key in all_arrays:
             #     print(key)
@@ -207,12 +215,34 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
         # FILE_NAME_OUTPUT = '/images/' + image_type  # Defines the path in the dictionary outputs
         pickle_dir = os.path.join(data_dir, "subj_0{}_{}_concat_trial_fmri.pickle".format(s,norm))
         print("Reading betas from pickle file: ", pickle_dir)
-        data = pd.read_pickle(pickle_dir)
+        # data = pd.read_pickle(pickle_dir)
+        with open(pickle_dir, "rb") as input_file:
+            data = pickle.load(input_file)
 
         # Add the rand sample data to the right of the dataframe for the last key of all array (V1-3+RAND)
         rand_dir = os.path.join(data_dir, "subj_0{}_{}_concat_trial_fmri_rand.pickle".format(s,norm))
         print("Reading random sample betas from pickle file: ", rand_dir)
-        rand_data = pd.read_pickle(rand_dir)
+        # rand_data = pd.read_pickle(rand_dir)
+        with open(rand_dir, "rb") as input_file:
+            rand_data = pickle.load(input_file)
+
+        # Add rand_data to the right of dataframe
+        merged_data = pd.concat([data, rand_data], axis=1)
+        # Remove duplicate columns
+        # Randomly sampled voxels can include whole brain except for V1-V3 (double ups in HVC are possible)
+        cleaned_merged_data = merged_data.loc[:, ~merged_data.columns.duplicated()].copy()
+        # Using list(df) to get the column headers as a list
+        column_names = list(cleaned_merged_data.columns)
+
+        # Scale whole dataset?
+        preprocess = True
+        if preprocess:
+            # Add preprocessing
+            data = preprocessing.scale(cleaned_merged_data)
+            # bring back column header values
+            data = pd.DataFrame(data, columns=column_names)
+            # read index rows starting from 1
+            data.index = np.arange(1, len(data) + 1)
 
         if train:
             image_type = 'train/'
@@ -226,8 +256,8 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
                     # Grab columns (voxel_IDs) for each ROI array
                     fmri_voxels = data.loc[:, array]
 
-                    if key == "V1_to_V3_n_rand":
-                        fmri_voxels = pd.concat([fmri_voxels, rand_data], axis=1)
+                    # if key == "V1_to_V3_n_rand":
+                    #     fmri_voxels = pd.concat([fmri_voxels, rand_data], axis=1)
 
                     # cut down fmri dataframe to training trials
                     fmri = fmri_voxels.loc[train_array]
@@ -260,8 +290,10 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
 
             if single_pres:
                 fmri_image_dataset = []
+                # Grab columns (voxel_IDs) just for VC (excluding rand sampled)
+                fmri_voxels = data.loc[:, VC_array]
                 # cut down fmri dataframe to training trials
-                fmri = data.loc[train_array]
+                fmri = fmri_voxels.loc[train_array]
                 # Convert fMRI data for zipping
                 fmri_zip = fmri.to_numpy()
                 # Make dataframe with just image_idx
@@ -298,8 +330,8 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
                     # Grab columns (voxel_IDs) for each ROI array
                     fmri_voxels = data.loc[:, array]
 
-                    if key == "V1_to_V3_n_rand":
-                        fmri_voxels = pd.concat([fmri_voxels, rand_data], axis=1)
+                    # if key == "V1_to_V3_n_rand":
+                    #     fmri_voxels = pd.concat([fmri_voxels, rand_data], axis=1)
 
                     # cut down fmri dataframe to training trials
                     fmri = fmri_voxels.loc[test_array]
@@ -333,9 +365,10 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
 
             if single_pres: # ROI selection is only for max voxels
                 fmri_image_dataset = []
-                # cut down fmri dataframe to training trials
-                fmri = data.loc[test_array]
-
+                # Grab columns (voxel_IDs) just for VC (excluding rand sampled)
+                fmri_voxels = data.loc[:, VC_array]
+                # cut down fmri dataframe to test trials
+                fmri = fmri_voxels.loc[test_array]
                 # raise Exception('check voxels and array')
 
                 # Convert fMRI data for zipping
@@ -456,6 +489,19 @@ def nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_ty
         pickle_dir = os.path.join(data_dir, "subj_0{}_{}_concat_trial_fmri.pickle".format(s,norm))
         print("Reading betas from pickle file: ",pickle_dir)
         data = pd.read_pickle(pickle_dir)
+
+        # Using list(df) to get the column headers as a list
+        column_names = list(data.columns)
+
+        # Scale whole dataset?
+        preprocess = True
+        if preprocess:
+            # Add preprocessing
+            data = preprocessing.scale(data)
+            # bring back column header values
+            data = pd.DataFrame(data, columns=column_names)
+            # read index rows starting from 1
+            data.index = np.arange(1, len(data) + 1)
 
         if train:
             image_type = 'train/'

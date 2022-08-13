@@ -12,6 +12,61 @@ from sklearn import preprocessing
 import training_config as cfg
 import random
 
+data_dir = os.path.join("D:/Honours/nsd_pickles/1.8mm", "raw_concat_pickle")
+
+pickle_dir = os.path.join(data_dir, "subj_01_raw_concat_trial_fmri.pickle")
+print("Reading betas from pickle file: ", pickle_dir)
+# data = pd.read_pickle(pickle_dir)
+
+# Add the rand sample data to the right of the dataframe for the last key of all array (V1-3+RAND)
+rand_dir = os.path.join(data_dir, "subj_01_raw_concat_trial_fmri_rand.pickle")
+print("Reading random sample betas from pickle file: ", rand_dir)
+# rand_data = pd.read_pickle(rand_dir)
+with open(pickle_dir, "rb") as input_file:
+    data = pickle.load(input_file)
+with open(rand_dir, "rb") as input_file:
+    rand_data = pickle.load(input_file)
+
+# Add rand_data to the right of dataframe
+merged_data = pd.concat([data, rand_data], axis=1)
+merged_count = 12115 + 8145
+# Remove duplicate columns
+cleaned_merged_data = merged_data.loc[:,~merged_data.columns.duplicated()].copy()
+
+#Using list(df) to get the column headers as a list
+column_names = list(cleaned_merged_data.columns)
+
+# Add preprocessing
+normed_subject_full_df = preprocessing.scale(cleaned_merged_data)
+# bring back column header values
+normed_subject_full_df_titled = pd.DataFrame(normed_subject_full_df, columns = column_names)
+# read index rows starting from 1
+normed_subject_full_df_titled.index = np.arange(1, len(normed_subject_full_df_titled) + 1)
+
+
+# -------------
+
+sub = 1
+betas_dir = "D:/NSD/nsddata_betas/ppdata/subj0{}/func1pt8mm/betas_fithrf_GLMdenoise_RR".format(sub)
+rand_ROI_dir = os.path.join(betas_dir, "subj_0{}_masked_betas_session01_rand_samp.txt".format(sub))
+
+with open(rand_ROI_dir, 'r') as f:
+    rand_array = pd.read_csv(f, sep=" ", header=None)[0]
+    # rand_array_array = rand_array[0]
+
+ROI_list_root = 'D:/NSD/inode/full_roi/'
+# Load the master ROI list
+ROI_list_dir = os.path.join(ROI_list_root, "subj_0{}_ROI_labels.csv".format(sub))
+with open(ROI_list_dir, 'r') as f:
+    ROI_list = pd.read_csv(f, sep=",", dtype=int)
+V1toV3_array = ROI_list[ROI_list['ROI_Label'] < 7]['Voxel_ID']
+
+V1_to_V3_n_rand = V1toV3_array.append(rand_array, ignore_index=True)
+
+select_voxels = cleaned_merged_data.loc[:, V1_to_V3_n_rand]
+
+
+# ----------------------
 LOAD_PATH = "D:/Lucha_Data/datasets/NSD_normed/1.8mm/train/single_pres/"
 pickle_dir = LOAD_PATH + "Subj_04_NSD_single_pres_train.pickle"
 print("Reading betas from pickle file: ", pickle_dir)

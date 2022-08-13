@@ -73,15 +73,16 @@ fMRI Y-Trial Number and X-Voxel ID Formatting
 # Test grabbing voxel_id, and voxel values, transpose
 # Such that, voxels_id are columns, and trials are rows 0-749
 
-concat = False
+concat = True
+# TODO Run this first on data_type rand
 
 if concat:
     data_dir = "D:/NSD/nsddata_betas/ppdata/"
     session_count = [0, 37, 37, 29, 27, 37, 29, 37, 27]
     out_path = "D:/Honours/nsd_pickles/"
     # ------------- CHANGE THESE TWO -------------- #
-    vox_res = "3mm"
-    data_type = "3mm"  #  "1.8mm" is main 1.8mm, "3mm" is 3mm and "rand" is for the random selection of voxels
+    vox_res = "1.8mm"
+    data_type = "rand"  #  "1.8mm" is main 1.8mm, "3mm" is 3mm and "rand" is for the random selection of voxels
     # -------------------- END -------------------- #
 
     # Full for session range:
@@ -212,7 +213,7 @@ Creating trainable datasets (list of dicts)
 """
 
 dict_prep = False
-
+# TODO: Run this twice, for 1.8 and for 3mm
 if dict_prep:
     # Hello there. - Obi Wan
     subj_list = [1, 2, 3, 4, 5, 6, 7, 8]  # 1, 2, 3, 4, 5, 6, 7, 8
@@ -229,16 +230,16 @@ if dict_prep:
     # -------------- END ---------------#
 
     # Runs the 3mm process
-    mm_3 = True
-    if mm_3:
+    # mm_3 = True
+    if vox_res == "3mm":
         # Gets max, all pres - not currently planned use
         nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, norm, False)
         # Using first presentation only
         nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, norm, True)
 
     # Runs the 1.8mm process
-    mm_1pt8 = False
-    if mm_1pt8:
+    # mm_1pt8 = False
+    if vox_res == "1.8mm":
         # All data
         nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, norm, False)
         # Using first presentation only
@@ -292,7 +293,8 @@ if get_array:
 
 
 # var_training set grabs the variable-sized training sets based on the set random arrays from above
-var_training_set = True
+# TODO Run this to get sub sets - Twice and change vox_res
+var_training_set = False
 
 if var_training_set:
     input_path = "D:/Lucha_Data/datasets/NSD/"
