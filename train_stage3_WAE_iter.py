@@ -89,6 +89,8 @@ def main():
             parser.add_argument('--lambda_GAN', default=10, help='sets the multiplier for individual GAN losses',
                                 type=int)
             parser.add_argument('--lambda_recon', default=1, help='weight of recon loss', type=int)
+            parser.add_argument('--clip_gradients', default='False',
+                                help='determines whether to clip gradients or not', type=str)
 
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
