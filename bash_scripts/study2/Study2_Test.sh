@@ -1,12 +1,12 @@
 #!/bin/bash
 
 #SBATCH -N 1
-#SBATCH --job-name=Study2_Subj1
+#SBATCH --job-name=Study2_Test
 #SBATCH -n 2
 #SBATCH -c 25
 #SBATCH --mem=20000
-#SBATCH -o Study2_Subj1_output.txt
-#SBATCH -e Study2_Subj1_error.txt
+#SBATCH -o Study2_Test_output.txt
+#SBATCH -e Study2_Test_error.txt
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:tesla:1
 #SBATCH --mail-type=ALL
@@ -30,7 +30,7 @@ ROI="VC"
 LOAD_FROM="pretrain"
 STAGE_1_NET="WAE_1024_Test_20220806-125520"
 STAGE_1_EPOCH="249"
-MESSAGE=""
+MESSAGE="A test through the for loop."
 # ------ CHANGE THESE ------- #
 
 for VOX_RES in 1.8mm 3mm
