@@ -131,8 +131,8 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
             # Load the master ROI list
             ROI_list_dir = os.path.join(ROI_list_root, "subj_0{}_ROI_labels.csv".format(s))
             print("ROI list is located at: {}".format(ROI_list_dir))
-            betas_dir = "D:/NSD/nsddata_betas/ppdata/subj0{}/func1pt8mm/betas_fithrf_GLMdenoise_RR"
-            rand_ROI_dir = os.path.join(betas_dir, "/subj_0{}_masked_betas_session01_rand_samp.txt")
+            betas_dir = "D:/NSD/nsddata_betas/ppdata/subj0{}/func1pt8mm/betas_fithrf_GLMdenoise_RR".format(s)
+            rand_ROI_dir = os.path.join(betas_dir, "subj_0{}_masked_betas_session01_rand_samp.txt".format(s))
 
             with open(ROI_list_dir, 'r') as f:
                 ROI_list = pd.read_csv(f, sep=",", dtype=int)

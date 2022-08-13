@@ -165,7 +165,7 @@ def main():
         if not os.path.exists(SAVE_PATH):
             os.makedirs(SAVE_PATH)
 
-        SAVE_SUB_PATH = os.path.join(SAVE_PATH, 'stage_2_WAE_{}.pth'.format(args.run_name))
+        SAVE_SUB_PATH = os.path.join(SAVE_PATH, '{}.pth'.format(args.run_name))
         if not os.path.exists(SAVE_SUB_PATH):
             os.makedirs(SAVE_SUB_PATH)
 
@@ -308,6 +308,7 @@ def main():
 
         # Loading Checkpoint | If you want to continue training for existing checkpoint | currently not fixed
         # Set checkpoint path
+        # CHECKPOINT CODE NOT WORKIGN RIGHT NOW
         if args.network_checkpoint is not None:
             net_checkpoint_path = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, SUBJECT_PATH,
                                                'stage_2', args.network_checkpoint,
@@ -462,6 +463,27 @@ def main():
                                 loss_discriminator_real.backward(retain_graph=True,
                                                                  inputs=list(model.discriminator.parameters()))
                                 mean_mult = batch_size * args.lambda_GAN
+                            elif args.disc_loss == "Maria_Flip":
+                                # Corrects the flip of cog and vis enc for real and fake
+                                sig_cog_enc = torch.sigmoid(logits_cog_enc)
+                                sig_vis_enc = torch.sigmoid(logits_vis_enc)
+                                # THEY HAVE FUCKED UP.
+                                # here taking the BCE (1, cogenc) INCORRECT
+                                # under the assumption we want the cog enc latent to be more like the VIS ENC
+                                # the effect of this is a network which classifies a virgin cogenc as real
+                                loss_discriminator_fake = - args.lambda_GAN * torch.sum(torch.log(sig_vis_enc + 1e-3))
+                                # here taking the BCE of (0, vis enc)
+                                # minimizes likelihood of discriminator identifying vis enc as 0
+                                # is that the network incorrectly classifies the trained network encs as false
+                                loss_discriminator_real = - args.lambda_GAN * torch.sum(torch.log(1 - sig_cog_enc + 1e-3))
+
+                                loss_discriminator = loss_discriminator_fake + loss_discriminator_real
+
+                                loss_discriminator_fake.backward(retain_graph=True,
+                                                                 inputs=list(model.discriminator.parameters()))
+                                loss_discriminator_real.backward(retain_graph=True,
+                                                                 inputs=list(model.discriminator.parameters()))
+                                mean_mult = batch_size * args.lambda_GAN
                             elif args.disc_loss == "Both":
                                 # Using Maria's but with modern Pytorch BCE loss + addition of loss terms before back pass
                                 bce_loss = nn.BCEWithLogitsLoss(reduction='none')
@@ -512,13 +534,15 @@ def main():
                             x_gt = trained_model.decoder(z_vis_enc)
 
                             if args.WAE_loss == 'Maria':
+                                # Get sigmoid of logits
+                                sig_cog_enc = torch.sigmoid(logits_cog_enc)
                                 # loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_image) ** 2, 1))
                                 mse_loss = nn.MSELoss()
                                 loss_reconstruction = mse_loss(x_recon, x_image)
                                 # This is equivalent of BCELoss(real, 1)
                                 # so we are saying the loss is the distance of the latent space of cog enc
                                 # to the real 1 (of the visual enc)
-                                loss_penalty = - args.lambda_GAN * torch.mean(torch.log(logits_cog_enc + 1e-3))
+                                loss_penalty = - args.lambda_GAN * torch.mean(torch.log(sig_cog_enc + 1e-3))
 
                                 loss_reconstruction.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
                                 loss_penalty.backward(inputs=list(model.encoder.parameters()))
@@ -606,7 +630,12 @@ def main():
                     #     grid_count = 25
                     # nrow = int(math.sqrt(grid_count))
 
-                    if not idx_epoch % 2:
+                    if args.set_size in ("1200", "4000", "7500"):
+                        train_recon_freq = 10
+                    else:
+                        train_recon_freq = 2
+
+                    if not idx_epoch % train_recon_freq:
                         # Save train examples
                         images_dir = os.path.join(SAVE_PATH, 'images', 'train')
                         if not os.path.exists(images_dir):
@@ -668,6 +697,14 @@ def main():
 
                                 loss_discriminator_eval = loss_out_fake + loss_out_real
                                 loss_discriminator_mean_eval = loss_discriminator_eval / (batch_size * args.lambda_GAN)
+                            elif args.disc_loss == "Maria_Flip":
+                                sig_out = torch.sigmoid(logits_out)
+                                sig_target = torch.sigmoid(logits_target)
+                                loss_out_fake = - args.lambda_GAN * torch.sum(torch.log(sig_target + 1e-3))
+                                loss_out_real = - args.lambda_GAN * torch.sum(torch.log(1 - sig_out + 1e-3))
+
+                                loss_discriminator_eval = loss_out_fake + loss_out_real
+                                loss_discriminator_mean_eval = loss_discriminator_eval / (batch_size * args.lambda_GAN)
                             else:
                                 # Note the below is only accurate if using 'both' for WAE and disc loss
                                 # Discriminator loss
@@ -690,9 +727,10 @@ def main():
                                 loss_penalty_eval = args.lambda_GAN * bce_loss(logits_out, labels_saturated_eval)
                                 loss_penalty_mean_eval = loss_penalty_eval
                             if args.WAE_loss == "Maria":
+                                sig_out = torch.sigmoid(logits_out)
                                 mse_loss = nn.MSELoss()
                                 loss_reconstruction_mean_eval = mse_loss(out, data_img)
-                                loss_penalty_mean_eval = - args.lambda_GAN * torch.mean(torch.log(logits_out + 1e-3))
+                                loss_penalty_mean_eval = - args.lambda_GAN * torch.mean(torch.log(sig_out + 1e-3))
 
                                 # mean_mult_pen = batch_size * args.lambda_GAN
                                 # mean_mult_rec = 1
@@ -729,23 +767,31 @@ def main():
 
                         out = out.data.cpu()
 
-                        if shuf:
-                            fig, ax = plt.subplots(figsize=(10, 10))
-                            ax.set_xticks([])
-                            ax.set_yticks([])
-                            ax.set_title('Validation Ground Truth')
-                            ax.imshow(
-                                make_grid(data_target[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
-                            gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
-                            plt.savefig(gt_dir)
+                        if args.set_size in ("1200", "4000"):
+                            eval_recon_freq = 20
+                        elif args.set_size == "7500":
+                            eval_recon_freq = 2
+                        else:
+                            eval_recon_freq = 1
 
-                            # fig, ax = plt.subplots(figsize=(10, 10))
-                            # ax.set_xticks([])
-                            # ax.set_yticks([])
-                            # ax.set_title('Validation Vis Enc Reconstruction at Epoch {}'.format(idx_epoch))
-                            # ax.imshow(make_grid(vis_out[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
-                            # output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
-                            # plt.savefig(output_dir)
+                        if shuf:
+                            if not idx_epoch % eval_recon_freq:
+                                fig, ax = plt.subplots(figsize=(10, 10))
+                                ax.set_xticks([])
+                                ax.set_yticks([])
+                                ax.set_title('Validation Ground Truth')
+                                ax.imshow(
+                                    make_grid(data_target[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
+                                gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
+                                plt.savefig(gt_dir)
+
+                                # fig, ax = plt.subplots(figsize=(10, 10))
+                                # ax.set_xticks([])
+                                # ax.set_yticks([])
+                                # ax.set_title('Validation Vis Enc Reconstruction at Epoch {}'.format(idx_epoch))
+                                # ax.imshow(make_grid(vis_out[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
+                                # output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
+                                # plt.savefig(output_dir)
 
                         else:  # valid_shuffle is false, so same images are shown
                             if idx_epoch == 0:
@@ -767,13 +813,14 @@ def main():
                                 #                           'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
                                 # plt.savefig(output_dir)
 
-                        fig, ax = plt.subplots(figsize=(10, 10))
-                        ax.set_xticks([])
-                        ax.set_yticks([])
-                        ax.set_title('Validation Reconstruction at Epoch {}'.format(idx_epoch))
-                        ax.imshow(make_grid(out[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
-                        output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
-                        plt.savefig(output_dir)
+                        if not idx_epoch % eval_recon_freq:
+                            fig, ax = plt.subplots(figsize=(10, 10))
+                            ax.set_xticks([])
+                            ax.set_yticks([])
+                            ax.set_title('Validation Reconstruction at Epoch {}'.format(idx_epoch))
+                            ax.imshow(make_grid(out[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
+                            output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
+                            plt.savefig(output_dir)
 
                         # out = (out + 1) / 2
                         # out = make_grid(out, nrow=8)
@@ -814,7 +861,16 @@ def main():
                     results['loss_penalty_eval'].append(loss_penalty_mean_eval)
                     results['loss_discriminator_eval'].append(loss_discriminator_mean_eval)
 
-                    if not idx_epoch % 10 or idx_epoch == epochs_n-1:
+                    if args.set_size == "1200":
+                        save_div = 50
+                    elif args.set_size == "4000":
+                        save_div = 20
+                    elif args.set_size == "7500":
+                        save_div = 10
+                    else:
+                        save_div = 5
+
+                    if not idx_epoch % save_div or idx_epoch == epochs_n-1:
                         torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
                         logging.info('Saving model')
 

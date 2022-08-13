@@ -73,8 +73,7 @@ fMRI Y-Trial Number and X-Voxel ID Formatting
 # Test grabbing voxel_id, and voxel values, transpose
 # Such that, voxels_id are columns, and trials are rows 0-749
 
-concat = True
-# TODO Run this first on data_type rand
+concat = False
 
 if concat:
     data_dir = "D:/NSD/nsddata_betas/ppdata/"
@@ -294,7 +293,7 @@ if get_array:
 
 # var_training set grabs the variable-sized training sets based on the set random arrays from above
 # TODO Run this to get sub sets - Twice and change vox_res
-var_training_set = False
+var_training_set = True
 
 if var_training_set:
     input_path = "D:/Lucha_Data/datasets/NSD/"
@@ -308,6 +307,7 @@ if var_training_set:
         # Load data
         with open(data_path, "rb") as input_file:
             data = pickle.load(input_file)
+        print('Loaded {}'.format(data_path))
 
         # Load small and medium array
         small_array_path = os.path.join(input_path, array_path, "1200_NSD_single_pres_train_array.pickle")
@@ -333,6 +333,7 @@ if var_training_set:
         with open(big_array_path, "rb") as input_file:
             big_array = pickle.load(input_file)
 
+        print('Making sub datasets...')
         large_set_data = [data[i] for i in big_array]
         med_set_data = [large_set_data[i] for i in med_array]
         small_set_data = [med_set_data[i] for i in small_array]

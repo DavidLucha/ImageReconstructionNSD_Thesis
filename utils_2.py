@@ -35,7 +35,7 @@ class FmriDataloader(object):
     https://ndownloader.figshare.com/files/12965447
     """
 
-    def __init__(self, dataset, root_path=None, transform=None, standardizer="z"):
+    def __init__(self, dataset, root_path=None, transform=None, standardizer="none"):
         """
         The constructor to initialized paths to images and fmri data
         :param data_dir: directories to fmri and image data
@@ -539,6 +539,7 @@ def objective_assessment(model, dataloader, dataset=None, mode=None, top=5):
 
     pearson_correlation = PearsonCorrelation()
     structural_similarity = StructuralSimilarity()
+
     true_positives = torch.tensor([0, 0])
     dataset_size = 0
     score_pcc = 0
@@ -548,29 +549,22 @@ def objective_assessment(model, dataloader, dataset=None, mode=None, top=5):
         model.eval()
 
         with no_grad():
-            if dataset == 'bold':
-                data_target = Variable(data_batch['image'], requires_grad=False).cpu().detach()
-            else:
-                data_target = data_batch.cpu().detach()
+            data_target = Variable(data_batch['image'], requires_grad=False).cpu().detach()
 
-            try:
-                out = model(data_batch)
-            except TypeError as e:
-                if mode == 'wae-gan':
-                    out = model(data_batch['fmri'])
-                else:
-                    logging.info('Wrong data type')
+            out = model(data_batch['fmri'])
             out = out.data.cpu()
 
             for idx, image in enumerate(out):
                 numbers = list(range(0, len(out)))
                 numbers.remove(idx)
                 for i in range(top-1):
+                    # Get random number not including ID of original
                     rand_idx = random.choice(numbers)
                     score_rand = pearson_correlation(image, data_target[rand_idx])
                     score_gt = pearson_correlation(image, data_target[idx])
                     if score_gt > score_rand:
                         score_pcc += 1
+                    # TODO: check if the unsqueeze is needed
                     image_for_ssim = torch.unsqueeze(image, 0)
                     target_gt_for_ssim = torch.unsqueeze(data_target[idx], 0)
                     target_rand_for_ssim = torch.unsqueeze(data_target[rand_idx], 0)
