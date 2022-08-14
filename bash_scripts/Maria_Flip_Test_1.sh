@@ -24,7 +24,7 @@ RUN_TIME=$(date +%Y%m%d-%H%M%S)
 # ------ CHANGE THESE ------- #
 # STUDY=1
 SUBJ=1
-VOX_RES="1.8mm"
+VOX_RES="1pt8mm"
 # BATCH_SIZE=32
 SET_SIZE="max"
 ROI="VC"

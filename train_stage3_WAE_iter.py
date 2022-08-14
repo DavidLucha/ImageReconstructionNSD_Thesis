@@ -622,7 +622,7 @@ def main():
                     results['loss_discriminator'].append(loss_discriminator_mean)
 
                     # plot arrangements
-                    grid_count = 25
+                    # grid_count = 25
                     nrow = 5
                     # if batch_size == 64:
                     #     grid_count = 25
@@ -643,7 +643,7 @@ def main():
                         ax.set_xticks([])
                         ax.set_yticks([])
                         ax.set_title('Training Ground Truth at Epoch {}'.format(idx_epoch))
-                        ax.imshow(make_grid(x_image[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
+                        ax.imshow(make_grid(x_image.cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                         gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                         plt.savefig(gt_dir)
 
@@ -652,7 +652,7 @@ def main():
                         # ax.set_yticks([])
                         # ax.set_title('Training Vis Enc Reconstruction (Real) at Epoch {}'.format(idx_epoch))
                         # ax.imshow(
-                        #     make_grid(x_gt[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
+                        #     make_grid(x_gt.cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                         # gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
                         # plt.savefig(gt_dir)
 
@@ -660,7 +660,7 @@ def main():
                         ax.set_xticks([])
                         ax.set_yticks([])
                         ax.set_title('Training Reconstruction at Epoch {}'.format(idx_epoch))
-                        ax.imshow(make_grid(x_recon[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
+                        ax.imshow(make_grid(x_recon.cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                         output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
                         plt.savefig(output_dir)
 
@@ -790,7 +790,7 @@ def main():
                                 ax.set_yticks([])
                                 ax.set_title('Validation Ground Truth')
                                 ax.imshow(
-                                    make_grid(data_target[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
+                                    make_grid(data_target.cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                                 gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                                 plt.savefig(gt_dir)
 
@@ -798,7 +798,7 @@ def main():
                                 # ax.set_xticks([])
                                 # ax.set_yticks([])
                                 # ax.set_title('Validation Vis Enc Reconstruction at Epoch {}'.format(idx_epoch))
-                                # ax.imshow(make_grid(vis_out[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
+                                # ax.imshow(make_grid(vis_out.cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                                 # output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
                                 # plt.savefig(output_dir)
 
@@ -808,7 +808,7 @@ def main():
                                 ax.set_xticks([])
                                 ax.set_yticks([])
                                 ax.set_title('Validation Ground Truth')
-                                ax.imshow(make_grid(data_target[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
+                                ax.imshow(make_grid(data_target.cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                                 gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                                 plt.savefig(gt_dir)
 
@@ -817,7 +817,7 @@ def main():
                                 # ax.set_yticks([])
                                 # ax.set_title('Validation Vis Enc Reconstruction at Epoch {}'.format(idx_epoch))
                                 # ax.imshow(
-                                #     make_grid(vis_out[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
+                                #     make_grid(vis_out.cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                                 # output_dir = os.path.join(images_dir,
                                 #                           'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
                                 # plt.savefig(output_dir)
@@ -827,7 +827,7 @@ def main():
                             ax.set_xticks([])
                             ax.set_yticks([])
                             ax.set_title('Validation Reconstruction at Epoch {}'.format(idx_epoch))
-                            ax.imshow(make_grid(out[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
+                            ax.imshow(make_grid(out.cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                             output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
                             plt.savefig(output_dir)
 
