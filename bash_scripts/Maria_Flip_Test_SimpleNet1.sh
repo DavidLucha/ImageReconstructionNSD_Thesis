@@ -1,12 +1,12 @@
 #!/bin/bash
 
 #SBATCH -N 1
-#SBATCH --job-name=Maria_Flip_1
+#SBATCH --job-name=Maria_Flip_SimpNet
 #SBATCH -n 2
 #SBATCH -c 25
 #SBATCH --mem=20000
-#SBATCH -o Maria_Flip_1_output.txt
-#SBATCH -e Maria_Flip_1_error.txt
+#SBATCH -o Maria_Flip_SimpNet_output.txt
+#SBATCH -e Maria_Flip_SimpNet_error.txt
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:tesla:1
 #SBATCH --mail-type=ALL
@@ -30,8 +30,8 @@ SET_SIZE="max"
 ROI="VC"
 LOAD_FROM="pretrain"
 STAGE_1_NET="WAE_Maria_512_New_Test_20220811-003030"
-STAGE_1_EPOCH="249"
-RUN_NAME="Maria_Flip_1_SUBJ0${SUBJ}_${VOX_RES}_${ROI}_${SET_SIZE}"
+STAGE_1_EPOCH="119"
+RUN_NAME="Maria_Flip_SimpNet_SUBJ0${SUBJ}_${VOX_RES}_${ROI}_${SET_SIZE}"
 MESSAGE="Trying Maria flip again but with the no momentum in the cogenc, and self init cogenc at bs16 and dropped enc lr. Reduce model complexity and 512 latent."
 # ------ CHANGE THESE ------- #
 STAGE_2_NAME=${RUN_NAME}_Stage2_${RUN_TIME}
