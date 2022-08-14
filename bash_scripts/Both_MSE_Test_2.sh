@@ -32,7 +32,7 @@ LOAD_FROM="pretrain"
 STAGE_1_NET="WAE_1024_Test_20220806-125520"
 STAGE_1_EPOCH="249"
 RUN_NAME="Maria_Reborn_1_SUBJ0${SUBJ}_${VOX_RES}_${ROI}_${SET_SIZE}"
-MESSAGE="Trying Maria again with default momentum and init at bs16 and default enc lr with weight decay"
+MESSAGE="Double both"
 # ------ CHANGE THESE ------- #
 STAGE_2_NAME=${RUN_NAME}_Stage2_${RUN_TIME}
 STAGE_3_NAME=${RUN_NAME}_Stage3_${RUN_TIME}
@@ -43,7 +43,7 @@ STAGE_3_NAME=${RUN_NAME}_Stage3_${RUN_TIME}
 #TODO CHANGE EPOCH AND ITERATIONS
 #TODO CHECK BATCHSIZE VAR IS WORKING
 echo "Running stage 2 at $(date +%Y%m%d-%H%M%S)"
-srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/train_stage2_WAE_iter.py --run_name ${STAGE_2_NAME} --load_from ${LOAD_FROM} --pretrained_net ${STAGE_1_NET} --load_epoch ${STAGE_1_EPOCH} --standardize none --disc_loss Maria --WAE_loss Maria --lambda_WAE 1 --lambda_GAN 10 --lambda_recon 1 --batch_size 32 --lr_enc 0.001 --lr_disc 0.0005 --valid_shuffle True --latent_dims 1024 --lin_size 2048 --lin_layers 2 --weight_decay 0.00001 --clip_gradients False --vox_res ${VOX_RES} --set_size ${SET_SIZE} --subject ${SUBJ} --ROI ${ROI} --num_workers 2 --epochs 130 --iters 100000 --dataset NSD --seed 277603 --message "${MESSAGE}"
+srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/train_stage2_WAE_iter.py --run_name ${STAGE_2_NAME} --load_from ${LOAD_FROM} --pretrained_net ${STAGE_1_NET} --load_epoch ${STAGE_1_EPOCH} --standardize none --disc_loss Both --WAE_loss Both --lambda_WAE 1 --lambda_GAN 10 --lambda_recon 1 --batch_size 32 --lr_enc 0.001 --lr_disc 0.0005 --weight_decay 0.00001 --valid_shuffle True --latent_dims 1024 --lin_size 2048 --lin_layers 2 --clip_gradients False --vox_res ${VOX_RES} --set_size ${SET_SIZE} --subject ${SUBJ} --ROI ${ROI} --num_workers 2 --epochs 130 --iters 100000 --dataset NSD --seed 277603 --message "${MESSAGE}"
 echo "Stage 2 complete at $(date +%Y%m%d-%H%M%S)"
 
 # Run stage 3

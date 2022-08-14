@@ -77,6 +77,7 @@ def main():
             parser.add_argument('--lin_size', default=1024, type=int, help='sets the number of nuerons in cog lin layer')
             parser.add_argument('--lin_layers', default=1, type=int, help='sets how many layers of cog network '
                                                                           'before the mu var layers.')
+            parser.add_argument('--weight_decay', default=0.0, type=float, help='sets the weight decay for Adam')
             parser.add_argument('--optim_method', default='Adam',
                                 help='defines method for optimizer. Options: RMS or Adam.', type=str)
             parser.add_argument('--standardize', default='z',
@@ -353,17 +354,19 @@ def main():
 
         else:
             # Optimizers
-            optimizer_encoder = torch.optim.Adam(model.encoder.parameters(), lr=lr_enc, betas=(beta, 0.999))
+            optimizer_encoder = torch.optim.Adam(model.encoder.parameters(), lr=lr_enc, betas=(beta, 0.999),
+                                                 weight_decay=args.weight_decay)
             # optimizer_decoder = torch.optim.Adam(model.decoder.parameters(), lr=0.001, betas=(0.5, 0.999))
-            optimizer_discriminator = torch.optim.Adam(model.discriminator.parameters(), lr=lr_disc, betas=(beta, 0.999))
+            optimizer_discriminator = torch.optim.Adam(model.discriminator.parameters(), lr=lr_disc, betas=(beta, 0.999),
+                                                       weight_decay=args.weight_decay)
 
             lr_encoder = StepLR(optimizer_encoder, step_size=30, gamma=0.5)
             # lr_decoder = StepLR(optimizer_decoder, step_size=30, gamma=0.5)
             lr_discriminator = StepLR(optimizer_discriminator, step_size=30, gamma=0.5)
 
         # Define criterion
-        bce_loss = nn.BCEWithLogitsLoss()
-        mse_loss = nn.MSELoss(reduction='none')
+        # bce_loss = nn.BCEWithLogitsLoss()
+        # mse_loss = nn.MSELoss(reduction='none')
 
         # Metrics
         pearson_correlation = PearsonCorrelation()
@@ -493,14 +496,14 @@ def main():
 
                                 loss_discriminator = loss_discriminator_fake + loss_discriminator_real
 
-                                loss_discriminator_fake.backward(retain_graph=True)
-                                                                 # inputs=list(model.discriminator.parameters()))
-                                loss_discriminator_real.backward(retain_graph=True)
-                                                                 # inputs=list(model.discriminator.parameters()))
+                                loss_discriminator_fake.backward(retain_graph=True,
+                                                                 inputs=list(model.discriminator.parameters()))
+                                loss_discriminator_real.backward(retain_graph=True,
+                                                                 inputs=list(model.discriminator.parameters()))
                                 mean_mult = batch_size * args.lambda_GAN
                             elif args.disc_loss == "Both":
                                 # Using Maria's but with modern Pytorch BCE loss + addition of loss terms before back pass
-                                bce_loss = nn.BCEWithLogitsLoss(reduction='none')
+                                bce_loss = nn.BCEWithLogitsLoss(reduction='none').to(device)
 
                                 # set up labels
                                 labels_real = Variable(torch.ones_like(logits_vis_enc)).to(device)
@@ -512,10 +515,11 @@ def main():
                                 loss_Pz = args.lambda_GAN * torch.sum(bce_loss(logits_vis_enc, labels_real))
 
                                 loss_discriminator = args.lambda_WAE * (loss_Qz + loss_Pz)
-                                loss_discriminator.backward(retain_graph=True)
-                                                            # inputs=list(model.discriminator.parameters()))
+                                loss_discriminator.backward(retain_graph=True,
+                                                            inputs=list(model.discriminator.parameters()))
                                 mean_mult = batch_size * args.lambda_GAN
                             else:
+                                bce_loss = nn.BCEWithLogitsLoss().to(device)
                                 # set up labels
                                 labels_real = Variable(torch.ones_like(logits_vis_enc)).to(device)
                                 labels_fake = Variable(torch.zeros_like(logits_cog_enc)).to(device)
@@ -526,8 +530,8 @@ def main():
                                 loss_Pz = bce_loss(logits_vis_enc, labels_real)
 
                                 loss_discriminator = args.lambda_WAE * (loss_Qz + loss_Pz)
-                                loss_discriminator.backward(retain_graph=True)
-                                                            # inputs=list(model.discriminator.parameters()))
+                                loss_discriminator.backward(retain_graph=True,
+                                                            inputs=list(model.discriminator.parameters()))
                                 mean_mult = 1
 
                             if args.clip_gradients == "True":
@@ -552,21 +556,21 @@ def main():
                                 # Get sigmoid of logits
                                 sig_cog_enc = torch.sigmoid(logits_cog_enc)
                                 # loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_image) ** 2, 1))
-                                mse_loss = nn.MSELoss()
+                                mse_loss = nn.MSELoss().to(device)
                                 loss_reconstruction = mse_loss(x_recon, x_image)
                                 # This is equivalent of BCELoss(real, 1)
                                 # so we are saying the loss is the distance of the latent space of cog enc
                                 # to the real 1 (of the visual enc)
                                 loss_penalty = - args.lambda_GAN * torch.mean(torch.log(sig_cog_enc + 1e-3))
 
-                                loss_reconstruction.backward(retain_graph=True)  # inputs=list(model.encoder.parameters()))
-                                loss_penalty.backward()  # inputs=list(model.encoder.parameters()))
+                                loss_reconstruction.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
+                                loss_penalty.backward(inputs=list(model.encoder.parameters()))
                                 mean_mult_pen = batch_size * args.lambda_GAN
                                 mean_mult_rec = batch_size
                             elif args.WAE_loss == "Both":
                                 # As with Maria, but with BCELogits and feature loss (using vis recon as real)
                                 # But also Maria does a MSELoss in this stage and not the manual squared diff
-                                bce_loss = nn.BCEWithLogitsLoss(reduction='none')
+                                bce_loss = nn.BCEWithLogitsLoss(reduction='none').to(device)
                                 # Like Maria's but with MSE and BCE from pytorch
                                 # label for non-saturating loss
                                 labels_saturated = Variable(torch.ones_like(logits_cog_enc)).to(device)
@@ -575,14 +579,14 @@ def main():
                                 # loss_reconstruction = mse_loss(x_recon, x_gt)
                                 loss_penalty = args.lambda_GAN * torch.sum(bce_loss(logits_cog_enc, labels_saturated))
                                 loss_WAE = loss_reconstruction + loss_penalty * args.lambda_WAE
-                                loss_WAE.backward()  # inputs=list(model.encoder.parameters()))
+                                loss_WAE.backward(inputs=list(model.encoder.parameters()))
                                 mean_mult_pen = batch_size * args.lambda_GAN
                                 mean_mult_rec = batch_size
                             elif args.WAE_loss == "MSE":
                                 # As with Maria, but with BCELogits and feature loss (using vis recon as real)
                                 # But also Maria does a MSELoss in this stage and not the manual squared diff
-                                bce_loss = nn.BCEWithLogitsLoss(reduction='mean')
-                                mse_loss = nn.MSELoss(reduction='mean')
+                                bce_loss = nn.BCEWithLogitsLoss(reduction='mean').to(device)
+                                mse_loss = nn.MSELoss(reduction='mean').to(device)
                                 # Like Maria's but with MSE and BCE from pytorch
                                 # label for non-saturating loss
                                 labels_saturated = Variable(torch.ones_like(logits_cog_enc)).to(device)
@@ -591,10 +595,11 @@ def main():
                                 loss_reconstruction = mse_loss(x_recon, x_gt) * args.lambda_recon
                                 loss_penalty = args.lambda_GAN * bce_loss(logits_cog_enc, labels_saturated)
                                 loss_WAE = loss_reconstruction + loss_penalty * args.lambda_WAE
-                                loss_WAE.backward()  # inputs=list(model.encoder.parameters()))
+                                loss_WAE.backward(inputs=list(model.encoder.parameters()))
                                 mean_mult_pen = 1  # * 10?
                                 mean_mult_rec = 1 * args.lambda_recon
                             else:
+                                bce_loss = nn.BCEWithLogitsLoss().to(device)
                                 # Adapted from original WAE paper code
                                 # label for non-saturating loss
                                 labels_saturated = Variable(torch.ones_like(logits_cog_enc)).to(device)
@@ -602,7 +607,7 @@ def main():
                                 # loss_reconstruction = mse_loss(x_recon, x_gt)
                                 loss_penalty = bce_loss(logits_cog_enc, labels_saturated)
                                 loss_WAE = loss_reconstruction + loss_penalty * args.lambda_WAE
-                                loss_WAE.backward()  # inputs=list(model.encoder.parameters()))
+                                loss_WAE.backward(inputs=list(model.encoder.parameters()))
                                 mean_mult_pen = 1
                                 mean_mult_rec = 1
                                 # loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_gt) ** 2, 1))
@@ -646,7 +651,8 @@ def main():
 
                     # plot arrangements
                     # grid_count = 25
-                    nrow = int(math.sqrt(batch_size))
+                    # nrow = int(math.sqrt(batch_size))
+                    nrow = 5
                     # if batch_size == 64:
                     #     grid_count = 25
                     # nrow = int(math.sqrt(grid_count))
