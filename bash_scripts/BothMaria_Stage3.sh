@@ -1,12 +1,12 @@
 #!/bin/bash
 
 #SBATCH -N 1
-#SBATCH --job-name=BothBothSt3
+#SBATCH --job-name=BothMariaSt3
 #SBATCH -n 2
 #SBATCH -c 25
 #SBATCH --mem=20000
-#SBATCH -o BothBothSt3_output.txt
-#SBATCH -e BothBothSt3_error.txt
+#SBATCH -o BothMariaSt3_output.txt
+#SBATCH -e BothMariaSt3_error.txt
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:tesla:1
 #SBATCH --mail-type=ALL
@@ -31,7 +31,7 @@ ROI="VC"
 LOAD_FROM="pretrain"
 STAGE_1_NET="WAE_1024_Test_20220806-125520"
 STAGE_1_EPOCH="249"
-RUN_NAME="BothBothSt3_SUBJ0${SUBJ}_${VOX_RES}_${ROI}_${SET_SIZE}"
+RUN_NAME="BothMariaSt3_SUBJ0${SUBJ}_${VOX_RES}_${ROI}_${SET_SIZE}"
 MESSAGE="Double both"
 # ------ CHANGE THESE ------- #
 STAGE_2_NAME=Maria_Reborn_1_SUBJ01_1.8mm_VC_max_Stage2_20220814-153859
