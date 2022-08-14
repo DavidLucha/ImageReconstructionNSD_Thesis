@@ -306,42 +306,9 @@ def main():
         model = WaeGanCognitive(device=device, encoder=cognitive_encoder, decoder=trained_model.decoder,
                                 z_size=args.latent_dims).to(device)
 
-        # Loading Checkpoint | If you want to continue training for existing checkpoint | currently not fixed
-        # Set checkpoint path
-        # CHECKPOINT CODE NOT WORKIGN RIGHT NOW
-        if args.network_checkpoint is not None:
-            net_checkpoint_path = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, SUBJECT_PATH,
-                                               'stage_2', args.network_checkpoint,
-                                               'stage_2_vaegan_' + args.network_checkpoint + '.pth')
-            print(net_checkpoint_path)
 
-        # Load and show results for checkpoint
-        if args.network_checkpoint is not None and os.path.exists(net_checkpoint_path.replace(".pth", "_results.csv")):
-            logging.info('Load pretrained model')
-            checkpoint_dir = net_checkpoint_path.replace(".pth", '_{}.pth'.format(args.checkpoint_epoch))
-            model.load_state_dict(torch.load(checkpoint_dir))
-            model.eval()
-            results = pd.read_csv(net_checkpoint_path.replace(".pth", "_results.csv"))
-            results = {col_name: list(results[col_name].values) for col_name in results.columns}
-            stp = 1 + len(results['epochs'])
-            # Calculates the lr at time of checkpoint
-            # TODO: potentiation breaks here because two lrs.
-            lr = potentiation(lr, args.decay_lr, args.checkpoint_epoch)
-            if training_config.evaluate:
-                images_dir = os.path.join(SAVE_PATH, 'images')
-                if not os.path.exists(images_dir):
-                    os.makedirs(images_dir)
-                pcc, ssim, mse, is_mean = evaluate(model, dataloader_valid, norm=True, mean=training_config.mean,
-                                                   std=training_config.std,
-                                                   path=images_dir)
-                print("Mean PCC:", pcc)
-                print("Mean SSIM:", ssim)
-                print("Mean MSE:", mse)
-                print("IS mean", is_mean)
-                exit(0)
-        else:
-            logging.info('Using loaded network')
-            stp = 1
+        logging.info('Using loaded network')
+        stp = 1
 
         # Create empty results containers
         results = dict(
@@ -406,6 +373,30 @@ def main():
                 results.update({key: []})
             for key, value in metrics_train.items():
                 result_metrics_train.update({key: 0.0})
+
+
+        show_img = True
+        if show_img:
+            real_batch = next(iter(dataloader_valid))
+
+            # x_fmri = Variable(data_batch['fmri'], requires_grad=False).float().to(device)
+            data_img = Variable(real_batch['image'], requires_grad=False).float().to(device)
+
+            z_vis_enc, _ = trained_model.encoder(data_img)
+            data_target = trained_model.decoder(z_vis_enc)
+
+            images_dir = os.path.join(SAVE_PATH, 'images', 'train')
+            if not os.path.exists(images_dir):
+                os.makedirs(images_dir)
+
+            fig, ax = plt.subplots(figsize=(10, 10))
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.set_title('Validation Ground Truth')
+            ax.imshow(
+                make_grid(data_target.cpu().detach(), nrow=4, normalize=True).permute(1, 2, 0))
+            gt_dir = os.path.join(images_dir, 'valid_recon_pretrained_' + 'grid')
+            plt.savefig(gt_dir)
 
         batch_number = len(dataloader_train)
         step_index = 0
