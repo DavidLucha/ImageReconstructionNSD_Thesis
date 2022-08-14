@@ -378,7 +378,7 @@ class StructuralSimilarity(nn.Module):
         return result
 
 
-def evaluate(model, dataloader, norm=True, mean=None, std=None, dataset=None, mode=None, path=None, save=False, resize=None):
+def evaluate(model, dataloader, norm=True, mean=None, std=None, path=None, save=False, resize=None):
     """
     Calculate metrics for the dataset specified with dataloader
 
@@ -387,8 +387,6 @@ def evaluate(model, dataloader, norm=True, mean=None, std=None, dataset=None, mo
     @param norm: normalization
     @param mean: mean of the dataset
     @param std: standard deviation of the dataset
-    @param dataset: 'bold' or None
-    @param mode:  'vae-gan', 'wae-gan', 'vae' or None
     @param path: path to save images
     @param save: True if save images, otherwise False
     @param resize: the size of the image to save
@@ -402,54 +400,47 @@ def evaluate(model, dataloader, norm=True, mean=None, std=None, dataset=None, mo
     pcc = 0
     mse = 0
     is_mean = 0
-    gt_path = path + '/ground_truth'
-    out_path = path + '/out'
-    if not os.path.exists(gt_path):
-        os.makedirs(gt_path)
-    if not os.path.exists(out_path):
-        os.makedirs(out_path)
+    real_path = path + '/real'
+    recon_path = path + '/recon'
 
     for batch_idx, data_batch in enumerate(dataloader):
         model.eval()
 
         with no_grad():
 
-            if dataset == 'bold':
-                data_target = Variable(data_batch['image'], requires_grad=False).cpu().detach()
-            else:
-                data_target = data_batch.cpu().detach()
+            data_target = Variable(data_batch['image'], requires_grad=False).cpu().detach()
 
-            try:
-                out = model(data_batch)
-            except TypeError as e:
-                if mode == 'wae-gan':
-                    out = model(data_batch['fmri'])
-                else:
-                    logging.info('Wrong data type')
+            out, _ = model(data_batch['fmri'])
 
             out = out.data.cpu()
             if save:
+                # Make directory
+                if not os.path.exists(real_path):
+                    os.makedirs(real_path)
+                if not os.path.exists(recon_path):
+                    os.makedirs(recon_path)
+
                 if resize is not None:
                     out = F.interpolate(out, size=resize)
                     data_target = F.interpolate(data_target, size=resize)
                 for i, im in enumerate(out):
-                    torchvision.utils.save_image(im, fp=out_path + '/' + str(batch_idx * len(data_target) + i) + '.png', normalize=True)
+                    torchvision.utils.save_image(im, fp=recon_path + '/' + str(batch_idx * len(data_target) + i) + '.png', normalize=True)
                 for i, im in enumerate(data_target):
-                    torchvision.utils.save_image(im, fp=gt_path + '/' + str(batch_idx * len(data_target) + i) + '.png', normalize=True)
+                    torchvision.utils.save_image(im, fp=real_path + '/' + str(batch_idx * len(data_target) + i) + '.png', normalize=True)
         if norm and mean is not None and std is not None:
             data_target = denormalize_image(data_target, mean=mean, std=std)
             out = denormalize_image(out, mean=mean, std=std)
         pcc += pearson_correlation(out, data_target)
         ssim += structural_similarity(out, data_target)
         mse += mse_loss(out, data_target)
-        is_mean += inception_score(out, resize=True)
+        # is_mean += inception_score(out, resize=True)
 
     mean_pcc = pcc / (batch_idx+1)
     mean_ssim = ssim / (batch_idx+1)
     mse_loss = mse / (batch_idx+1)
-    is_mean = is_mean / (batch_idx+1)
+    # is_mean = is_mean / (batch_idx+1)
 
-    return mean_pcc, mean_ssim, mse_loss, is_mean
+    return mean_pcc, mean_ssim, mse_loss
 
 def denormalize_image(pred, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
 
@@ -525,14 +516,12 @@ def inception_score(imgs, cuda=True, batch_size=32, resize=False, splits=1):
     return np.mean(split_scores)
 
 
-def objective_assessment(model, dataloader, dataset=None, mode=None, top=5):
+def objective_assessment(model, dataloader, top=5):
     """
     Calculates objective score of the predictions
 
     @param model: network for evaluation
     @param dataloader: DataLoader object
-    @param dataset: 'bold' or none
-    @param mode:  'vae-gan', 'wae-gan', 'vae' or None
     @param top: n-top score: n=2,5,10
     @return: objective score - percentage of correct predictions
     """
@@ -540,6 +529,7 @@ def objective_assessment(model, dataloader, dataset=None, mode=None, top=5):
     pearson_correlation = PearsonCorrelation()
     structural_similarity = StructuralSimilarity()
 
+    # TODO: Make this tensor with one more dimension (PSM)
     true_positives = torch.tensor([0, 0])
     dataset_size = 0
     score_pcc = 0
@@ -549,10 +539,18 @@ def objective_assessment(model, dataloader, dataset=None, mode=None, top=5):
         model.eval()
 
         with no_grad():
-            data_target = Variable(data_batch['image'], requires_grad=False).cpu().detach()
+            cpu = False
+            if cpu:
+                data_target = Variable(data_batch['image'], requires_grad=False).cpu().detach()
 
-            out = model(data_batch['fmri'])
-            out = out.data.cpu()
+                out, _ = model(data_batch['fmri'])
+                out = out.data.cpu()
+            else:
+                data_target = Variable(data_batch['image'], requires_grad=False).float().to('cuda')
+                data_fmri = Variable(data_batch['fmri'], requires_grad=False).float().to('cuda')
+
+                out, _ = model(data_fmri)
+                # out = out.data.cpu()
 
             for idx, image in enumerate(out):
                 numbers = list(range(0, len(out)))
