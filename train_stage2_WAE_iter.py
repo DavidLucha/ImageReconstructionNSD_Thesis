@@ -365,8 +365,8 @@ def main():
             lr_discriminator = StepLR(optimizer_discriminator, step_size=30, gamma=0.5)
 
         # Define criterion
-        # bce_loss = nn.BCEWithLogitsLoss()
-        # mse_loss = nn.MSELoss(reduction='none')
+        bce_loss = nn.BCEWithLogitsLoss().to(device)
+        mse_loss = nn.MSELoss(reduction='none').to(device)
 
         # Metrics
         pearson_correlation = PearsonCorrelation()
