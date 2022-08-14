@@ -423,6 +423,7 @@ def main():
 
                             frozen_params(model.decoder)
                             batch_size = len(data_batch)
+                            logging.info(batch_size)
                             model.encoder.zero_grad()
                             model.discriminator.zero_grad()
 
@@ -649,14 +650,14 @@ def main():
                         gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                         plt.savefig(gt_dir)
 
-                        # fig, ax = plt.subplots(figsize=(10, 10))
-                        # ax.set_xticks([])
-                        # ax.set_yticks([])
-                        # ax.set_title('Training Vis Enc Reconstruction (Real) at Epoch {}'.format(idx_epoch))
-                        # ax.imshow(
-                        #     make_grid(x_gt[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
-                        # gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
-                        # plt.savefig(gt_dir)
+                        fig, ax = plt.subplots(figsize=(10, 10))
+                        ax.set_xticks([])
+                        ax.set_yticks([])
+                        ax.set_title('Training Vis Enc Reconstruction (Real) at Epoch {}'.format(idx_epoch))
+                        ax.imshow(
+                            make_grid(x_gt[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
+                        gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
+                        plt.savefig(gt_dir)
 
                         fig, ax = plt.subplots(figsize=(10, 10))
                         ax.set_xticks([])
@@ -678,14 +679,20 @@ def main():
 
                             data_in = Variable(data_batch['fmri'], requires_grad=False).float().to(device)
                             data_img = Variable(data_batch['image'], requires_grad=False).float().to(device)
-                            out, logits_out = model(data_in)
-                            data_target, z_target = trained_model(data_img)
+                            # out, logits_out = model(data_in)
+                            # data_target, z_target = trained_model(data_img)
+                            batch_size = len(data_batch)
+                            logging.info(batch_size)
 
-                            # z_cog_enc, _ = model.encoder(x_fmri)
+                            z_cog_enc, _ = model.encoder(data_in)
+                            out = model.decoder(z_cog_enc)
                             # z_vis_enc, _ = trained_model.encoder(x_image)
 
-                            # logits_cog_enc = model.discriminator(z_cog_enc)
-                            logits_target = model.discriminator(z_target)
+                            z_vis_enc, _ = trained_model.encoder(data_img)
+                            data_target = trained_model.decoder(z_vis_enc)
+
+                            logits_out = model.discriminator(z_cog_enc)
+                            logits_target = model.discriminator(z_vis_enc)
 
                             bce_loss = nn.BCEWithLogitsLoss(reduction='none')
 
