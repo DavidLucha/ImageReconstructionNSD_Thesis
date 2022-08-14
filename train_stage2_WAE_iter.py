@@ -294,6 +294,19 @@ def main():
         for param in trained_model.decoder.parameters():
             param.requires_grad = False
 
+        # --- New fixed net for training --- #
+
+        trained_model_fixed = WaeGan(device=device, z_size=args.latent_dims).to(device)
+        trained_model_fixed.load_state_dict(torch.load(model_dir, map_location=device))
+
+        # Fix decoder weights
+        for param in trained_model_fixed.parameters():
+            param.requires_grad = False
+
+        trained_model_fixed.eval()
+
+        # --- END fixed net for training --- #
+
         logging.info(f'Number of voxels: {NUM_VOXELS}')
         logging.info(f'Train data length: {len(train_data)}')
         logging.info(f'Validation data length: {len(valid_data)}')
@@ -386,7 +399,7 @@ def main():
             z_vis_enc, _ = trained_model.encoder(data_img)
             data_target = trained_model.decoder(z_vis_enc)
 
-            images_dir = os.path.join(SAVE_PATH, 'images', 'train')
+            images_dir = os.path.join(SAVE_PATH, 'images', 'pretest')
             if not os.path.exists(images_dir):
                 os.makedirs(images_dir)
 
@@ -413,7 +426,16 @@ def main():
                         if step_index < max_iters:
                             model.train()
 
-                            frozen_params(model.decoder)
+                            # Fix decoder weights
+                            for param in model.decoder.parameters():
+                                param.requires_grad = False
+                            # Fix the extra net
+                            for param in trained_model_fixed.parameters():
+                                param.requires_grad = False
+
+                            trained_model_fixed.eval()
+
+                            # frozen_params(model.decoder)
                             batch_size = len(data_batch)
                             logging.info(batch_size)
                             model.encoder.zero_grad()
@@ -424,11 +446,12 @@ def main():
 
                             # ----------Train discriminator-------------
 
-                            frozen_params(model.encoder)
-                            free_params(model.discriminator)
+                            # frozen_params(model.encoder)
+                            # free_params(model.discriminator)
 
                             z_cog_enc, var = model.encoder(x_fmri)
-                            z_vis_enc, var = trained_model.encoder(x_image)
+                            # TODO: Return or leave this
+                            z_vis_enc, var = trained_model_fixed.encoder(x_image)
 
                             # WAE | Trying to make Qz more like Pz
                             # disc output for encoded latent (cog) | Qz
@@ -451,10 +474,8 @@ def main():
 
                                 loss_discriminator = loss_discriminator_fake + loss_discriminator_real
 
-                                loss_discriminator_fake.backward(retain_graph=True,
-                                                                 inputs=list(model.discriminator.parameters()))
-                                loss_discriminator_real.backward(retain_graph=True,
-                                                                 inputs=list(model.discriminator.parameters()))
+                                loss_discriminator_fake.backward(retain_graph=True)
+                                loss_discriminator_real.backward(retain_graph=True)
                                 mean_mult = batch_size * args.lambda_GAN
                             elif args.disc_loss == "Maria_Flip":
                                 # Corrects the flip of cog and vis enc for real and fake
@@ -472,10 +493,10 @@ def main():
 
                                 loss_discriminator = loss_discriminator_fake + loss_discriminator_real
 
-                                loss_discriminator_fake.backward(retain_graph=True,
-                                                                 inputs=list(model.discriminator.parameters()))
-                                loss_discriminator_real.backward(retain_graph=True,
-                                                                 inputs=list(model.discriminator.parameters()))
+                                loss_discriminator_fake.backward(retain_graph=True)
+                                                                 # inputs=list(model.discriminator.parameters()))
+                                loss_discriminator_real.backward(retain_graph=True)
+                                                                 # inputs=list(model.discriminator.parameters()))
                                 mean_mult = batch_size * args.lambda_GAN
                             elif args.disc_loss == "Both":
                                 # Using Maria's but with modern Pytorch BCE loss + addition of loss terms before back pass
@@ -491,8 +512,8 @@ def main():
                                 loss_Pz = args.lambda_GAN * torch.sum(bce_loss(logits_vis_enc, labels_real))
 
                                 loss_discriminator = args.lambda_WAE * (loss_Qz + loss_Pz)
-                                loss_discriminator.backward(retain_graph=True,
-                                                            inputs=list(model.discriminator.parameters()))
+                                loss_discriminator.backward(retain_graph=True)
+                                                            # inputs=list(model.discriminator.parameters()))
                                 mean_mult = batch_size * args.lambda_GAN
                             else:
                                 # set up labels
@@ -505,8 +526,8 @@ def main():
                                 loss_Pz = bce_loss(logits_vis_enc, labels_real)
 
                                 loss_discriminator = args.lambda_WAE * (loss_Qz + loss_Pz)
-                                loss_discriminator.backward(retain_graph=True,
-                                                            inputs=list(model.discriminator.parameters()))
+                                loss_discriminator.backward(retain_graph=True)
+                                                            # inputs=list(model.discriminator.parameters()))
                                 mean_mult = 1
 
                             if args.clip_gradients == "True":
@@ -514,17 +535,17 @@ def main():
                             optimizer_discriminator.step()
 
                             # ----------Train generator----------------
-                            model.encoder.zero_grad()
-
-                            free_params(model.encoder)
-                            frozen_params(model.discriminator)
+                            # free_params(model.encoder)
+                            # (model.discriminator)
 
                             z_cog_enc, var = model.encoder(x_fmri)
                             x_recon = model.decoder(z_cog_enc)
                             logits_cog_enc = model.discriminator(z_cog_enc)
 
-                            z_vis_enc, _ = trained_model.encoder(x_image)
-                            x_gt = trained_model.decoder(z_vis_enc)
+                            z_vis_enc, _ = trained_model_fixed.encoder(x_image)
+                            x_gt = trained_model_fixed.decoder(z_vis_enc)
+
+                            model.encoder.zero_grad()
 
                             if args.WAE_loss == 'Maria':
                                 # Get sigmoid of logits
@@ -537,8 +558,8 @@ def main():
                                 # to the real 1 (of the visual enc)
                                 loss_penalty = - args.lambda_GAN * torch.mean(torch.log(sig_cog_enc + 1e-3))
 
-                                loss_reconstruction.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
-                                loss_penalty.backward(inputs=list(model.encoder.parameters()))
+                                loss_reconstruction.backward(retain_graph=True)  # inputs=list(model.encoder.parameters()))
+                                loss_penalty.backward()  # inputs=list(model.encoder.parameters()))
                                 mean_mult_pen = batch_size * args.lambda_GAN
                                 mean_mult_rec = batch_size
                             elif args.WAE_loss == "Both":
@@ -553,7 +574,7 @@ def main():
                                 # loss_reconstruction = mse_loss(x_recon, x_gt)
                                 loss_penalty = args.lambda_GAN * torch.sum(bce_loss(logits_cog_enc, labels_saturated))
                                 loss_WAE = loss_reconstruction + loss_penalty * args.lambda_WAE
-                                loss_WAE.backward(inputs=list(model.encoder.parameters()))
+                                loss_WAE.backward()  # inputs=list(model.encoder.parameters()))
                                 mean_mult_pen = batch_size * args.lambda_GAN
                                 mean_mult_rec = batch_size
                             elif args.WAE_loss == "MSE":
@@ -569,7 +590,7 @@ def main():
                                 loss_reconstruction = mse_loss(x_recon, x_gt) * args.lambda_recon
                                 loss_penalty = args.lambda_GAN * bce_loss(logits_cog_enc, labels_saturated)
                                 loss_WAE = loss_reconstruction + loss_penalty * args.lambda_WAE
-                                loss_WAE.backward(inputs=list(model.encoder.parameters()))
+                                loss_WAE.backward()  # inputs=list(model.encoder.parameters()))
                                 mean_mult_pen = 1  # * 10?
                                 mean_mult_rec = 1 * args.lambda_recon
                             else:
@@ -580,7 +601,7 @@ def main():
                                 # loss_reconstruction = mse_loss(x_recon, x_gt)
                                 loss_penalty = bce_loss(logits_cog_enc, labels_saturated)
                                 loss_WAE = loss_reconstruction + loss_penalty * args.lambda_WAE
-                                loss_WAE.backward(inputs=list(model.encoder.parameters()))
+                                loss_WAE.backward()  # inputs=list(model.encoder.parameters()))
                                 mean_mult_pen = 1
                                 mean_mult_rec = 1
                                 # loss_reconstruction = torch.sum(torch.sum(0.5 * (x_recon - x_gt) ** 2, 1))
@@ -589,6 +610,8 @@ def main():
                                 # This isn't working.
                                 [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
                             optimizer_encoder.step()
+
+                            model.zero_grad()
 
                             # register mean values of the losses for logging
                             loss_reconstruction_mean = loss_reconstruction.data.cpu().numpy() / mean_mult_rec
@@ -617,8 +640,8 @@ def main():
                     results['loss_discriminator'].append(loss_discriminator_mean)
 
                     # plot arrangements
-                    grid_count = 25
-                    nrow = 5
+                    # grid_count = 25
+                    nrow = int(math.sqrt(batch_size))
                     # if batch_size == 64:
                     #     grid_count = 25
                     # nrow = int(math.sqrt(grid_count))
@@ -638,7 +661,7 @@ def main():
                         ax.set_xticks([])
                         ax.set_yticks([])
                         ax.set_title('Training Ground Truth at Epoch {}'.format(idx_epoch))
-                        ax.imshow(make_grid(x_image[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
+                        ax.imshow(make_grid(x_image.cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                         gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                         plt.savefig(gt_dir)
 
@@ -647,7 +670,7 @@ def main():
                         ax.set_yticks([])
                         ax.set_title('Training Vis Enc Reconstruction (Real) at Epoch {}'.format(idx_epoch))
                         ax.imshow(
-                            make_grid(x_gt[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
+                            make_grid(x_gt.cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                         gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
                         plt.savefig(gt_dir)
 
@@ -655,7 +678,7 @@ def main():
                         ax.set_xticks([])
                         ax.set_yticks([])
                         ax.set_title('Training Reconstruction at Epoch {}'.format(idx_epoch))
-                        ax.imshow(make_grid(x_recon[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
+                        ax.imshow(make_grid(x_recon.cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                         output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
                         plt.savefig(output_dir)
 
@@ -667,7 +690,7 @@ def main():
                         with no_grad():
 
                             model.eval()
-                            trained_model.eval()
+                            # trained_model.eval()
 
                             data_in = Variable(data_batch['fmri'], requires_grad=False).float().to(device)
                             data_img = Variable(data_batch['image'], requires_grad=False).float().to(device)
@@ -680,8 +703,8 @@ def main():
                             out = model.decoder(z_cog_enc)
                             # z_vis_enc, _ = trained_model.encoder(x_image)
 
-                            z_vis_enc, _ = trained_model.encoder(data_img)
-                            data_target = trained_model.decoder(z_vis_enc)
+                            z_vis_enc, _ = trained_model_fixed.encoder(data_img)
+                            data_target = trained_model_fixed.decoder(z_vis_enc)
 
                             logits_out = model.discriminator(z_cog_enc)
                             logits_target = model.discriminator(z_vis_enc)
@@ -780,7 +803,7 @@ def main():
                                 ax.set_yticks([])
                                 ax.set_title('Validation Ground Truth')
                                 ax.imshow(
-                                    make_grid(data_target[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
+                                    make_grid(data_target.cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                                 gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                                 plt.savefig(gt_dir)
 
@@ -788,7 +811,7 @@ def main():
                                 # ax.set_xticks([])
                                 # ax.set_yticks([])
                                 # ax.set_title('Validation Vis Enc Reconstruction at Epoch {}'.format(idx_epoch))
-                                # ax.imshow(make_grid(vis_out[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
+                                # ax.imshow(make_grid(vis_out.cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                                 # output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
                                 # plt.savefig(output_dir)
 
@@ -798,7 +821,7 @@ def main():
                                 ax.set_xticks([])
                                 ax.set_yticks([])
                                 ax.set_title('Validation Ground Truth')
-                                ax.imshow(make_grid(data_target[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
+                                ax.imshow(make_grid(data_target.cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                                 gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                                 plt.savefig(gt_dir)
 
@@ -807,7 +830,7 @@ def main():
                                 # ax.set_yticks([])
                                 # ax.set_title('Validation Vis Enc Reconstruction at Epoch {}'.format(idx_epoch))
                                 # ax.imshow(
-                                #     make_grid(vis_out[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
+                                #     make_grid(vis_out.cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                                 # output_dir = os.path.join(images_dir,
                                 #                           'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
                                 # plt.savefig(output_dir)
@@ -817,7 +840,7 @@ def main():
                             ax.set_xticks([])
                             ax.set_yticks([])
                             ax.set_title('Validation Reconstruction at Epoch {}'.format(idx_epoch))
-                            ax.imshow(make_grid(out[: grid_count].cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
+                            ax.imshow(make_grid(out.cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                             output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
                             plt.savefig(output_dir)
 
