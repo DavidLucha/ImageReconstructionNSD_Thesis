@@ -12,18 +12,6 @@ from sklearn import preprocessing
 import training_config as cfg
 import random
 
-t = "hello"
-
-if t in ("goodbye", "hi", "hey", "hello"):
-    print(t)
-else:
-    print('sorry, no bueno')
-
-d = np.arange(1,10)
-for i in d:
-    if not i % 6:
-        print(i)
-
 data_dir = os.path.join("D:/Honours/nsd_pickles/1.8mm", "raw_concat_pickle")
 
 pickle_dir = os.path.join(data_dir, "subj_01_raw_concat_trial_fmri.pickle")

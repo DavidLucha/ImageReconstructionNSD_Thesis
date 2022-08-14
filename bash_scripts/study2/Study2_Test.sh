@@ -32,8 +32,8 @@ STAGE_1_NET="WAE_1024_Test_20220806-125520"
 STAGE_1_EPOCH="249"
 MESSAGE="A test through the for loop."
 # ------ CHANGE THESE ------- #
-
-for VOX_RES in 1.8mm 3mm
+# Broke at 3mm, but fixed now
+for VOX_RES in 3mm
 do
   for SET_SIZE in 1200 4000 7500
   do

@@ -108,7 +108,7 @@ def main():
                                 help='epoch of the pretrained model', type=str)
             parser.add_argument('--dataset', default='NSD', help='GOD, NSD', type=str)
             # Only need vox_res arg from stage 2 and 3
-            parser.add_argument('--vox_res', default='1.8mm', help='1.8mm, 3mm', type=str)
+            parser.add_argument('--vox_res', default='1pt8mm', help='1pt8mm, 3mm', type=str)
             # ROIs: V1, V2, V3, V1_to_V3, V4, HVC (faces + place + body areas), V1_to_V3_n_HVC, V1_to_V3_n_rand
             parser.add_argument('--ROI', default='VC', help='selects roi, only relevant for ROI analysis'
                                                             'otherwise default is VC.', type=str)

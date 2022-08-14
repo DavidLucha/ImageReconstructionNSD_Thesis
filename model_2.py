@@ -8,6 +8,8 @@ import model_config_2 as config
 from torch.autograd import Variable
 from utils_2 import NLLNormal
 
+numpy.random.seed(10002)
+torch.manual_seed(10002)
 
 class EncoderBlock(nn.Module):
     """
@@ -211,7 +213,7 @@ class CognitiveEncoder(nn.Module):
 
         if self.lin_layers == 1:
             self.fc1 = nn.Sequential(nn.Linear(in_features=input_size, out_features=lin_size, bias=False),
-                                    nn.BatchNorm1d(num_features=lin_size, momentum=0.9),
+                                    nn.BatchNorm1d(num_features=lin_size),  # , momentum=0.9
                                     nn.ReLU(True))
             # self.fc2 = nn.Sequential(nn.Linear(in_features=1024, out_features=512, bias=False),
             #                         nn.BatchNorm1d(num_features=512, momentum=0.9),
@@ -221,30 +223,31 @@ class CognitiveEncoder(nn.Module):
             self.l_var = nn.Linear(in_features=lin_size, out_features=z_size)
         else:
             self.fc1 = nn.Sequential(nn.Linear(in_features=input_size, out_features=lin_size, bias=False),
-                                     nn.BatchNorm1d(num_features=lin_size, momentum=0.9),
+                                     nn.BatchNorm1d(num_features=lin_size),  #, momentum=0.9
                                      nn.ReLU(True))
             self.fc2 = nn.Sequential(nn.Linear(in_features=lin_size, out_features=int(lin_size/2), bias=False),
-                                     nn.BatchNorm1d(num_features=int(lin_size/2), momentum=0.9),
+                                     nn.BatchNorm1d(num_features=int(lin_size/2)),  # , momentum=0.9
                                      nn.ReLU(True))
                                      # was nn.LeakyReLU(True))
             # two linear to get the mu vector and the diagonal of the log_variance
             self.l_mu = nn.Linear(in_features=int(lin_size/2), out_features=z_size)
             self.l_var = nn.Linear(in_features=int(lin_size/2), out_features=z_size)
-    #     self.init_parameters()
-    #
-    # def init_parameters(self):
-    #     # just explore the network, find every weight and bias matrix and fill it
-    #     for m in self.modules():
-    #         if isinstance(m, (nn.Linear)):
-    #             if hasattr(m, "weight") and m.weight is not None and m.weight.requires_grad:
-    #                 # init as original implementation
-    #                 # scale = 1.0 / numpy.sqrt(numpy.prod(m.weight.shape[1:]))
-    #                 # scale /= numpy.sqrt(3)
-    #                 nn.init.xavier_normal_(m.weight, 1)
-    #                 # nn.init.constant(m.weight, 0.005)
-    #                 # nn.init.uniform_(m.weight, -scale, scale)
-    #             if hasattr(m, "bias") and m.bias is not None and m.bias.requires_grad:
-    #                 nn.init.constant_(m.bias, 0.0)
+        self.init_parameters()
+
+    def init_parameters(self):
+        # just explore the network, find every weight and bias matrix and fill it
+        for m in self.modules():
+            if isinstance(m, (nn.Linear)):
+                if hasattr(m, "weight") and m.weight is not None and m.weight.requires_grad:
+                    # init as original implementation
+                    scale = 1.0 / numpy.sqrt(numpy.prod(m.weight.shape[1:]))
+                    scale /= numpy.sqrt(3)
+                    nn.init.uniform_(m.weight, -scale, scale)
+                    # alternatives
+                    # nn.init.xavier_normal_(m.weight, 1)
+                    # nn.init.constant(m.weight, 0.005)
+                if hasattr(m, "bias") and m.bias is not None and m.bias.requires_grad:
+                    nn.init.constant_(m.bias, 0.0)
 
     def forward(self, ten):
         if self.lin_layers == 1:
