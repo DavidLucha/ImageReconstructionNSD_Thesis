@@ -531,7 +531,8 @@ def main():
                                 mean_mult = 1
 
                             if args.clip_gradients == "True":
-                                [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
+                                # [p.grad.data.clamp_(-1, 1) for p in model.discriminator.parameters()]
+                                nn.utils.clip_grad_value_(model.discriminator, 1)
                             optimizer_discriminator.step()
 
                             # ----------Train generator----------------
@@ -612,7 +613,8 @@ def main():
 
                             if args.clip_gradients == "True":
                                 # This isn't working.
-                                [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
+                                # [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
+                                nn.utils.clip_grad_value_(model.encoder, 1)
                             optimizer_encoder.step()
 
                             model.zero_grad()
