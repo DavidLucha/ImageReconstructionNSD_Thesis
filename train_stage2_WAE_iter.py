@@ -377,6 +377,7 @@ def main():
 
         show_img = True
         if show_img:
+            trained_model.eval()
             real_batch = next(iter(dataloader_valid))
 
             # x_fmri = Variable(data_batch['fmri'], requires_grad=False).float().to(device)
