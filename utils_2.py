@@ -11,7 +11,7 @@ import torch
 import numpy as np
 import random
 import logging
-import lpips
+import lpips as lpips
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 
@@ -393,6 +393,7 @@ def evaluate(model, dataloader, norm=True, mean=None, std=None, path=None, save=
     @param resize: the size of the image to save
     @return: mean PCC, mean SSIM, MSE, mean IS (inception score)
     """
+    import lpips
 
     pearson_correlation = PearsonCorrelation()
     structural_similarity = StructuralSimilarity()
@@ -531,6 +532,7 @@ def objective_assessment(model, dataloader, top=5):
     @param top: n-top score: n=2,5,10
     @return: objective score - percentage of correct predictions
     """
+    import lpips
 
     pearson_correlation = PearsonCorrelation()
     structural_similarity = StructuralSimilarity()
