@@ -271,9 +271,9 @@ def main():
                                                                                               training_config.std)
                                                                          ]))
 
-        dataloader_train = DataLoader(training_data, batch_size=args.batch_size,  # collate_fn=collate_fn,
+        dataloader_train = DataLoader(training_data, batch_size=args.batch_size, drop_last=False,  # collate_fn=collate_fn,
                                       shuffle=True, num_workers=args.num_workers)
-        dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size,  # collate_fn=collate_fn,
+        dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size, drop_last=False,  # collate_fn=collate_fn,
                                       shuffle=shuf, num_workers=args.num_workers)
 
         NUM_VOXELS = len(train_data[0]['fmri'])

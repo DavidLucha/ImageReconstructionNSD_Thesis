@@ -586,18 +586,13 @@ def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc
                 numbers = list(range(0, len(out)))
                 numbers.remove(idx)
                 for i in range(top-1):
-                    # Save individual scores per image
-                    results['trial_id'].append(idx)
-                    results['image_path'].append(data_path[idx])
-
                     # Get random number not including ID of original
                     # Note: this is only a random choice of the mini-batch.
                     rand_idx = random.choice(numbers)
                     # PCC Metric
-                    score_rand = pearson_correlation(image, data_target[rand_idx])
-                    score_gt = pearson_correlation(image, data_target[idx])
-                    results['pcc_im'].append(score_gt.item())
-                    if score_gt > score_rand:
+                    score_rand_pcc = pearson_correlation(image, data_target[rand_idx])
+                    score_recon_pcc = pearson_correlation(image, data_target[idx])
+                    if score_recon_pcc > score_rand_pcc:
                         score_pcc += 1
 
                     # SSIM
@@ -605,10 +600,9 @@ def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc
                     image_for_ssim = torch.unsqueeze(image, 0)
                     target_gt_for_ssim = torch.unsqueeze(data_target[idx], 0)
                     target_rand_for_ssim = torch.unsqueeze(data_target[rand_idx], 0)
-                    score_rand = structural_similarity(image_for_ssim, target_rand_for_ssim)
-                    score_gt = structural_similarity(image_for_ssim, target_gt_for_ssim)
-                    results['ssim_im'].append(score_gt.item())
-                    if score_gt > score_rand:
+                    score_rand_ssim = structural_similarity(image_for_ssim, target_rand_for_ssim)
+                    score_recon_ssim = structural_similarity(image_for_ssim, target_gt_for_ssim)
+                    if score_recon_ssim > score_rand_ssim:
                         score_ssim += 1
 
                     # Perceptual Similarity Metric
@@ -616,12 +610,17 @@ def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc
                     image_cpu = image.data.cpu()
                     score_rand_lpips = perceptual_similarity(image_cpu, target_cpu[rand_idx])
                     score_recon_lpips = perceptual_similarity(image_cpu, target_cpu[idx])
-                    results['lpips_im'].append(score_recon_lpips)
                     # Lower number means images are 'closer' together
                     if score_recon_lpips < score_rand_lpips:
                         score_lpips += 1
 
-                    # results['mse_im'].append(score_gt.item())
+                    # results['mse_im'].append(score_recon.item())
+                # Save individual scores per image
+                results['trial_id'].append(idx)
+                results['image_path'].append(data_path[idx])
+                results['pcc_im'].append(score_recon_pcc.item())
+                results['ssim_im'].append(score_recon_ssim.item())
+                results['lpips_im'].append(score_recon_lpips.item())
 
                 lpips_sum += score_recon_lpips
 
