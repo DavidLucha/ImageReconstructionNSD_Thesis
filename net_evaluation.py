@@ -330,7 +330,7 @@ def main():
         obj_score['ssim'].append(obj_ssim.item())
         obj_score['lpips'].append(obj_lpips.item())
 
-    logging.info("Mean LPIPS: {:.2f}".format(lpips_mean))
+    logging.info("Mean LPIPS: {:.2f}".format(lpips_mean.item()))
 
     obj_results_to_save = pd.DataFrame(obj_score)
     # TODO: Add more information here, number of trials - or at least to save to loggin
