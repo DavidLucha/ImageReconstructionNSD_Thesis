@@ -162,7 +162,7 @@ def main():
                                        'GOD_Subject{}_valid_normed.pickle'.format(args.subject))
 
     SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, args.ROI, SUBJECT_PATH,
-                             "evaluation", args.st3_net + timestep)
+                             "evaluation", args.st3_net + "_" + timestep)
     if not os.path.exists(SAVE_PATH):
         os.makedirs(SAVE_PATH)
 
@@ -311,19 +311,21 @@ def main():
     else:
         save = False
 
-    pcc, ssim, mse = evaluate(model, dataloader_valid, norm=False, mean=training_config.mean,
+    pcc, ssim, mse, lpips = evaluate(model, dataloader_valid, norm=False, mean=training_config.mean,
                                         std=training_config.std, path=images_dir, save=save, resize=200)
     logging.info("Mean PCC: {:.2f}".format(pcc.item()))
     logging.info("Mean SSIM: {:.2f}".format(ssim.item()))
     logging.info("Mean MSE: {:.2f}".format(mse.item()))
+    logging.info("Mean LPIPS: {:.2f}".format(lpips.item()))
     # logging.info("Mean IS:", is_score)
 
     # Plot histogram for objective assessment
-    obj_score = dict(pcc=[], ssim=[])
+    obj_score = dict(pcc=[], ssim=[], lpips=[])
     for top in [2, 5, 10]:
-        obj_pcc, obj_ssim = objective_assessment(model, dataloader_valid, top=top)
+        obj_pcc, obj_ssim, obj_lpips = objective_assessment(model, dataloader_valid, top=top)
         obj_score['pcc'].append(obj_pcc.item())
         obj_score['ssim'].append(obj_ssim.item())
+        obj_score['lpips'].append(obj_lpips.item())
 
     obj_results_to_save = pd.DataFrame(obj_score)
     # TODO: Add more information here, number of trials - or at least to save to loggin
@@ -363,10 +365,29 @@ def main():
     plot_sav = os.path.join(SAVE_PATH, "SSIM_Objective")
     plt.savefig(plot_sav)
 
+    # Clear plots
+    plt.cla()
+
+    # Graphing for SSIM
+    x_axis = ['2-way', '5-way', '10-way']
+    y_axis = [obj_score['lpips'][0], obj_score['lpips'][1], obj_score['lpips'][2]]
+    bars = plt.bar(x_axis, y_axis, width=0.5)
+    plt.axhline(y=0.5, xmin=0, xmax=0.33, linewidth=1, color='k')
+    plt.axhline(y=0.2, xmin=0.33, xmax=0.66, linewidth=1, color='k')
+    plt.axhline(y=0.1, xmin=0.66, xmax=1.0, linewidth=1, color='k')
+    for i, bar in enumerate(bars):
+        yval = bar.get_height()
+        plt.text(bar.get_x() + 0.10, yval + .005, f'{y_axis[i] * 100:.2f}')
+    plt.ylabel('Learned Perceptual Similarity Metric')
+    plt.title('Objective assessment')
+    plot_sav = os.path.join(SAVE_PATH, "LPIPS_Objective")
+    plt.savefig(plot_sav)
+
     # plt.show()
 
     logging.info("Objective score PCC: {:.2f}".format(obj_score['pcc'][0]))
     logging.info("Objective score SSIM: {:.2f}".format(obj_score['ssim'][0]))
+    logging.info("Objective score LPIPS: {:.2f}".format(obj_score['lpips'][0]))
     plt.close()
     exit(0)
 

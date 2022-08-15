@@ -11,6 +11,7 @@ import torch
 import numpy as np
 import random
 import logging
+import lpips
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 
@@ -396,10 +397,12 @@ def evaluate(model, dataloader, norm=True, mean=None, std=None, path=None, save=
     pearson_correlation = PearsonCorrelation()
     structural_similarity = StructuralSimilarity()
     mse_loss = nn.MSELoss()
+    perceptual_similarity = lpips.LPIPS(net='alex')
     ssim = 0
     pcc = 0
     mse = 0
-    is_mean = 0
+    lpips = 0
+    # is_mean = 0
     real_path = path + '/real'
     recon_path = path + '/recon'
 
@@ -433,14 +436,17 @@ def evaluate(model, dataloader, norm=True, mean=None, std=None, path=None, save=
         pcc += pearson_correlation(out, data_target)
         ssim += structural_similarity(out, data_target)
         mse += mse_loss(out, data_target)
+        # TODO: Check this is working - does it not work per image?
+        lpips += perceptual_similarity(out, data_target)
         # is_mean += inception_score(out, resize=True)
 
     mean_pcc = pcc / (batch_idx+1)
     mean_ssim = ssim / (batch_idx+1)
     mse_loss = mse / (batch_idx+1)
+    mean_lpips = lpips / (batch_idx + 1)
     # is_mean = is_mean / (batch_idx+1)
 
-    return mean_pcc, mean_ssim, mse_loss
+    return mean_pcc, mean_ssim, mse_loss, mean_lpips
 
 def denormalize_image(pred, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
 
@@ -528,12 +534,14 @@ def objective_assessment(model, dataloader, top=5):
 
     pearson_correlation = PearsonCorrelation()
     structural_similarity = StructuralSimilarity()
+    perceptual_similarity = lpips.LPIPS(net='alex')
 
-    # TODO: Make this tensor with one more dimension (PSM)
-    true_positives = torch.tensor([0, 0])
+    # [PCC, SSIM, LPIPS]
+    true_positives = torch.tensor([0, 0, 0])
     dataset_size = 0
     score_pcc = 0
     score_ssim = 0
+    score_lpips = 0
 
     for batch_idx, data_batch in enumerate(dataloader):
         model.eval()
@@ -558,10 +566,20 @@ def objective_assessment(model, dataloader, top=5):
                 for i in range(top-1):
                     # Get random number not including ID of original
                     rand_idx = random.choice(numbers)
+                    # PCC Metric
                     score_rand = pearson_correlation(image, data_target[rand_idx])
                     score_gt = pearson_correlation(image, data_target[idx])
                     if score_gt > score_rand:
                         score_pcc += 1
+
+                    # Perceptual Similarity Metric
+                    # TODO: check if it's normalized
+                    score_rand_lpips = perceptual_similarity(image, data_target[rand_idx])
+                    score_recon_lpips = perceptual_similarity(image, data_target[rand_idx])
+                    if score_recon_lpips > score_rand_lpips:
+                        score_lpips += 1
+
+                    # SSIM
                     # TODO: check if the unsqueeze is needed
                     image_for_ssim = torch.unsqueeze(image, 0)
                     target_gt_for_ssim = torch.unsqueeze(data_target[idx], 0)
@@ -570,14 +588,18 @@ def objective_assessment(model, dataloader, top=5):
                     score_gt = structural_similarity(image_for_ssim, target_gt_for_ssim)
                     if score_gt > score_rand:
                         score_ssim += 1
+
                 if score_pcc == top - 1:
                     true_positives[0] += 1
                 if score_ssim == top - 1:
                     true_positives[1] += 1
+                if score_lpips == top - 1:
+                    true_positives[2] += 1
 
                 dataset_size += 1
                 score_pcc = 0
                 score_ssim = 0
+                score_lpips = 0
 
     objective_score = true_positives.float() / dataset_size
 

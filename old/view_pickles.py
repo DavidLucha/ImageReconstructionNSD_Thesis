@@ -12,6 +12,12 @@ from sklearn import preprocessing
 import training_config as cfg
 import random
 
+def unpack():
+    x = [1, 4]
+    return x
+
+x, y = unpack()
+
 data_dir = os.path.join("D:/Honours/nsd_pickles/1.8mm", "raw_concat_pickle")
 
 pickle_dir = os.path.join(data_dir, "subj_01_raw_concat_trial_fmri.pickle")
