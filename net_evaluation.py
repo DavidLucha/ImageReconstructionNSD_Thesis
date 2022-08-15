@@ -25,7 +25,7 @@ from torch.optim.lr_scheduler import ExponentialLR, StepLR
 import training_config
 from model_2 import VaeGan, Encoder, Decoder, VaeGanCognitive, Discriminator, CognitiveEncoder, WaeGan, WaeGanCognitive
 from utils_2 import GreyToColor, evaluate, PearsonCorrelation, \
-    StructuralSimilarity, objective_assessment, parse_args, FmriDataloader, potentiation
+    StructuralSimilarity, objective_assessment, parse_args, FmriDataloader, potentiation, save_out
 
 def free_params(module: nn.Module):
     for p in module.parameters():
@@ -267,9 +267,9 @@ def main():
                                                                                           training_config.std)
                                                                      ]))
 
-    dataloader_train = DataLoader(training_data, batch_size=args.batch_size,  # collate_fn=collate_fn,
+    dataloader_train = DataLoader(training_data, batch_size=args.batch_size, drop_last=False,  # collate_fn=collate_fn,
                                   shuffle=True, num_workers=args.num_workers)
-    dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size,  # collate_fn=collate_fn,
+    dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size, drop_last=False,  # collate_fn=collate_fn,
                                   shuffle=shuf, num_workers=args.num_workers)
 
     NUM_VOXELS = len(train_data[0]['fmri'])
@@ -312,6 +312,7 @@ def main():
     else:
         save = False
 
+    save_out(model, dataloader_valid, path=images_dir)
     # pcc, ssim, mse = evaluate(model, dataloader_valid, norm=False, mean=training_config.mean,
     #                                     std=training_config.std, path=images_dir, save=save, resize=200)
     # logging.info("Mean PCC: {:.2f}".format(pcc.item()))
@@ -324,7 +325,7 @@ def main():
     obj_score = dict(pcc=[], ssim=[], lpips=[], mse=[])
     for top in [2, 5, 10]:
         obj_pcc, obj_ssim, obj_lpips, obj_mse, averages = objective_assessment(model, dataloader_valid, top=top,
-                                                                               save_path=SAVE_PATH, resize=200, save=save)
+                                                                               save_path=SAVE_PATH)
         obj_score['pcc'].append(obj_pcc.item())
         obj_score['ssim'].append(obj_ssim.item())
         obj_score['lpips'].append(obj_lpips.item())

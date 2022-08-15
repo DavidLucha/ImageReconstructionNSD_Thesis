@@ -383,6 +383,49 @@ class StructuralSimilarity(nn.Module):
         return result
 
 
+def save_out(model, dataloader, path=None, save=True, resize=200):
+    """
+    Save recon and real images individually
+
+    @param model: network for evaluation
+    @param dataloader: DataLoader object
+    @param path: path to save images
+    @param save: True if save images, otherwise False
+    @param resize: the size of the image to save
+    """
+
+    real_path = os.path.join(path, 'real')
+    recon_path = os.path.join(path, 'recon')
+
+    for batch_idx, data_batch in enumerate(dataloader):
+        model.eval()
+
+        with no_grad():
+
+            data_target = Variable(data_batch['image'], requires_grad=False).cpu().detach()
+
+            out, _ = model(data_batch['fmri'])
+
+            out = out.data.cpu()
+
+            data_path = data_batch['path']
+            if save:
+                # Make directory
+                if not os.path.exists(real_path):
+                    os.makedirs(real_path)
+                if not os.path.exists(recon_path):
+                    os.makedirs(recon_path)
+
+                if resize is not None:
+                    out = F.interpolate(out, size=resize)
+                    data_target = F.interpolate(data_target, size=resize)
+                for i, im in enumerate(out):
+                    torchvision.utils.save_image(im, fp=os.path.join(recon_path, '{}.png'.format(data_path[i])), normalize=True)
+                for i, im in enumerate(data_target):
+                    torchvision.utils.save_image(im, fp=os.path.join(real_path, '{}.png'.format(data_path[i])), normalize=True)
+
+
+
 def evaluate(model, dataloader, norm=True, mean=None, std=None, path=None, save=False, resize=None):
     """
     Calculate metrics for the dataset specified with dataloader
@@ -462,71 +505,6 @@ def denormalize_image(pred, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225
     return denorm_img
 
 
-def inception_score(imgs, cuda=True, batch_size=32, resize=False, splits=1):
-
-    """Computes the inception score of the generated images imgs
-    imgs -- Torch dataset of (3xHxW) numpy images normalized in the range [-1, 1]
-    cuda -- whether or not to run on GPU
-    batch_size -- batch size for feeding into Inception v3
-    splits -- number of splits
-    https://github.com/sbarratt/inception-score-pytorch/blob/master/inception_score.py
-    """
-    from torchvision.models.inception import inception_v3
-    import numpy as np
-    from scipy.stats import entropy
-
-    N = len(imgs)
-
-    # assert batch_size > 0
-    # assert N > batch_size
-
-    # Set up dtype
-    if cuda:
-        dtype = torch.cuda.FloatTensor
-    else:
-        if torch.cuda.is_available():
-            print("WARNING: You have a CUDA device, so you should probably set cuda=True")
-        dtype = torch.FloatTensor
-
-    # Set up dataloader
-    dataloader = torch.utils.data.DataLoader(imgs, batch_size=batch_size)
-
-    # Load inception model
-    inception_model = inception_v3(pretrained=True, transform_input=False).type(dtype)
-    inception_model.eval();
-    up = nn.Upsample(size=(299, 299), mode='bilinear').type(dtype)
-
-    def get_pred(x):
-        if resize:
-            x = up(x)
-        x = inception_model(x)
-        return F.softmax(x).data.cpu().numpy()
-
-    # Get predictions
-    preds = np.zeros((N, 1000))
-
-    for i, batch in enumerate(dataloader, 0):
-        batch = batch.type(dtype)
-        batchv = Variable(batch)
-        batch_size_i = batch.size()[0]
-
-        preds[i*batch_size:i*batch_size + batch_size_i] = get_pred(batchv)
-
-    # Now compute the mean kl-div
-    split_scores = []
-
-    for k in range(splits):
-        part = preds[k * (N // splits): (k+1) * (N // splits), :]
-        py = np.mean(part, axis=0)
-        scores = []
-        for i in range(part.shape[0]):
-            pyx = part[i, :]
-            scores.append(entropy(pyx, py))
-        split_scores.append(np.exp(np.mean(scores)))
-
-    return np.mean(split_scores)
-
-
 def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc/", resize=200, save=True):
     """
     Calculates objective score of the predictions
@@ -537,9 +515,6 @@ def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc
     @return: objective score - percentage of correct predictions
     """
     import lpips
-
-    real_path = os.path.join(save_path, 'real/')
-    recon_path = os.path.join(save_path, 'recon/')
 
     perceptual_similarity = lpips.LPIPS(net='alex')  # .to('cuda')
     pearson_correlation = PearsonCorrelation()
@@ -553,15 +528,13 @@ def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc
     score_ssim = 0
     score_lpips = 0
     score_mse = 0
-    # an
-    # lpips_sum = 0
 
     # Make a results var to save individual image metrics
     results = dict(
         trial_id=[],
         image_path=[],
-        ssim_im=[],
         pcc_im=[],
+        ssim_im=[],
         lpips_im=[],
         mse_im=[]
     )
@@ -588,9 +561,6 @@ def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc
                 # out = out.data.cpu()
 
             for idx, image in enumerate(out):
-                # print('Min and max of recon image {} is {}, and {}, respectively.'.format(idx, min(image), max(image)))
-                # print('Min and max of real image {} is {}, and {}, respectively.'.format(idx, min(data_target[idx]),
-                #                                                                          max(data_target[idx])))
                 numbers = list(range(0, len(out)))
                 numbers.remove(idx)
                 for i in range(top-1):
@@ -625,10 +595,9 @@ def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc
                     # MSE
                     score_rand_mse = mse_loss(image, data_target[rand_idx])
                     score_recon_mse = mse_loss(image, data_target[idx])
-                    if score_recon_mse > score_rand_mse:
+                    if score_recon_mse < score_rand_mse:
                         score_mse += 1
 
-                    # results['mse_im'].append(score_recon.item())
                 # Save individual scores per image
                 results['trial_id'].append(dataset_size)
                 results['image_path'].append(data_path[idx])
@@ -636,24 +605,6 @@ def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc
                 results['ssim_im'].append(score_recon_ssim.item())
                 results['lpips_im'].append(score_recon_lpips.item())
                 results['mse_im'].append(score_recon_mse.item())
-
-                if save:
-                    # Make directory
-                    if not os.path.exists(real_path):
-                        os.makedirs(real_path)
-                    if not os.path.exists(recon_path):
-                        os.makedirs(recon_path)
-
-                    if resize is not None:
-                        out_resize = F.interpolate(image, size=resize)
-                        real_resize = F.interpolate(data_target[idx], size=resize)
-
-                    torchvision.utils.save_image(out_resize, fp=os.path.join(recon_path, '{}.png'.format(dataset_size)),
-                                                 normalize=True)
-                    torchvision.utils.save_image(real_resize, fp=os.path.join(real_path, '{}.png'.format(dataset_size)),
-                                                 normalize=True)
-
-                # lpips_sum += score_recon_lpips
 
                 if score_pcc == top - 1:
                     true_positives[0] += 1
@@ -671,8 +622,7 @@ def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc
                 score_mse = 0
 
     objective_score = true_positives.float() / dataset_size
-    # lpips_mean = lpips_sum / dataset_size
-    # lpips_mean = sum(results['lpips_im'].values)
+
     averages = []
     for key, values in results.items():
         if key in ('pcc_im', 'ssim_im', 'lpips_im', 'mse_im'):
