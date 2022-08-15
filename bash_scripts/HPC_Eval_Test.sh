@@ -36,7 +36,7 @@ source activate /scratch/qbi/uqdlucha/python/dvaegan
 # Run stage 3
 echo "Running evaluation at $(date +%Y%m%d-%H%M%S)"
 # srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/train_stage3_WAE_iter.py --run_name ${STAGE_3_NAME} --load_from ${LOAD_FROM} --st1_net ${STAGE_1_NET} --st1_load_epoch ${STAGE_1_EPOCH} --st2_net ${STAGE_2_NAME} --st2_load_epoch 40 --standardize none --disc_loss Maria --WAE_loss Maria --lambda_WAE 1 --lambda_GAN 10 --lambda_recon 1 --batch_size 64 --lr_dec 0.001 --lr_disc 0.0005 --valid_shuffle True --latent_dims 1024 --lin_size 2048 --lin_layers 2 --clip_gradients False --vox_res ${VOX_RES} --set_size ${SET_SIZE} --subject ${SUBJ} --ROI ${ROI} --num_workers 2 --epochs 160 --iters 60000 --dataset NSD --seed 277603 --message "${MESSAGE}"
-python /clusterdata/uqdlucha/scripts/deepReconPyTorch/net_evaluation.py --st3_net "BothBothSt3_SUBJ01_1pt8mm_VC_max_Stage3_20220814-172422" --st3_load_epoch 65 --batch_size 64 --latent_dims 1024 --lin_size 2048 --lin_layers 2 --save True --vox_res 1pt8mm --ROI VC --set_size max --subject 1 --num_workers 2 --dataset NSD --seed 277603 --message "hello"
+python /clusterdata/uqdlucha/scripts/deepReconPyTorch/net_evaluation.py --st3_net "BothBothSt3_SUBJ01_1pt8mm_VC_max_Stage3_20220814-172422" --st3_load_epoch 65 --batch_size 256 --latent_dims 1024 --lin_size 2048 --lin_layers 2 --save True --vox_res 1pt8mm --ROI VC --set_size max --subject 1 --num_workers 2 --dataset NSD --seed 277603 --message "hello"
 echo "Evaluation complete at $(date +%Y%m%d-%H%M%S)"
 
 # tar the folder after complete
