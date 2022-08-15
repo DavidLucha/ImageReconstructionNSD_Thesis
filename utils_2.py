@@ -534,15 +534,105 @@ def objective_assessment(model, dataloader, top=5):
     """
     import lpips
 
+    perceptual_similarity = lpips.LPIPS(net='alex')  # .to('cuda')
     pearson_correlation = PearsonCorrelation()
     structural_similarity = StructuralSimilarity()
-    perceptual_similarity = lpips.LPIPS(net='alex')  # .to('cuda')
 
-    # [PCC, SSIM, LPIPS]
+    # [PCC, SSIM]
     true_positives = torch.tensor([0, 0, 0])
     dataset_size = 0
     score_pcc = 0
     score_ssim = 0
+    score_lpips = 0
+    # an
+    lpips_sum = 0
+
+    for batch_idx, data_batch in enumerate(dataloader):
+        model.eval()
+
+        with no_grad():
+            cpu = False
+            if cpu:
+                data_target = Variable(data_batch['image'], requires_grad=False).cpu().detach()
+
+                out, _ = model(data_batch['fmri'])
+                out = out.data.cpu()
+            else:
+                data_target = Variable(data_batch['image'], requires_grad=False).float().to('cuda')
+                data_fmri = Variable(data_batch['fmri'], requires_grad=False).float().to('cuda')
+
+                out, _ = model(data_fmri)
+                # out_cpu = out.data.cpu()
+                target_cpu = data_target.data.cpu()
+                # out = out.data.cpu()
+
+            for idx, image in enumerate(out):
+                numbers = list(range(0, len(out)))
+                numbers.remove(idx)
+                for i in range(top-1):
+                    # Get random number not including ID of original
+                    # Note: this is only a random choice of the mini-batch.
+                    rand_idx = random.choice(numbers)
+                    # PCC Metric
+                    score_rand = pearson_correlation(image, data_target[rand_idx])
+                    score_gt = pearson_correlation(image, data_target[idx])
+                    if score_gt > score_rand:
+                        score_pcc += 1
+
+                    # SSIM
+                    # TODO: check if the unsqueeze is needed
+                    image_for_ssim = torch.unsqueeze(image, 0)
+                    target_gt_for_ssim = torch.unsqueeze(data_target[idx], 0)
+                    target_rand_for_ssim = torch.unsqueeze(data_target[rand_idx], 0)
+                    score_rand = structural_similarity(image_for_ssim, target_rand_for_ssim)
+                    score_gt = structural_similarity(image_for_ssim, target_gt_for_ssim)
+                    if score_gt > score_rand:
+                        score_ssim += 1
+
+                    # Perceptual Similarity Metric
+                    # TODO: check if it's normalized
+                    image_cpu = image.data.cpu()
+                    score_rand_lpips = perceptual_similarity(image_cpu, target_cpu[rand_idx])
+                    score_recon_lpips = perceptual_similarity(image_cpu, target_cpu[idx])
+                    # Lower number means images are 'closer' together
+                    if score_recon_lpips < score_rand_lpips:
+                        score_lpips += 1
+
+                lpips_sum += score_recon_lpips
+
+                if score_pcc == top - 1:
+                    true_positives[0] += 1
+                if score_ssim == top - 1:
+                    true_positives[1] += 1
+                if score_lpips == top - 1:
+                    true_positives[2] += 1
+
+                dataset_size += 1
+                score_pcc = 0
+                score_ssim = 0
+                score_lpips = 0
+
+    objective_score = true_positives.float() / dataset_size
+    lpips_mean = lpips_sum / dataset_size
+
+    return objective_score, lpips_mean
+
+def objective_perceptual(model, dataloader, top=5):
+    """
+    Calculates objective score of the predictions for LPIPS
+
+    @param model: network for evaluation
+    @param dataloader: DataLoader object
+    @param top: n-top score: n=2,5,10
+    @return: objective score - percentage of correct predictions
+    """
+    import lpips
+
+    perceptual_similarity = lpips.LPIPS(net='alex')  # .to('cuda')
+
+    # [PCC, SSIM, LPIPS]
+    true_positives = torch.tensor([0])
+    dataset_size = 0
     score_lpips = 0
 
     for batch_idx, data_batch in enumerate(dataloader):
@@ -568,45 +658,24 @@ def objective_assessment(model, dataloader, top=5):
                 for i in range(top-1):
                     # Get random number not including ID of original
                     rand_idx = random.choice(numbers)
-                    # PCC Metric
-                    score_rand = pearson_correlation(image, data_target[rand_idx])
-                    score_gt = pearson_correlation(image, data_target[idx])
-                    if score_gt > score_rand:
-                        score_pcc += 1
 
                     # Perceptual Similarity Metric
                     # TODO: check if it's normalized
                     score_rand_lpips = perceptual_similarity(image, data_target[rand_idx])
-                    score_recon_lpips = perceptual_similarity(image, data_target[rand_idx])
+                    score_recon_lpips = perceptual_similarity(image, data_target[idx])
+                    print('\nFor lpips recon: {:.2f}\nlpips target: {:.2f}'.format(score_recon_lpips, score_rand_lpips))
                     if score_recon_lpips > score_rand_lpips:
                         score_lpips += 1
 
-                    # SSIM
-                    # TODO: check if the unsqueeze is needed
-                    image_for_ssim = torch.unsqueeze(image, 0)
-                    target_gt_for_ssim = torch.unsqueeze(data_target[idx], 0)
-                    target_rand_for_ssim = torch.unsqueeze(data_target[rand_idx], 0)
-                    score_rand = structural_similarity(image_for_ssim, target_rand_for_ssim)
-                    score_gt = structural_similarity(image_for_ssim, target_gt_for_ssim)
-                    if score_gt > score_rand:
-                        score_ssim += 1
-
-                if score_pcc == top - 1:
-                    true_positives[0] += 1
-                if score_ssim == top - 1:
-                    true_positives[1] += 1
                 if score_lpips == top - 1:
-                    true_positives[2] += 1
+                    true_positives[0] += 1
 
                 dataset_size += 1
-                score_pcc = 0
-                score_ssim = 0
                 score_lpips = 0
 
     objective_score = true_positives.float() / dataset_size
 
     return objective_score
-
 
 def parse_args(args):  # TODO: Add a second term here 'stage' and do conditional
     parser = argparse.ArgumentParser()

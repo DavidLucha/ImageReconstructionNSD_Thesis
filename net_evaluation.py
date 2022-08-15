@@ -323,10 +323,14 @@ def main():
     # Plot histogram for objective assessment
     obj_score = dict(pcc=[], ssim=[], lpips=[])
     for top in [2, 5, 10]:
-        obj_pcc, obj_ssim, obj_lpips = objective_assessment(model, dataloader_valid, top=top)
+        # TODO: It might be worth to do PCC and SSIM here on gpu
+        # TODO: Then to switch to CPU to handle the LPIPs
+        obj_pcc, obj_ssim, obj_lpips, lpips_mean = objective_assessment(model, dataloader_valid, top=top)
         obj_score['pcc'].append(obj_pcc.item())
         obj_score['ssim'].append(obj_ssim.item())
         obj_score['lpips'].append(obj_lpips.item())
+
+    logging.info("Mean LPIPS: {:.2f}".format(lpips_mean))
 
     obj_results_to_save = pd.DataFrame(obj_score)
     # TODO: Add more information here, number of trials - or at least to save to loggin
