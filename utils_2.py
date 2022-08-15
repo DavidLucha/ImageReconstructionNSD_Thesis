@@ -645,12 +645,12 @@ def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc
                         os.makedirs(recon_path)
 
                     if resize is not None:
-                        out = F.interpolate(out, size=resize)
-                        data_target = F.interpolate(data_target, size=resize)
+                        out_resize = F.interpolate(image, size=resize)
+                        real_resize = F.interpolate(data_target[idx], size=resize)
 
-                    torchvision.utils.save_image(image, fp=os.path.join(recon_path, '{}.png'.format(dataset_size)),
+                    torchvision.utils.save_image(out_resize, fp=os.path.join(recon_path, '{}.png'.format(dataset_size)),
                                                  normalize=True)
-                    torchvision.utils.save_image(data_target[idx], fp=os.path.join(real_path, '{}.png'.format(dataset_size)),
+                    torchvision.utils.save_image(real_resize, fp=os.path.join(real_path, '{}.png'.format(dataset_size)),
                                                  normalize=True)
 
                 # lpips_sum += score_recon_lpips
