@@ -108,6 +108,8 @@ def main():
                             help='pretrained network from stage 1', type=str)
         parser.add_argument('--st3_load_epoch', default='final',
                             help='epoch of the pretrained model', type=str)
+        parser.add_argument('--load_from', default='root', help='loads from either networks folder or normal'
+                                                                    ' stage 3 output', type=str)
         parser.add_argument('--dataset', default='NSD', help='GOD, NSD', type=str)
         # Only need vox_res arg from stage 2 and 3
         parser.add_argument('--vox_res', default='1pt8mm', help='1pt8mm, 3mm', type=str)
@@ -280,8 +282,12 @@ def main():
     # Load Stage 3 network weights
     # model_dir = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, args.ROI, SUBJECT_PATH,
     #                              'stage_3', args.st3_net, args.st3_net + '_{}.pth'.format(args.st3_load_epoch))
-    model_dir = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, "networks",
-                             args.st3_net + '_{}.pth'.format(args.st3_load_epoch))
+    if args.load_from == "networks":
+        model_dir = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, "networks",
+                                 args.st3_net + '_{}.pth'.format(args.st3_load_epoch))
+    else:
+        model_dir = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, args.ROI, SUBJECT_PATH,
+                                     'stage_3', args.st3_net, args.st3_net + '_{}.pth'.format(args.st3_load_epoch))
 
     decoder = Decoder(z_size=args.latent_dims, size=256).to(device)
     cognitive_encoder = CognitiveEncoder(input_size=NUM_VOXELS, z_size=args.latent_dims, lin_size=args.lin_size,
