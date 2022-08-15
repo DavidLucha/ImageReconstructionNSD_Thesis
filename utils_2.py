@@ -536,7 +536,7 @@ def objective_assessment(model, dataloader, top=5):
 
     pearson_correlation = PearsonCorrelation()
     structural_similarity = StructuralSimilarity()
-    perceptual_similarity = lpips.LPIPS(net='alex')
+    perceptual_similarity = lpips.LPIPS(net='alex')  # .to('cuda')
 
     # [PCC, SSIM, LPIPS]
     true_positives = torch.tensor([0, 0, 0])
@@ -549,7 +549,7 @@ def objective_assessment(model, dataloader, top=5):
         model.eval()
 
         with no_grad():
-            cpu = False
+            cpu = True
             if cpu:
                 data_target = Variable(data_batch['image'], requires_grad=False).cpu().detach()
 
