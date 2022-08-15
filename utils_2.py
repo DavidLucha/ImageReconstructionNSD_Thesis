@@ -615,7 +615,7 @@ def objective_assessment(model, dataloader, top=5):
     objective_score = true_positives.float() / dataset_size
     lpips_mean = lpips_sum / dataset_size
 
-    return objective_score, lpips_mean
+    return objective_score[0], objective_score[1], objective_score[2], lpips_mean
 
 def objective_perceptual(model, dataloader, top=5):
     """
