@@ -383,7 +383,7 @@ class StructuralSimilarity(nn.Module):
         return result
 
 
-def save_out(model, dataloader, path=None, save=True, resize=200):
+def save_out(model, dataloader, path=None, resize=200):
     """
     Save recon and real images individually
 
@@ -409,20 +409,20 @@ def save_out(model, dataloader, path=None, save=True, resize=200):
             out = out.data.cpu()
 
             data_path = data_batch['path']
-            if save:
-                # Make directory
-                if not os.path.exists(real_path):
-                    os.makedirs(real_path)
-                if not os.path.exists(recon_path):
-                    os.makedirs(recon_path)
+            
+            # Make directory
+            if not os.path.exists(real_path):
+                os.makedirs(real_path)
+            if not os.path.exists(recon_path):
+                os.makedirs(recon_path)
 
-                if resize is not None:
-                    out = F.interpolate(out, size=resize)
-                    data_target = F.interpolate(data_target, size=resize)
-                for i, im in enumerate(out):
-                    torchvision.utils.save_image(im, fp=os.path.join(recon_path, '{}.png'.format(data_path[i])), normalize=True)
-                for i, im in enumerate(data_target):
-                    torchvision.utils.save_image(im, fp=os.path.join(real_path, '{}.png'.format(data_path[i])), normalize=True)
+            if resize is not None:
+                out = F.interpolate(out, size=resize)
+                data_target = F.interpolate(data_target, size=resize)
+            for i, im in enumerate(out):
+                torchvision.utils.save_image(im, fp=os.path.join(recon_path, '{}.png'.format(data_path[i])), normalize=True)
+            for i, im in enumerate(data_target):
+                torchvision.utils.save_image(im, fp=os.path.join(real_path, '{}.png'.format(data_path[i])), normalize=True)
 
 
 

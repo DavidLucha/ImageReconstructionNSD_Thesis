@@ -312,9 +312,9 @@ def main():
     else:
         save = False
 
-    save_out(model, dataloader_valid, path=images_dir)
-    # pcc, ssim, mse = evaluate(model, dataloader_valid, norm=False, mean=training_config.mean,
-    #                                     std=training_config.std, path=images_dir, save=save, resize=200)
+    # save_out(model, dataloader_valid, path=images_dir)
+    pcc, ssim, mse = evaluate(model, dataloader_valid, norm=False, mean=training_config.mean,
+                              std=training_config.std, path=images_dir, save=save, resize=200)
     # logging.info("Mean PCC: {:.2f}".format(pcc.item()))
     # logging.info("Mean SSIM: {:.2f}".format(ssim.item()))
     # logging.info("Mean MSE: {:.2f}".format(mse.item()))
