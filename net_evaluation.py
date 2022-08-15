@@ -321,7 +321,7 @@ def main():
     # logging.info("Mean IS:", is_score)
 
     # Plot histogram for objective assessment
-    obj_score = dict(pcc=[], ssim=[], lpips=[])
+    obj_score = dict(pcc=[], ssim=[], lpips=[], mse=[])
     for top in [2, 5, 10]:
         obj_pcc, obj_ssim, obj_lpips, obj_mse, averages = objective_assessment(model, dataloader_valid, top=top,
                                                                                save_path=SAVE_PATH, resize=200, save=save)
