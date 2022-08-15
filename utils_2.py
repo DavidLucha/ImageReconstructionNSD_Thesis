@@ -641,7 +641,7 @@ def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc
     lpips_mean = lpips_sum / dataset_size
 
     results_to_save = pd.DataFrame(results)
-    results_to_save.to_csv(os.path.join(save_path, "results.csv"), index=True)
+    results_to_save.to_csv(os.path.join(save_path, "trial_results.csv"), index=True)
 
     return objective_score[0], objective_score[1], objective_score[2], lpips_mean
 
