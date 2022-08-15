@@ -325,7 +325,8 @@ def main():
     for top in [2, 5, 10]:
         # TODO: It might be worth to do PCC and SSIM here on gpu
         # TODO: Then to switch to CPU to handle the LPIPs
-        obj_pcc, obj_ssim, obj_lpips, lpips_mean = objective_assessment(model, dataloader_valid, top=top)
+        obj_pcc, obj_ssim, obj_lpips, lpips_mean = objective_assessment(model, dataloader_valid, top=top,
+                                                                        save_path=SAVE_PATH)
         obj_score['pcc'].append(obj_pcc.item())
         obj_score['ssim'].append(obj_ssim.item())
         obj_score['lpips'].append(obj_lpips.item())

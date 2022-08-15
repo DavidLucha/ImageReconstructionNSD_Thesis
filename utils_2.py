@@ -12,6 +12,7 @@ import numpy as np
 import random
 import logging
 import lpips as lpips
+import pandas as pd
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 
@@ -74,7 +75,10 @@ class FmriDataloader(object):
         elif self.standardizer == "norm:":
             fmri_tensor = F.normalize((fmri_tensor))
 
-        transformed_sample = {'fmri': fmri_tensor, 'image': mod_stimulus}
+        # TODO: Check this doesn't break everything
+        path = self.dataset[idx]['image']
+
+        transformed_sample = {'fmri': fmri_tensor, 'image': mod_stimulus, 'path': path}
 
         return transformed_sample
 
@@ -523,7 +527,7 @@ def inception_score(imgs, cuda=True, batch_size=32, resize=False, splits=1):
     return np.mean(split_scores)
 
 
-def objective_assessment(model, dataloader, top=5):
+def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc/"):
     """
     Calculates objective score of the predictions
 
@@ -547,6 +551,16 @@ def objective_assessment(model, dataloader, top=5):
     # an
     lpips_sum = 0
 
+    # Make a results var to save individual image metrics
+    results = dict(
+        trial_id=[],
+        image_path=[],
+        # mse_im=[],
+        ssim_im=[],
+        pcc_im=[],
+        lpips_im=[]
+    )
+
     for batch_idx, data_batch in enumerate(dataloader):
         model.eval()
 
@@ -560,6 +574,8 @@ def objective_assessment(model, dataloader, top=5):
             else:
                 data_target = Variable(data_batch['image'], requires_grad=False).float().to('cuda')
                 data_fmri = Variable(data_batch['fmri'], requires_grad=False).float().to('cuda')
+                # data_path = Variable(data_batch['path'], requires_grad=False).float().to('cuda')
+                data_path = data_batch['path']
 
                 out, _ = model(data_fmri)
                 # out_cpu = out.data.cpu()
@@ -570,12 +586,17 @@ def objective_assessment(model, dataloader, top=5):
                 numbers = list(range(0, len(out)))
                 numbers.remove(idx)
                 for i in range(top-1):
+                    # Save individual scores per image
+                    results['trial_id'].append(idx)
+                    results['image_path'].append(data_path[idx])
+
                     # Get random number not including ID of original
                     # Note: this is only a random choice of the mini-batch.
                     rand_idx = random.choice(numbers)
                     # PCC Metric
                     score_rand = pearson_correlation(image, data_target[rand_idx])
                     score_gt = pearson_correlation(image, data_target[idx])
+                    results['pcc_im'].append(score_gt.item())
                     if score_gt > score_rand:
                         score_pcc += 1
 
@@ -586,6 +607,7 @@ def objective_assessment(model, dataloader, top=5):
                     target_rand_for_ssim = torch.unsqueeze(data_target[rand_idx], 0)
                     score_rand = structural_similarity(image_for_ssim, target_rand_for_ssim)
                     score_gt = structural_similarity(image_for_ssim, target_gt_for_ssim)
+                    results['ssim_im'].append(score_gt.item())
                     if score_gt > score_rand:
                         score_ssim += 1
 
@@ -594,9 +616,12 @@ def objective_assessment(model, dataloader, top=5):
                     image_cpu = image.data.cpu()
                     score_rand_lpips = perceptual_similarity(image_cpu, target_cpu[rand_idx])
                     score_recon_lpips = perceptual_similarity(image_cpu, target_cpu[idx])
+                    results['lpips_im'].append(score_recon_lpips)
                     # Lower number means images are 'closer' together
                     if score_recon_lpips < score_rand_lpips:
                         score_lpips += 1
+
+                    # results['mse_im'].append(score_gt.item())
 
                 lpips_sum += score_recon_lpips
 
@@ -615,67 +640,11 @@ def objective_assessment(model, dataloader, top=5):
     objective_score = true_positives.float() / dataset_size
     lpips_mean = lpips_sum / dataset_size
 
+    results_to_save = pd.DataFrame(results)
+    results_to_save.to_csv(os.path.join(save_path, "results.csv"), index=True)
+
     return objective_score[0], objective_score[1], objective_score[2], lpips_mean
 
-def objective_perceptual(model, dataloader, top=5):
-    """
-    Calculates objective score of the predictions for LPIPS
-
-    @param model: network for evaluation
-    @param dataloader: DataLoader object
-    @param top: n-top score: n=2,5,10
-    @return: objective score - percentage of correct predictions
-    """
-    import lpips
-
-    perceptual_similarity = lpips.LPIPS(net='alex')  # .to('cuda')
-
-    # [PCC, SSIM, LPIPS]
-    true_positives = torch.tensor([0])
-    dataset_size = 0
-    score_lpips = 0
-
-    for batch_idx, data_batch in enumerate(dataloader):
-        model.eval()
-
-        with no_grad():
-            cpu = True
-            if cpu:
-                data_target = Variable(data_batch['image'], requires_grad=False).cpu().detach()
-
-                out, _ = model(data_batch['fmri'])
-                out = out.data.cpu()
-            else:
-                data_target = Variable(data_batch['image'], requires_grad=False).float().to('cuda')
-                data_fmri = Variable(data_batch['fmri'], requires_grad=False).float().to('cuda')
-
-                out, _ = model(data_fmri)
-                # out = out.data.cpu()
-
-            for idx, image in enumerate(out):
-                numbers = list(range(0, len(out)))
-                numbers.remove(idx)
-                for i in range(top-1):
-                    # Get random number not including ID of original
-                    rand_idx = random.choice(numbers)
-
-                    # Perceptual Similarity Metric
-                    # TODO: check if it's normalized
-                    score_rand_lpips = perceptual_similarity(image, data_target[rand_idx])
-                    score_recon_lpips = perceptual_similarity(image, data_target[idx])
-                    print('\nFor lpips recon: {:.2f}\nlpips target: {:.2f}'.format(score_recon_lpips, score_rand_lpips))
-                    if score_recon_lpips > score_rand_lpips:
-                        score_lpips += 1
-
-                if score_lpips == top - 1:
-                    true_positives[0] += 1
-
-                dataset_size += 1
-                score_lpips = 0
-
-    objective_score = true_positives.float() / dataset_size
-
-    return objective_score
 
 def parse_args(args):  # TODO: Add a second term here 'stage' and do conditional
     parser = argparse.ArgumentParser()
