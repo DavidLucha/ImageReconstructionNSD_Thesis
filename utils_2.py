@@ -588,9 +588,9 @@ def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc
                 # out = out.data.cpu()
 
             for idx, image in enumerate(out):
-                print('Min and max of recon image {} is {}, and {}, respectively.'.format(idx, min(image), max(image)))
-                print('Min and max of real image {} is {}, and {}, respectively.'.format(idx, min(data_target[idx]),
-                                                                                         max(data_target[idx])))
+                # print('Min and max of recon image {} is {}, and {}, respectively.'.format(idx, min(image), max(image)))
+                # print('Min and max of real image {} is {}, and {}, respectively.'.format(idx, min(data_target[idx]),
+                #                                                                          max(data_target[idx])))
                 numbers = list(range(0, len(out)))
                 numbers.remove(idx)
                 for i in range(top-1):
