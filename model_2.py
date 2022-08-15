@@ -206,27 +206,27 @@ class CognitiveEncoder(nn.Module):
     Cognitive encoder to transform fMRI to cognitive latent representations.
     Used in training on Stage II and III
     """
-    def __init__(self, input_size, z_size=128, channel_in=3, lin_size=1024, lin_layers=1):
+    def __init__(self, input_size, z_size=128, channel_in=3, lin_size=1024, lin_layers=1, momentum=0.9):
         super(CognitiveEncoder, self).__init__()
         self.size = channel_in
         self.lin_layers = lin_layers
 
         if self.lin_layers == 1:
             self.fc1 = nn.Sequential(nn.Linear(in_features=input_size, out_features=lin_size, bias=False),
-                                    nn.BatchNorm1d(num_features=lin_size, momentum=0.9),
+                                    nn.BatchNorm1d(num_features=lin_size, momentum=momentum),
                                     nn.ReLU(True))
             # self.fc2 = nn.Sequential(nn.Linear(in_features=1024, out_features=512, bias=False),
-            #                         nn.BatchNorm1d(num_features=512, momentum=0.9),
+            #                         nn.BatchNorm1d(num_features=512, momentum=momentum),
             #                         nn.LeakyReLU(True))
             # two linear to get the mu vector and the diagonal of the log_variance
             self.l_mu = nn.Linear(in_features=lin_size, out_features=z_size)
             self.l_var = nn.Linear(in_features=lin_size, out_features=z_size)
         else:
             self.fc1 = nn.Sequential(nn.Linear(in_features=input_size, out_features=lin_size, bias=False),
-                                     nn.BatchNorm1d(num_features=lin_size, momentum=0.9),
+                                     nn.BatchNorm1d(num_features=lin_size, momentum=momentum),
                                      nn.ReLU(True))
             self.fc2 = nn.Sequential(nn.Linear(in_features=lin_size, out_features=int(lin_size/2), bias=False),
-                                     nn.BatchNorm1d(num_features=int(lin_size/2), momentum=0.9),
+                                     nn.BatchNorm1d(num_features=int(lin_size/2), momentum=momentum),
                                      nn.ReLU(True))
                                      # was nn.LeakyReLU(True))
             # two linear to get the mu vector and the diagonal of the log_variance

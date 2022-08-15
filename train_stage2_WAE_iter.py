@@ -92,6 +92,7 @@ def main():
             parser.add_argument('--lambda_recon', default=1, help='weight of recon loss', type=int)
             parser.add_argument('--clip_gradients', default='False',
                                 help='determines whether to clip gradients or not', type=str)
+            parser.add_argument('--momentum', default=0.9, type=float, help='sets the momentum for cog enc')
 
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
@@ -314,7 +315,7 @@ def main():
 
         # Define model
         cognitive_encoder = CognitiveEncoder(input_size=NUM_VOXELS, z_size=args.latent_dims, lin_size=args.lin_size,
-                                             lin_layers=args.lin_layers).to(device)
+                                             lin_layers=args.lin_layers, momentum=args.momentum).to(device)
         # TODO: Check - aren't we supposed to be loading a trained discriminator too?
         # no, here we would want a fresh one. saying 1 to vis enc disc, and 0 to cog enc and then move cog towards vis
         model = WaeGanCognitive(device=device, encoder=cognitive_encoder, decoder=trained_model.decoder,

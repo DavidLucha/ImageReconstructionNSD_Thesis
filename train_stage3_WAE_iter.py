@@ -91,6 +91,8 @@ def main():
             parser.add_argument('--lambda_recon', default=1, help='weight of recon loss', type=int)
             parser.add_argument('--clip_gradients', default='False',
                                 help='determines whether to clip gradients or not', type=str)
+            parser.add_argument('--weight_decay', default=0.0, type=float, help='sets the weight decay for Adam')
+            parser.add_argument('--momentum', default=0.9, type=float, help='sets the momentum for cog enc')
 
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
@@ -299,7 +301,7 @@ def main():
 
         decoder = Decoder(z_size=args.latent_dims, size=256).to(device)
         cognitive_encoder = CognitiveEncoder(input_size=NUM_VOXELS, z_size=args.latent_dims, lin_size=args.lin_size,
-                                             lin_layers=args.lin_layers).to(device)
+                                             lin_layers=args.lin_layers, momentum=args.momentum).to(device)
         trained_model = WaeGanCognitive(device=device, encoder=cognitive_encoder, decoder=decoder,
                                         z_size=args.latent_dims).to(device)
         # This then loads the network from stage 2 (cog enc) to fix encoder in stage 3
@@ -394,8 +396,10 @@ def main():
         else:
             # Optimizers
             # optimizer_encoder = torch.optim.Adam(model.encoder.parameters(), lr=lr_enc, betas=(beta, 0.999))
-            optimizer_decoder = torch.optim.Adam(model.decoder.parameters(), lr=lr_dec, betas=(beta, 0.999))
-            optimizer_discriminator = torch.optim.Adam(model.discriminator.parameters(), lr=lr_disc, betas=(beta, 0.999))
+            optimizer_decoder = torch.optim.Adam(model.decoder.parameters(), lr=lr_dec, betas=(beta, 0.999),
+                                                 weight_decay=args.weight_decay)
+            optimizer_discriminator = torch.optim.Adam(model.discriminator.parameters(), lr=lr_disc, betas=(beta, 0.999),
+                                                 weight_decay=args.weight_decay)
 
             # lr_encoder = StepLR(optimizer_encoder, step_size=30, gamma=0.5)
             lr_decoder = StepLR(optimizer_decoder, step_size=30, gamma=0.5)
