@@ -527,7 +527,7 @@ def inception_score(imgs, cuda=True, batch_size=32, resize=False, splits=1):
     return np.mean(split_scores)
 
 
-def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc/"):
+def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc/", resize=200, save=True):
     """
     Calculates objective score of the predictions
 
@@ -538,27 +538,32 @@ def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc
     """
     import lpips
 
+    real_path = os.path.join(save_path, 'real/')
+    recon_path = os.path.join(save_path, 'recon/')
+
     perceptual_similarity = lpips.LPIPS(net='alex')  # .to('cuda')
     pearson_correlation = PearsonCorrelation()
     structural_similarity = StructuralSimilarity()
+    mse_loss = nn.MSELoss()
 
-    # [PCC, SSIM]
-    true_positives = torch.tensor([0, 0, 0])
+    # [PCC, SSIM, PSM, MSE]
+    true_positives = torch.tensor([0, 0, 0, 0])
     dataset_size = 0
     score_pcc = 0
     score_ssim = 0
     score_lpips = 0
+    score_mse = 0
     # an
-    lpips_sum = 0
+    # lpips_sum = 0
 
     # Make a results var to save individual image metrics
     results = dict(
         trial_id=[],
         image_path=[],
-        # mse_im=[],
         ssim_im=[],
         pcc_im=[],
-        lpips_im=[]
+        lpips_im=[],
+        mse_im=[]
     )
 
     for batch_idx, data_batch in enumerate(dataloader):
@@ -583,6 +588,9 @@ def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc
                 # out = out.data.cpu()
 
             for idx, image in enumerate(out):
+                print('Min and max of recon image {} is {}, and {}, respectively.'.format(idx, min(image), max(image)))
+                print('Min and max of real image {} is {}, and {}, respectively.'.format(idx, min(data_target[idx]),
+                                                                                         max(data_target[idx])))
                 numbers = list(range(0, len(out)))
                 numbers.remove(idx)
                 for i in range(top-1):
@@ -605,7 +613,7 @@ def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc
                     if score_recon_ssim > score_rand_ssim:
                         score_ssim += 1
 
-                    # Perceptual Similarity Metric
+                    # Perceptual Similarity Metric - requires -1 to 1 normalization
                     # TODO: check if it's normalized
                     image_cpu = image.data.cpu()
                     score_rand_lpips = perceptual_similarity(image_cpu, target_cpu[rand_idx])
@@ -614,15 +622,38 @@ def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc
                     if score_recon_lpips < score_rand_lpips:
                         score_lpips += 1
 
+                    # MSE
+                    score_rand_mse = mse_loss(image, data_target[rand_idx])
+                    score_recon_mse = mse_loss(image, data_target[idx])
+                    if score_recon_mse > score_rand_mse:
+                        score_mse += 1
+
                     # results['mse_im'].append(score_recon.item())
                 # Save individual scores per image
-                results['trial_id'].append(idx)
+                results['trial_id'].append(dataset_size)
                 results['image_path'].append(data_path[idx])
                 results['pcc_im'].append(score_recon_pcc.item())
                 results['ssim_im'].append(score_recon_ssim.item())
                 results['lpips_im'].append(score_recon_lpips.item())
+                results['mse_im'].append(score_recon_mse.item())
 
-                lpips_sum += score_recon_lpips
+                if save:
+                    # Make directory
+                    if not os.path.exists(real_path):
+                        os.makedirs(real_path)
+                    if not os.path.exists(recon_path):
+                        os.makedirs(recon_path)
+
+                    if resize is not None:
+                        out = F.interpolate(out, size=resize)
+                        data_target = F.interpolate(data_target, size=resize)
+
+                    torchvision.utils.save_image(image, fp=os.path.join(recon_path, '{}.png'.format(dataset_size)),
+                                                 normalize=True)
+                    torchvision.utils.save_image(data_target[idx], fp=os.path.join(real_path, '{}.png'.format(dataset_size)),
+                                                 normalize=True)
+
+                # lpips_sum += score_recon_lpips
 
                 if score_pcc == top - 1:
                     true_positives[0] += 1
@@ -630,19 +661,27 @@ def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc
                     true_positives[1] += 1
                 if score_lpips == top - 1:
                     true_positives[2] += 1
+                if score_mse == top - 1:
+                    true_positives[3] += 1
 
                 dataset_size += 1
                 score_pcc = 0
                 score_ssim = 0
                 score_lpips = 0
+                score_mse = 0
 
     objective_score = true_positives.float() / dataset_size
-    lpips_mean = lpips_sum / dataset_size
+    # lpips_mean = lpips_sum / dataset_size
+    # lpips_mean = sum(results['lpips_im'].values)
+    averages = []
+    for key, values in results.items():
+        if key in ('pcc_im', 'ssim_im', 'lpips_im', 'mse_im'):
+            averages.append(sum(values)/float(len(values)))
 
     results_to_save = pd.DataFrame(results)
     results_to_save.to_csv(os.path.join(save_path, "trial_results.csv"), index=True)
 
-    return objective_score[0], objective_score[1], objective_score[2], lpips_mean
+    return objective_score[0], objective_score[1], objective_score[2], objective_score[3], averages
 
 
 def parse_args(args):  # TODO: Add a second term here 'stage' and do conditional

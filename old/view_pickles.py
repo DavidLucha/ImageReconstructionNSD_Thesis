@@ -12,6 +12,13 @@ from sklearn import preprocessing
 import training_config as cfg
 import random
 
+hello = []
+for i in (1, 2, 3):
+    hello.append(i)
+
+hello[1]
+
+
 def unpack():
     x = [1, 4]
     return x
