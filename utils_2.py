@@ -393,16 +393,16 @@ def evaluate(model, dataloader, norm=True, mean=None, std=None, path=None, save=
     @param resize: the size of the image to save
     @return: mean PCC, mean SSIM, MSE, mean IS (inception score)
     """
-    import lpips
+    # import lpips
 
     pearson_correlation = PearsonCorrelation()
     structural_similarity = StructuralSimilarity()
     mse_loss = nn.MSELoss()
-    perceptual_similarity = lpips.LPIPS(net='alex')
+    # perceptual_similarity = lpips.LPIPS(net='alex')
     ssim = 0
     pcc = 0
     mse = 0
-    lpips = 0
+    # lpips = 0
     # is_mean = 0
     real_path = path + '/real'
     recon_path = path + '/recon'
@@ -438,16 +438,16 @@ def evaluate(model, dataloader, norm=True, mean=None, std=None, path=None, save=
         ssim += structural_similarity(out, data_target)
         mse += mse_loss(out, data_target)
         # TODO: Check this is working - does it not work per image?
-        lpips += perceptual_similarity(out, data_target)
+        # lpips += perceptual_similarity(out, data_target)
         # is_mean += inception_score(out, resize=True)
 
     mean_pcc = pcc / (batch_idx+1)
     mean_ssim = ssim / (batch_idx+1)
     mse_loss = mse / (batch_idx+1)
-    mean_lpips = lpips / (batch_idx + 1)
+    # mean_lpips = lpips / (batch_idx + 1)
     # is_mean = is_mean / (batch_idx+1)
 
-    return mean_pcc, mean_ssim, mse_loss, mean_lpips
+    return mean_pcc, mean_ssim, mse_loss  # , mean_lpips
 
 def denormalize_image(pred, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
 

@@ -312,12 +312,12 @@ def main():
     else:
         save = False
 
-    pcc, ssim, mse, lpips = evaluate(model, dataloader_valid, norm=False, mean=training_config.mean,
+    pcc, ssim, mse = evaluate(model, dataloader_valid, norm=False, mean=training_config.mean,
                                         std=training_config.std, path=images_dir, save=save, resize=200)
     logging.info("Mean PCC: {:.2f}".format(pcc.item()))
     logging.info("Mean SSIM: {:.2f}".format(ssim.item()))
     logging.info("Mean MSE: {:.2f}".format(mse.item()))
-    logging.info("Mean LPIPS: {:.2f}".format(lpips.item()))
+    # logging.info("Mean LPIPS: {:.2f}".format(lpips.item()))
     # logging.info("Mean IS:", is_score)
 
     # Plot histogram for objective assessment
