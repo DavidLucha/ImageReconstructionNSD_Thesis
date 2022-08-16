@@ -25,5 +25,5 @@ RUN_NAME=$(date +%Y%m%d-%H%M%S)
 # Study 1
 # Pretrain one network. Used in both GOD and NSD.
 echo "Running pretrain at $(date +%Y%m%d-%H%M%S)"
-srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/pretrain_WAE.py --run_name WAE_1024_Stage1_bs64_$RUN_NAME --batch_size 64 --lr 0.0001 --latent_dims 1024 --num_workers 2 --epochs 100 --dataset NSD --seed 277603 --message "Final run through of pretrain (stage 1)"
+srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/pretrain_WAE.py --run_name WAE_1024_Stage1_bs64_$RUN_NAME --batch_size 64 --latent_dims 1024 --num_workers 2 --epochs 100 --dataset NSD --seed 277603 --message "Final run through of pretrain (stage 1)"
 echo "Pretrain complete at $(date +%Y%m%d-%H%M%S)"
