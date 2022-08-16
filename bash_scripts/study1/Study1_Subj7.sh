@@ -1,12 +1,12 @@
 #!/bin/bash
 
 #SBATCH -N 1
-#SBATCH --job-name=Study1_Subj1
+#SBATCH --job-name=Study1_Subj7
 #SBATCH -n 2
 #SBATCH -c 25
 #SBATCH --mem=20000
-#SBATCH -o Study1_Subj1_output.txt
-#SBATCH -e Study1_Subj1_error.txt
+#SBATCH -o Study1_Subj7_output.txt
+#SBATCH -e Study1_Subj7_error.txt
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:tesla:1
 #SBATCH --mail-type=ALL
@@ -23,7 +23,7 @@ source activate /scratch/qbi/uqdlucha/python/dvaegan
 RUN_TIME=$(date +%Y%m%d-%H%M%S)
 # ------ CHANGE THESE ------- #
 STUDY=1
-SUBJ=1
+SUBJ=7
 VOX_RES="1pt8mm"
 BATCH_SIZE=100
 SET_SIZE="max"
