@@ -16,18 +16,31 @@ sbatch Study1_Subj8.sh
 cd ../
 cd ./study2/
 
+# ------ IGNORE THIS --------
+
 sbatch Study2_Subj1.sh
 sbatch Study2_Subj2.sh
 sbatch Study2_Subj3.sh
 sbatch Study2_Subj4.sh
-
-# We've queued up to here
-
 sbatch Study2_Subj5.sh
 sbatch Study2_Subj6.sh
 sbatch Study2_Subj7.sh
 sbatch Study2_Subj8.sh
 
+# ------ IGNORE THIS --------
+
+cd ../
+cd ./study2/
+cd ./1200
+sbatch Study2_AllSubj_1200.sh
+cd ../
+cd ./4000
+sbatch Study2_AllSubj_4000.sh
+cd ../
+cd ./7500
+sbatch Study2_AllSubj_7500.sh
+
+cd ../
 cd ../
 cd ./study3/
 
