@@ -30,6 +30,8 @@ sbatch Study2_Subj8.sh
 # ------ IGNORE THIS --------
 
 cd ../
+
+
 cd ./study2/
 cd ./1200
 sbatch Study2_AllSubj_1200.sh

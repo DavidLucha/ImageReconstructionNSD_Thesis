@@ -1,4 +1,4 @@
-# #!/bin/bash
+#!/bin/bash
 
 #SBATCH -N 1
 #SBATCH --job-name=Study2_AllSubj_7500
