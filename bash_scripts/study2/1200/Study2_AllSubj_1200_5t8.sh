@@ -1,12 +1,12 @@
 #!/bin/bash
 
 #SBATCH -N 1
-#SBATCH --job-name=Study2_AllSubj_1200
+#SBATCH --job-name=Study2_AllSubj_1200_5t8
 #SBATCH -n 2
 #SBATCH -c 25
 #SBATCH --mem=50000
-#SBATCH -o Study2_AllSubj_1200_output.txt
-#SBATCH -e Study2_AllSubj_1200_error.txt
+#SBATCH -o Study2_AllSubj_1200_5t8_output.txt
+#SBATCH -e Study2_AllSubj_1200_5t8_error.txt
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:tesla:1
 #SBATCH --mail-type=ALL
@@ -33,7 +33,7 @@ STAGE_1_NET="WAE_1024_Stage1_bs100_20220816-231451"
 STAGE_1_EPOCH="99"
 # ------ CHANGE THESE ------- #
 
-for SUBJ in 1 2 3 4 5 6 7 8
+for SUBJ in 5 6 7 8
 do
   for VOX_RES in 1pt8mm 3mm
   do
@@ -41,7 +41,7 @@ do
     RUN_NAME="Study${STUDY}_SUBJ0${SUBJ}_${VOX_RES}_${ROI}_${SET_SIZE}"
     STAGE_2_NAME=${RUN_NAME}_Stage2_${RUN_TIME}
     STAGE_3_NAME=${RUN_NAME}_Stage3_${RUN_TIME}
-    MESSAGE="Study2_Subj${SUBJ}_1200"
+    MESSAGE="Study2_Subj${SUBJ}_1200_5t8"
     # Study 1
     # Run stage 2
     #TODO CHANGE EPOCH AND ITERATIONS

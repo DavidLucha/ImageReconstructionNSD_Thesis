@@ -55,18 +55,25 @@ do
     echo "Stage 3 complete at $(date +%Y%m%d-%H%M%S)"
 
     # Evaluation
-    echo "Running evaluation at $(date +%Y%m%d-%H%M%S)"
-    srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/net_evaluation.py --st3_net ${STAGE_3_NAME} --st3_load_epoch final --load_from root --batch_size 256 --latent_dims 1024 --lin_size 2048 --lin_layers 2 --save True --vox_res ${VOX_RES} --set_size ${SET_SIZE} --subject ${SUBJ} --ROI ${ROI} --num_workers 2 --dataset NSD --seed 277603 --message ""
-    echo "Evaluation complete at $(date +%Y%m%d-%H%M%S)"
+    # echo "Running evaluation at $(date +%Y%m%d-%H%M%S)"
+    # srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/net_evaluation.py --st3_net ${STAGE_3_NAME} --st3_load_epoch final --load_from root --batch_size 256 --latent_dims 1024 --lin_size 2048 --lin_layers 2 --save True --vox_res ${VOX_RES} --set_size ${SET_SIZE} --subject ${SUBJ} --ROI ${ROI} --num_workers 2 --dataset NSD --seed 277603 --message ""
+    # echo "Evaluation complete at $(date +%Y%m%d-%H%M%S)"
 
-    # tar the folder after complete
-    cd /scratch/qbi/uqdlucha/datasets/output/NSD/${VOX_RES}/${SET_SIZE}/${ROI}/Subj_0${SUBJ}/stage_3/
-    tar -czvf ${STAGE_3_NAME}.tar.gz /scratch/qbi/uqdlucha/datasets/output/NSD/${VOX_RES}/${SET_SIZE}/${ROI}/Subj_0${SUBJ}/stage_3/${STAGE_3_NAME}/
-    # copy to afm
-    cp ${STAGE_3_NAME}.tar.gz /afm02/Q3/Q3789/datasets/output/NSD/${VOX_RES}/${SET_SIZE}/
-    # copy only final network to network folder
-    cd ./${STAGE_3_NAME}/
-    cp ${STAGE_3_NAME}_final.pth /afm02/Q3/Q3789/datasets/output/NSD/${VOX_RES}/networks/
+    # Make a folder in networks afm02
+    cd /afm02/Q3/Q3789/datasets/output/NSD/${VOX_RES}/networks/
+    mkdir ${STAGE_3_NAME}/
+
+    # Change to directory of final network
+    cd /scratch/qbi/uqdlucha/datasets/output/NSD/${VOX_RES}/${SET_SIZE}/${ROI}/Subj_0${SUBJ}/stage_3/${STAGE_3_NAME}/
+
+    # Copy final network, config and results to new folder in afm02
+    cp ${STAGE_3_NAME}_final.pth ${STAGE_3_NAME}_results.csv config.txt /afm02/Q3/Q3789/datasets/output/NSD/${VOX_RES}/networks/${STAGE_3_NAME}/
+
+    # Copy logs and plots folder to new folder in afm02
+    cp -r logs plots /afm02/Q3/Q3789/datasets/output/NSD/${VOX_RES}/networks/${STAGE_3_NAME}/
+
+    # Save just final network to all folder
+    cp ${STAGE_3_NAME}_final.pth /afm02/Q3/Q3789/datasets/output/NSD/${VOX_RES}/networks/all/
   done
 done
 

@@ -54,3 +54,144 @@ sbatch Study3_Subj5.sh
 sbatch Study3_Subj6.sh
 sbatch Study3_Subj7.sh
 sbatch Study3_Subj8.sh
+
+
+
+
+rm WAE_Stage3__bs32_VC_ideal_20220811-233816.tar.gz
+rm WAE_Stage3__bs32_VC_ideal_20220812-000950.tar.gz
+rm WAE_Stage3__bs32_VC_quadboth_20220812-002828.tar.gz
+
+rm Study1_SUBJ06_1pt8mm_VC_max_Stage3_20220817-112103.tar.gz
+rm Study1_SUBJ07_1pt8mm_VC_max_Stage3_20220817-112124.tar.gz
+rm Study1_SUBJ08_1pt8mm_VC_max_Stage3_20220817-112124.tar.gz
+
+rm Study2_SUBJ02_1pt8mm_VC_1200_Stage3_20220817-172613.tar.gz
+rm Study2_SUBJ02_1pt8mm_VC_4000_Stage3_20220817-172626.tar.gz
+rm Study2_SUBJ02_1pt8mm_VC_7500_Stage3_20220817-172637.tar.gz
+rm Study2_SUBJ02_3mm_VC_1200_Stage3_20220817-172649.tar.gz
+rm Study2_SUBJ02_3mm_VC_4000_Stage3_20220817-172659.tar.gz
+rm Study2_SUBJ02_3mm_VC_7500_Stage3_20220817-172710.tar.gz
+rm Study2_SUBJ03_1pt8mm_VC_1200_Stage3_20220817-172644.tar.gz
+rm Study2_SUBJ03_1pt8mm_VC_4000_Stage3_20220817-172655.tar.gz
+rm Study2_SUBJ03_1pt8mm_VC_7500_Stage3_20220817-172706.tar.gz
+rm Study2_SUBJ03_3mm_VC_1200_Stage3_20220817-172717.tar.gz
+rm Study2_SUBJ03_3mm_VC_4000_Stage3_20220817-172727.tar.gz
+rm Study2_SUBJ03_3mm_VC_7500_Stage3_20220817-172737.tar.gz
+rm Study2_SUBJ04_1pt8mm_VC_1200_Stage3_20220817-172718.tar.gz
+rm Study2_SUBJ04_1pt8mm_VC_4000_Stage3_20220817-172734.tar.gz
+rm Study2_SUBJ04_1pt8mm_VC_7500_Stage3_20220817-172744.tar.gz
+rm Study2_SUBJ04_3mm_VC_1200_Stage3_20220817-172755.tar.gz
+rm Study2_SUBJ04_3mm_VC_4000_Stage3_20220817-172805.tar.gz
+rm Study2_SUBJ04_3mm_VC_7500_Stage3_20220817-172815.tar.gz
+
+
+rm Study3_SUBJ01_1pt8mm_HVC_max_Stage3_20220817-112403.tar.gz
+rm Study3_SUBJ01_1pt8mm_V1_max_Stage3_20220817-112322.tar.gz
+rm Study3_SUBJ01_1pt8mm_V1_to_V3_max_Stage3_20220817-112244.tar.gz
+rm Study3_SUBJ01_1pt8mm_V1_to_V3_n_HVC_max_Stage3_20220817-112257.tar.gz
+rm Study3_SUBJ01_1pt8mm_V1_to_V3_n_rand_max_Stage3_20220817-112310.tar.gz
+rm Study3_SUBJ01_1pt8mm_V2_max_Stage3_20220817-112333.tar.gz
+rm Study3_SUBJ01_1pt8mm_V3_max_Stage3_20220817-112343.tar.gz
+rm Study3_SUBJ01_1pt8mm_V4_max_Stage3_20220817-112353.tar.gz
+rm Study3_SUBJ02_1pt8mm_HVC_max_Stage3_20220817-112404.tar.gz
+rm Study3_SUBJ02_1pt8mm_V1_max_Stage3_20220817-112324.tar.gz
+rm Study3_SUBJ02_1pt8mm_V1_to_V3_max_Stage3_20220817-112245.tar.gz
+rm Study3_SUBJ02_1pt8mm_V1_to_V3_n_HVC_max_Stage3_20220817-112257.tar.gz
+rm Study3_SUBJ02_1pt8mm_V1_to_V3_n_rand_max_Stage3_20220817-112311.tar.gz
+rm Study3_SUBJ02_1pt8mm_V2_max_Stage3_20220817-112334.tar.gz
+rm Study3_SUBJ02_1pt8mm_V3_max_Stage3_20220817-112344.tar.gz
+rm Study3_SUBJ02_1pt8mm_V4_max_Stage3_20220817-112354.tar.gz
+rm Study3_SUBJ03_1pt8mm_HVC_max_Stage3_20220817-112406.tar.gz
+rm Study3_SUBJ03_1pt8mm_V1_max_Stage3_20220817-112326.tar.gz
+rm Study3_SUBJ03_1pt8mm_V1_to_V3_max_Stage3_20220817-112249.tar.gz
+rm Study3_SUBJ03_1pt8mm_V1_to_V3_n_HVC_max_Stage3_20220817-112301.tar.gz
+rm Study3_SUBJ03_1pt8mm_V1_to_V3_n_rand_max_Stage3_20220817-112313.tar.gz
+rm Study3_SUBJ03_1pt8mm_V2_max_Stage3_20220817-112336.tar.gz
+rm Study3_SUBJ03_1pt8mm_V3_max_Stage3_20220817-112346.tar.gz
+rm Study3_SUBJ03_1pt8mm_V4_max_Stage3_20220817-112356.tar.gz
+rm Study3_SUBJ04_1pt8mm_HVC_max_Stage3_20220817-112413.tar.gz
+rm Study3_SUBJ04_1pt8mm_V1_max_Stage3_20220817-112333.tar.gz
+rm Study3_SUBJ04_1pt8mm_V1_to_V3_max_Stage3_20220817-112257.tar.gz
+rm Study3_SUBJ04_1pt8mm_V1_to_V3_n_HVC_max_Stage3_20220817-112309.tar.gz
+rm Study3_SUBJ04_1pt8mm_V1_to_V3_n_rand_max_Stage3_20220817-112321.tar.gz
+rm Study3_SUBJ04_1pt8mm_V2_max_Stage3_20220817-112343.tar.gz
+rm Study3_SUBJ04_1pt8mm_V3_max_Stage3_20220817-112353.tar.gz
+rm Study3_SUBJ04_1pt8mm_V4_max_Stage3_20220817-112403.tar.gz
+rm Study3_SUBJ05_1pt8mm_HVC_max_Stage3_20220817-112501.tar.gz
+rm Study3_SUBJ05_1pt8mm_V1_max_Stage3_20220817-112420.tar.gz
+rm Study3_SUBJ05_1pt8mm_V1_to_V3_max_Stage3_20220817-112340.tar.gz
+rm Study3_SUBJ05_1pt8mm_V1_to_V3_n_HVC_max_Stage3_20220817-112352.tar.gz
+rm Study3_SUBJ05_1pt8mm_V1_to_V3_n_rand_max_Stage3_20220817-112406.tar.gz
+rm Study3_SUBJ05_1pt8mm_V2_max_Stage3_20220817-112430.tar.gz
+rm Study3_SUBJ05_1pt8mm_V3_max_Stage3_20220817-112441.tar.gz
+rm Study3_SUBJ05_1pt8mm_V4_max_Stage3_20220817-112451.tar.gz
+rm Study3_SUBJ06_1pt8mm_HVC_max_Stage3_20220817-112510.tar.gz
+rm Study3_SUBJ06_1pt8mm_V1_max_Stage3_20220817-112429.tar.gz
+rm Study3_SUBJ06_1pt8mm_V1_to_V3_max_Stage3_20220817-112351.tar.gz
+rm Study3_SUBJ06_1pt8mm_V1_to_V3_n_HVC_max_Stage3_20220817-112404.tar.gz
+rm Study3_SUBJ06_1pt8mm_V1_to_V3_n_rand_max_Stage3_20220817-112416.tar.gz
+rm Study3_SUBJ06_1pt8mm_V2_max_Stage3_20220817-112439.tar.gz
+rm Study3_SUBJ06_1pt8mm_V3_max_Stage3_20220817-112449.tar.gz
+rm Study3_SUBJ06_1pt8mm_V4_max_Stage3_20220817-112500.tar.gz
+rm Study3_SUBJ07_1pt8mm_HVC_max_Stage3_20220817-112542.tar.gz
+rm Study3_SUBJ07_1pt8mm_V1_max_Stage3_20220817-112459.tar.gz
+rm Study3_SUBJ07_1pt8mm_V1_to_V3_max_Stage3_20220817-112420.tar.gz
+rm Study3_SUBJ07_1pt8mm_V1_to_V3_n_HVC_max_Stage3_20220817-112433.tar.gz
+rm Study3_SUBJ07_1pt8mm_V1_to_V3_n_rand_max_Stage3_20220817-112446.tar.gz
+rm Study3_SUBJ07_1pt8mm_V2_max_Stage3_20220817-112510.tar.gz
+rm Study3_SUBJ07_1pt8mm_V3_max_Stage3_20220817-112520.tar.gz
+rm Study3_SUBJ07_1pt8mm_V4_max_Stage3_20220817-112531.tar.gz
+rm Study3_SUBJ08_1pt8mm_HVC_max_Stage3_20220817-112538.tar.gz
+rm Study3_SUBJ08_1pt8mm_V1_max_Stage3_20220817-112458.tar.gz
+rm Study3_SUBJ08_1pt8mm_V1_to_V3_max_Stage3_20220817-112421.tar.gz
+rm Study3_SUBJ08_1pt8mm_V1_to_V3_n_HVC_max_Stage3_20220817-112433.tar.gz
+rm Study3_SUBJ08_1pt8mm_V1_to_V3_n_rand_max_Stage3_20220817-112446.tar.gz
+rm Study3_SUBJ08_1pt8mm_V2_max_Stage3_20220817-112508.tar.gz
+rm Study3_SUBJ08_1pt8mm_V3_max_Stage3_20220817-112518.tar.gz
+rm Study3_SUBJ08_1pt8mm_V4_max_Stage3_20220817-112528.tar.gz
+
+
+
+scancel 477689
+scancel 477688
+scancel 477687
+scancel 477686
+scancel 477685
+
+
+scancel 477683
+scancel 477684
+scancel 477682
+scancel 477681
+scancel 477680
+scancel 477679
+
+
+
+cd ./study2/
+cd ./1200
+sbatch Study2_AllSubj_1200_1t4.sh
+sbatch Study2_AllSubj_1200_5t8.sh
+cd ../
+cd ./4000
+sbatch Study2_AllSubj_4000_1t4.sh
+sbatch Study2_AllSubj_4000_5t8.sh
+cd ../
+cd ./7500
+sbatch Study2_AllSubj_7500_1t4.sh
+sbatch Study2_AllSubj_7500_5t8.sh
+
+cd ../
+cd ../
+cd ./study3/
+
+sbatch Study3_Subj1.sh
+sbatch Study3_Subj2.sh
+sbatch Study3_Subj3.sh
+sbatch Study3_Subj4.sh
+sbatch Study3_Subj5.sh
+sbatch Study3_Subj6.sh
+sbatch Study3_Subj7.sh
+sbatch Study3_Subj8.sh
+
