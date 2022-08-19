@@ -604,11 +604,12 @@ def main():
                             loss_penalty_mean = loss_penalty.data.cpu().numpy() / mean_mult * args.lambda_GAN
                             loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / mean_mult
 
-                            logging.info(
-                                f'Epoch  {idx_epoch} {batch_idx + 1:3.0f} / {100 * (batch_idx + 1) / len(dataloader_train):2.3f}%, '
-                                f'---- recon loss: {loss_reconstruction_mean:.5f} ---- | '
-                                f'---- penalty loss: {loss_penalty_mean:.5f} ---- | '
-                                f'---- discrim fake loss: {loss_discriminator_mean:.5f}')
+                            # Turning this off just to get logs clutter free
+                            # logging.info(
+                            #     f'Epoch  {idx_epoch} {batch_idx + 1:3.0f} / {100 * (batch_idx + 1) / len(dataloader_train):2.3f}%, '
+                            #     f'---- recon loss: {loss_reconstruction_mean:.5f} ---- | '
+                            #     f'---- penalty loss: {loss_penalty_mean:.5f} ---- | '
+                            #     f'---- discrim fake loss: {loss_discriminator_mean:.5f}')
 
                             step_index += 1
                         else:
@@ -633,9 +634,9 @@ def main():
                     # nrow = int(math.sqrt(grid_count))
 
                     if args.set_size in ("1200", "4000", "7500"):
-                        train_recon_freq = 10
+                        train_recon_freq = 150
                     else:
-                        train_recon_freq = 2
+                        train_recon_freq = 20
 
                     if not idx_epoch % train_recon_freq:
                         # Save train examples
@@ -650,15 +651,6 @@ def main():
                         ax.imshow(make_grid(x_image.cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                         gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                         plt.savefig(gt_dir)
-
-                        # fig, ax = plt.subplots(figsize=(10, 10))
-                        # ax.set_xticks([])
-                        # ax.set_yticks([])
-                        # ax.set_title('Training Vis Enc Reconstruction (Real) at Epoch {}'.format(idx_epoch))
-                        # ax.imshow(
-                        #     make_grid(x_gt.cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
-                        # gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
-                        # plt.savefig(gt_dir)
 
                         fig, ax = plt.subplots(figsize=(10, 10))
                         ax.set_xticks([])
@@ -781,11 +773,11 @@ def main():
                         out = out.data.cpu()
 
                         if args.set_size in ("1200", "4000"):
-                            eval_recon_freq = 20
+                            eval_recon_freq = 400
                         elif args.set_size == "7500":
-                            eval_recon_freq = 2
+                            eval_recon_freq = 40
                         else:
-                            eval_recon_freq = 1
+                            eval_recon_freq = 20
 
                         if shuf:
                             if not idx_epoch % eval_recon_freq:
@@ -798,14 +790,6 @@ def main():
                                 gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                                 plt.savefig(gt_dir)
 
-                                # fig, ax = plt.subplots(figsize=(10, 10))
-                                # ax.set_xticks([])
-                                # ax.set_yticks([])
-                                # ax.set_title('Validation Vis Enc Reconstruction at Epoch {}'.format(idx_epoch))
-                                # ax.imshow(make_grid(vis_out.cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
-                                # output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
-                                # plt.savefig(output_dir)
-
                         else:  # valid_shuffle is false, so same images are shown
                             if idx_epoch == 0:
                                 fig, ax = plt.subplots(figsize=(10, 10))
@@ -816,16 +800,6 @@ def main():
                                 gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                                 plt.savefig(gt_dir)
 
-                                # fig, ax = plt.subplots(figsize=(10, 10))
-                                # ax.set_xticks([])
-                                # ax.set_yticks([])
-                                # ax.set_title('Validation Vis Enc Reconstruction at Epoch {}'.format(idx_epoch))
-                                # ax.imshow(
-                                #     make_grid(vis_out.cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
-                                # output_dir = os.path.join(images_dir,
-                                #                           'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
-                                # plt.savefig(output_dir)
-
                         if not idx_epoch % eval_recon_freq:
                             fig, ax = plt.subplots(figsize=(10, 10))
                             ax.set_xticks([])
@@ -834,19 +808,6 @@ def main():
                             ax.imshow(make_grid(out.cpu().detach(), nrow=nrow, normalize=True).permute(1, 2, 0))
                             output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
                             plt.savefig(output_dir)
-
-                        # out = (out + 1) / 2
-                        # out = make_grid(out, nrow=8)
-
-                        # out = model(None, 100)
-                        # out = out.data.cpu()
-                        # out = (out + 1) / 2
-                        # out = make_grid(out, nrow=8)
-                        # writer.add_image("generated", out, step_index)
-
-                        # out = data_target.data.cpu()
-                        # out = (out + 1) / 2
-                        # out = make_grid(out, nrow=8)
 
                         if metrics_valid is not None:
                             for key, values in result_metrics_valid.items():
@@ -870,13 +831,13 @@ def main():
                         break
 
                     if args.set_size == "1200":
-                        save_div = 50
+                        save_div = 1000
                     elif args.set_size == "4000":
-                        save_div = 20
+                        save_div = 400
                     elif args.set_size == "7500":
-                        save_div = 10
+                        save_div = 200
                     else:
-                        save_div = 5
+                        save_div = 50
 
                     if not idx_epoch % save_div or idx_epoch == epochs_n-1:
                         torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
