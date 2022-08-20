@@ -441,7 +441,7 @@ def main():
 
                             # frozen_params(model.decoder)
                             batch_size = len(data_batch)
-                            logging.info(batch_size)
+                            # logging.info(batch_size)
                             model.encoder.zero_grad()
                             model.discriminator.zero_grad()
 
@@ -709,7 +709,7 @@ def main():
                             # out, logits_out = model(data_in)
                             # data_target, z_target = trained_model(data_img)
                             batch_size = len(data_batch)
-                            logging.info(batch_size)
+                            # logging.info(batch_size)
 
                             z_cog_enc, _ = model.encoder(data_in)
                             out = model.decoder(z_cog_enc)

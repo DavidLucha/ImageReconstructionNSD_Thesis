@@ -169,18 +169,23 @@ scancel 477679
 
 
 
+
 cd ./study2/
 cd ./1200
 sbatch Study2_AllSubj_1200_1t4.sh
 sbatch Study2_AllSubj_1200_5t8.sh
+
 cd ../
 cd ./4000
 sbatch Study2_AllSubj_4000_1t4.sh
 sbatch Study2_AllSubj_4000_5t8.sh
+
+
 cd ../
 cd ./7500
 sbatch Study2_AllSubj_7500_1t4.sh
 sbatch Study2_AllSubj_7500_5t8.sh
+
 
 cd ../
 cd ../
