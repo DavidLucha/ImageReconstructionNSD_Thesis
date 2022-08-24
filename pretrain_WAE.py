@@ -505,11 +505,11 @@ def main():
                     loss_discriminator_mean = loss_discriminator.data.cpu().numpy() / mean_mult
                     # loss_discriminator_real_mean = loss_discriminator_real.data.cpu().numpy() / batch_size
 
-                    logging.info(
-                        f'Epoch  {idx_epoch} {batch_idx + 1:3.0f} / {100 * (batch_idx + 1) / len(dataloader_train):2.3f}%, '
-                        f'---- recon loss: {loss_reconstruction_mean:.5f} ---- | '
-                        f'---- penalty loss: {loss_penalty_mean:.5f} ---- | '
-                        f'---- discrim loss: {loss_discriminator_mean:.5f}')
+                    # logging.info(
+                    #     f'Epoch  {idx_epoch} {batch_idx + 1:3.0f} / {100 * (batch_idx + 1) / len(dataloader_train):2.3f}%, '
+                    #     f'---- recon loss: {loss_reconstruction_mean:.5f} ---- | '
+                    #     f'---- penalty loss: {loss_penalty_mean:.5f} ---- | '
+                    #     f'---- discrim loss: {loss_discriminator_mean:.5f}')
 
                     step_index += 1
 
@@ -647,7 +647,7 @@ def main():
                     # only for one batch due to memory issue
                     break
 
-                if not idx_epoch % 10 or idx_epoch == epochs_n-1:
+                if not idx_epoch % 30 or idx_epoch == epochs_n-1:
                     torch.save(model.state_dict(), SAVE_SUB_PATH.replace('.pth', '_' + str(idx_epoch) + '.pth'))
                     logging.info('Saving model')
 

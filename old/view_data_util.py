@@ -8,6 +8,11 @@ import torch
 import training_config as cfg
 import random
 
+identity = lambda x: x
+
+range = np.arange(1,10)
+print(identity(range))
+
 def mami(stage):
     if stage == 2:
         stage_out = 2

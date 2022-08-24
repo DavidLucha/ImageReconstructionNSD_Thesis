@@ -250,6 +250,32 @@ class PearsonCorrelation(nn.Module):
         return loss
 
 
+"""
+Alternative Correlation
+def average_correlation(samples, reference):
+# from StYves https://github.com/styvesg/gan-decoding-supplementary/blob/master/gan_imaging_cifar-10.ipynb
+# Paper: https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8616183&casa_token=2JDy6AEq9x8AAAAA:l2VwkLcwO61sQIVsUk6Y1Ai7foFKSl2_o29ubXzpNiJY1tPFh1-2YfHUqObIWJ-ZpbbLcCr_7g
+    ac = 0
+    for s in samples:
+        ac += np.corrcoef(s.flatten(), reference.flatten())[0,1]
+    return ac / len(samples)
+    
+OR from Beliy voxels to pixels and back
+def corr_percintiles(y,y_pred, per = [50,75,90]):
+    num_voxels = y.shape[1]
+    corr = np.zeros([num_voxels])
+
+    for i in range(num_voxels):
+        corr[i] = stat.pearsonr(y[:, i], y_pred[:, i])[0]
+    corr = np.nan_to_num(corr)
+
+    corr_per = []
+    for p in per:
+        corr_per.append(np.percentile(corr,p))
+    return corr_per
+"""
+
+
 class StructuralSimilarity(nn.Module):
 
     """

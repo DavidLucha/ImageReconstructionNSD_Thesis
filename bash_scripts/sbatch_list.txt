@@ -195,8 +195,12 @@ sbatch Study3_Subj1.sh
 sbatch Study3_Subj2.sh
 sbatch Study3_Subj3.sh
 sbatch Study3_Subj4.sh
+
+# --- UP TO HERE FINISHED ---
+
 sbatch Study3_Subj5.sh
 sbatch Study3_Subj6.sh
 sbatch Study3_Subj7.sh
 sbatch Study3_Subj8.sh
+
 
