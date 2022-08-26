@@ -1,12 +1,12 @@
 #!/bin/bash
 
 #SBATCH -N 1
-#SBATCH --job-name=evalTest
+#SBATCH --job-name=evalDaveVSMaria
 #SBATCH -n 2
 #SBATCH -c 25
 #SBATCH --mem=20000
-#SBATCH -o evalTest_output.txt
-#SBATCH -e evalTest_error.txt
+#SBATCH -o evalDaveVSMaria_output.txt
+#SBATCH -e evalDaveVSMaria_error.txt
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:tesla:1
 #SBATCH --mail-type=ALL
@@ -36,7 +36,13 @@ source activate /scratch/qbi/uqdlucha/python/dvaegan
 # Run stage 3
 # Evaluation
 echo "Running evaluation at $(date +%Y%m%d-%H%M%S)"
-srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/net_evaluation.py --st3_net "BothBothSt3_SUBJ01_1pt8mm_VC_max_Stage3_20220814-172422" --st3_load_epoch final --load_from root --batch_size 256 --latent_dims 1024 --lin_size 2048 --lin_layers 2 --save True --vox_res 1pt8mm --ROI VC --set_size max --subject 1 --num_workers 2 --dataset NSD --seed 277603 --message ""
+srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/net_evaluation.py --st3_net "Study1_SUBJ01_1pt8mm_VC_max_Stage3_20220817-112810" --st3_load_epoch final --load_from root --batch_size 256 --latent_dims 1024 --lin_size 2048 --lin_layers 2 --save True --vox_res 1pt8mm --ROI VC --set_size max --subject 1 --num_workers 2 --dataset NSD --seed 277603 --message ""
+echo "Evaluation complete at $(date +%Y%m%d-%H%M%S)"
+
+# Run stage 3
+# Evaluation
+echo "Running evaluation at $(date +%Y%m%d-%H%M%S)"
+srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/net_evaluation.py --st3_net "Study1_SUBJ01_1pt8mm_VC_max_Maria_Stage3_20220825-084144" --st3_load_epoch final --load_from root --batch_size 256 --latent_dims 512 --lin_size 1024 --lin_layers 1 --save True --vox_res 1pt8mm --ROI VC --set_size max --subject 1 --num_workers 2 --dataset NSD --seed 277603 --message ""
 echo "Evaluation complete at $(date +%Y%m%d-%H%M%S)"
 
 # tar the folder after complete
