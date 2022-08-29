@@ -115,6 +115,8 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
         sub = "Subj_0{}".format(s)
 
         trial_count = session_count[s] * 750
+        # Define a different validation trial count based on maximum number of shared single presentation stimuli
+        trial_count_valid = 27 * 750  # 20250 equals 872 trials
 
         sub_img_list = os.path.join(image_list_dir, "{}_Trial_Lists_Sorted.csv".format(sub))
         print("sub_img_list is located at: {}".format(sub_img_list))
@@ -183,7 +185,7 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
 
             # Cuts down datasets to trial count per subject (factoring in withheld NSD data for algonauts)
             train_list = train_list_full.loc[train_list_full["Trial_No"] <= trial_count]
-            test_list = test_list_full.loc[test_list_full["Trial_No"] <= trial_count]
+            test_list = test_list_full.loc[test_list_full["Trial_No"] <= trial_count_valid]
 
             # Pull array
             train_array = train_list['Trial_No'].to_numpy()
@@ -198,7 +200,7 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
 
             # Cuts down datasets to trial count per subject (factoring in withheld NSD data for algonauts)
             train_list = train_list_full.loc[train_list_full["Trial_No"] <= trial_count]
-            test_list = test_list_full.loc[test_list_full["Trial_No"] <= trial_count]
+            test_list = test_list_full.loc[test_list_full["Trial_No"] <= trial_count_valid]
 
             # Gets dset with just first presentation | Good for study 2
             single_pres_train_list = train_list[train_list['Nth_Pres'] == 1]
@@ -438,6 +440,8 @@ def nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_ty
         sub = "Subj_0{}".format(s)
 
         trial_count = session_count[s] * 750
+        # Define a different validation trial count based on maximum number of shared single presentation stimuli
+        trial_count_valid = 27 * 750  # 20250 equals 872 trials
 
         sub_img_list = os.path.join(image_list_dir, "{}_Trial_Lists_Sorted.csv".format(sub))
         print("sub_img_list is located at: {}".format(sub_img_list))
@@ -456,7 +460,7 @@ def nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_ty
 
             # Cuts down datasets to trial count per subject (factoring in withheld NSD data for algonauts)
             train_list = train_list_full.loc[train_list_full["Trial_No"] <= trial_count]
-            test_list = test_list_full.loc[test_list_full["Trial_No"] <= trial_count]
+            test_list = test_list_full.loc[test_list_full["Trial_No"] <= trial_count_valid]
 
             # Pull array
             train_array = train_list['Trial_No'].to_numpy()
@@ -471,7 +475,7 @@ def nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_ty
 
             # Cuts down datasets to trial count per subject (factoring in withheld NSD data for algonauts)
             train_list = train_list_full.loc[train_list_full["Trial_No"] <= trial_count]
-            test_list = test_list_full.loc[test_list_full["Trial_No"] <= trial_count]
+            test_list = test_list_full.loc[test_list_full["Trial_No"] <= trial_count_valid]
 
             # Gets dset with just first presentation | Good for study 2
             single_pres_train_list = train_list[train_list['Nth_Pres'] == 1]

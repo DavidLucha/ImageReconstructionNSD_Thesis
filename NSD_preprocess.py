@@ -211,7 +211,7 @@ Creating trainable datasets (list of dicts)
     data_type = train/test both?
 """
 
-dict_prep = False
+dict_prep = True
 # TODO: Run this twice, for 1.8 and for 3mm
 if dict_prep:
     # Hello there. - Obi Wan
@@ -220,6 +220,7 @@ if dict_prep:
     # ------ TODO: CHANGE THIS -------- #
     vox_res = "3mm"
     image_list_dir = "D:/NSD/trial_information"
+    # train/valid or both
     data_type = "both"
     # make pickles from normed or raw
     norm = "raw"
@@ -229,22 +230,42 @@ if dict_prep:
     # -------------- END ---------------#
 
     # Runs the 3mm process
-    # mm_3 = True
-    if vox_res == "3mm":
-        # Gets max, all pres - not currently planned use
-        nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, norm, False)
-        # Using first presentation only
-        nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, norm, True)
+    # the two if statements below only apply now to training data
+    train = False
+    if train:
+        # mm_3 = True
+        if vox_res == "3mm":
+            # Gets max, all pres - not currently planned use
+            nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, "train", save_path, norm, single_pres=False)
+            # Using first presentation only
+            nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, "train", save_path, norm, single_pres=True)
 
-    # Runs the 1.8mm process
-    # mm_1pt8 = False
-    if vox_res == "1.8mm":
-        # All data
-        nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, norm, False)
-        # Using first presentation only
-        nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, norm, True)
+        # Runs the 1.8mm process
+        # mm_1pt8 = False
+        if vox_res == "1pt8mm":
+            # All data
+            nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, "train", save_path, norm, single_pres=False)
+            # Using first presentation only
+            nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, "train", save_path, norm, single_pres=True)
 
+    # Only need the single pres eval
+    evalu = True
+    if evalu:
+        data_type = "valid"
+        image_list_dir = "D:/NSD/trial_information"
+        norm = "raw"
 
+        # Change this for each
+        vox_res = "1pt8mm"
+        save_path = os.path.join("D:/Lucha_Data/datasets/NSD", vox_res)
+        data_dir = os.path.join("D:/Honours/nsd_pickles", vox_res, norm + "_concat_pickle")
+
+        nsd_data_dict_prep(data_dir, image_list_dir, subj_list, "1pt8mm", data_type, save_path, norm, single_pres=True)
+
+        vox_res = "3mm"
+        save_path = os.path.join("D:/Lucha_Data/datasets/NSD", vox_res)
+        data_dir = os.path.join("D:/Honours/nsd_pickles", vox_res, norm + "_concat_pickle")
+        nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, "3mm", data_type, save_path, norm, single_pres=True)
 
 
 """
@@ -293,7 +314,7 @@ if get_array:
 
 # var_training set grabs the variable-sized training sets based on the set random arrays from above
 # TODO Run this to get sub sets - Twice and change vox_res
-var_training_set = True
+var_training_set = False
 
 if var_training_set:
     input_path = "D:/Lucha_Data/datasets/NSD/"
