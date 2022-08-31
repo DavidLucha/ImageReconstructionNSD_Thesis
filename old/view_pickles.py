@@ -12,18 +12,40 @@ from sklearn import preprocessing
 import training_config as cfg
 import random
 
-hello = []
-for i in (1, 2, 3):
-    hello.append(i)
+single_pres = 'D:/Lucha_Data/datasets/NSD/1pt8mm/valid/single_pres/VC/'
+single_pres = os.path.join(single_pres, 'Subj_01_NSD_single_pres_valid.pickle')
+with open(single_pres, "rb") as input_file:
+    data_final = pickle.load(input_file)
 
-hello[1]
+data_dir = os.path.join("D:/Honours/nsd_pickles/1pt8mm", "raw_concat_pickle")
+
+pickle_dir = os.path.join(data_dir, "subj_01_raw_concat_trial_fmri.pickle")
+print("Reading betas from pickle file: ", pickle_dir)
+# data = pd.read_pickle(pickle_dir)
+
+with open(pickle_dir, "rb") as input_file:
+    data_full = pickle.load(input_file)
+
+new_list=[]
+for i in data_final:
+    fmri = i['fmri'].tolist()
+    image = i['image']
+    comb = fmri.insert(0, image)
+    # image = i['image']
+    # comb = fmri.insert(0, image)
+    new_list.append(fmri)
+
+np.savetxt("D:/Lucha_Data/misc/subj1_valid.csv", new_list, delimiter=',', fmt='%s')
 
 
-def unpack():
-    x = [1, 4]
-    return x
 
-x, y = unpack()
+
+
+
+
+
+
+
 
 data_dir = os.path.join("D:/Honours/nsd_pickles/1.8mm", "raw_concat_pickle")
 

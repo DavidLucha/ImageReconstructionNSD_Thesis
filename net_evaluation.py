@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import random
 import math
 import lpips
+import statistics
 
 import torchvision
 from torch import nn, no_grad
@@ -56,59 +57,31 @@ def main():
                                  'If on HPC, use /scratch/qbi/uqdlucha/datasets/,'
                                  'If on home PC, us D:/Lucha_Data/datasets/', type=str)
         # Optimizing parameters | also, see lambda and margin in training_config.py
-        parser.add_argument('--batch_size', default=training_config.batch_size, help='batch size for dataloader',
+        parser.add_argument('--batch_size', default=872, help='batch size for dataloader, set to full',
                             type=int)
         # parser.add_argument('--epochs', default=training_config.n_epochs, help='number of epochs', type=int)
         # parser.add_argument('--iters', default=30000, help='sets max number of forward passes. 30k for stage 2'
         #                                                    ', 15k for stage 3.', type=int)
         parser.add_argument('--num_workers', '-nw', default=training_config.num_workers,
                             help='number of workers for dataloader', type=int)
-        # parser.add_argument('--lr_dec', default=.001, type=float)
-        # parser.add_argument('--lr_disc', default=.0005, type=float)
-        # parser.add_argument('--decay_lr', default=0.5,
-        #                     help='.98 in Maria, .75 in original VAE/GAN', type=float)
         parser.add_argument('--seed', default=277603, help='sets seed, 0 makes a random int', type=int)
         parser.add_argument('--valid_shuffle', '-shuffle', default='False', type=str, help='defines whether'
                                                                                            'eval dataloader shuffles')
         parser.add_argument('--latent_dims', default=1024, type=int)
-        # parser.add_argument('--beta', default=0.5, type=float)
-        # parser.add_argument('--recon_loss', default='trad', type=str, help='sets whether to use pytroch mse'
-        #                                                                    'or manual like in pretrain (manual)')
-        parser.add_argument('--lin_size', default=1024, type=int,
+        parser.add_argument('--lin_size', default=2048, type=int,
                             help='sets the number of nuerons in cog lin layer')
-        parser.add_argument('--lin_layers', default=1, type=int, help='sets how many layers of cog network ')
+        parser.add_argument('--lin_layers', default=2, type=int, help='sets how many layers of cog network ')
         # parser.add_argument('--optim_method', default='Adam',
         #                     help='defines method for optimizer. Options: RMS or Adam.', type=str)
         parser.add_argument('--standardize', default='False',
                             help='determines whether the dataloader uses standardize.', type=str)
         parser.add_argument('--save', default='True',
                             help='save individual reconstruction images?', type=str)
-        # parser.add_argument('--disc_loss', default='Maria',
-        #                     help='determines whether we use Marias loss or the paper based one for disc', type=str)
-        # parser.add_argument('--WAE_loss', default='Maria',
-        #                     help='determines whether we use Marias loss or the paper based one for WAE', type=str)
-        # parser.add_argument('--lambda_WAE', default=1, help='sets the multiplier for paper GAN loss', type=int)
-        # parser.add_argument('--lambda_GAN', default=10, help='sets the multiplier for individual GAN losses',
-        #                     type=int)
-        # parser.add_argument('--lambda_recon', default=1, help='weight of recon loss', type=int)
-        # parser.add_argument('--clip_gradients', default='False',
-        #                     help='determines whether to clip gradients or not', type=str)
-
-        # Pretrained/checkpoint network components
-        # parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
-        #                                                                'vaegan_20220613-014326', type=str)
-        # parser.add_argument('--checkpoint_epoch', default=90, help='epoch of checkpoint network', type=int)
-        # parser.add_argument('--load_from',default='pretrain', help='sets whether pretrained net is from pretrain'
-        #                                                           'or from stage_1 output', type=str)
-        # parser.add_argument('--st1_net', default=training_config.pretrained_net,
-        #                     help='pretrained network from stage 1', type=str)
-        # parser.add_argument('--st1_load_epoch', default='final',
-        #                     help='epoch of the pretrained model', type=str)
         parser.add_argument('--st3_net', default=training_config.pretrained_net,
                             help='pretrained network from stage 1', type=str)
         parser.add_argument('--st3_load_epoch', default='final',
                             help='epoch of the pretrained model', type=str)
-        parser.add_argument('--load_from', default='root', help='loads from either networks folder or normal'
+        parser.add_argument('--load_from', default='networks', help='loads from either networks folder or normal'
                                                                     ' stage 3 output', type=str)
         parser.add_argument('--dataset', default='NSD', help='GOD, NSD', type=str)
         # Only need vox_res arg from stage 2 and 3
@@ -136,36 +109,14 @@ def main():
 
     # Load training data for GOD and NSD, default is NSD
     if args.dataset == 'NSD':
-        if args.set_size == 'max':
-            # To pull for study 1 and study 3 (ROIs) - default is VC (all ROIs)
-            TRAIN_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'train', args.set_size, args.ROI,
-                                           'Subj_0{}_NSD_{}_train.pickle'.format(args.subject, args.set_size))
-            if args.vox_res == "3mm":
-                # If needing to load max of 3mm (not in any studies for thesis) use this
-                TRAIN_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'train', args.set_size,
-                                               'Subj_0{}_NSD_{}_train.pickle'.format(args.subject, args.set_size))
-        elif args.set_size == 'single_pres':
-            TRAIN_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'train', args.set_size,
-                                           'Subj_0{}_NSD_{}_train.pickle'.format(args.subject, args.set_size))
-        else:
-            # For loading 1200, 4000, 7500
-            TRAIN_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'train/single_pres', args.set_size,
-                                           'Subj_0{}_{}_NSD_single_pres_train.pickle'.format(args.subject,
-                                                                                             args.set_size))
-
-        # Currently valid data is set to 'max' meaning validation data contains multiple image presentations
-        # If you only want to evaluate a single presentation of images replace both 'max' in strings below ...
-        # with 'single_pres'
-        VALID_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'valid', 'max', args.ROI,
-                                       'Subj_0{}_NSD_max_valid.pickle'.format(args.subject))
-    else:
-        TRAIN_DATA_PATH = os.path.join(args.data_root, 'GOD',
-                                       'GOD_Subject{}_train_normed.pickle'.format(args.subject))
-        VALID_DATA_PATH = os.path.join(args.data_root, 'GOD',
-                                       'GOD_Subject{}_valid_normed.pickle'.format(args.subject))
+        VALID_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'valid', 'single_pres', args.ROI,
+                                       'Subj_0{}_NSD_single_pres_valid.pickle'.format(args.subject))
+        # VALID_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'old_valid', 'max', args.ROI,
+        #                                'Subj_0{}_NSD_max_valid.pickle'.format(args.subject))
 
     SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, args.ROI, SUBJECT_PATH,
                              "evaluation", args.st3_net + "_" + timestep)
+
     if not os.path.exists(SAVE_PATH):
         os.makedirs(SAVE_PATH)
 
@@ -218,9 +169,6 @@ def main():
         raise Exception()
 
     # Load data pickles for subject
-    with open(TRAIN_DATA_PATH, "rb") as input_file:
-        train_data = pickle.load(input_file)
-    logger.info("Loading training pickles for subject {} from {}".format(args.subject, TRAIN_DATA_PATH))
     with open(VALID_DATA_PATH, "rb") as input_file:
         valid_data = pickle.load(input_file)
     logger.info("Loading validation pickles for subject {} from {}".format(args.subject, VALID_DATA_PATH))
@@ -241,20 +189,6 @@ def main():
     #     standardize = True
 
     # Load data
-    training_data = FmriDataloader(dataset=train_data, root_path=root_path, standardizer=args.standardize,
-                                       transform=transforms.Compose([transforms.Resize((training_config.image_size,
-                                                                                        training_config.image_size)),
-                                                                     transforms.CenterCrop(
-                                                                         (training_config.image_size,
-                                                                          training_config.image_size)),
-                                                                     # RandomShift(),
-                                                                     # SampleToTensor(),
-                                                                     transforms.ToTensor(),
-                                                                     GreyToColor(training_config.image_size),
-                                                                     transforms.Normalize(training_config.mean,
-                                                                                          training_config.std)
-                                                                     ]))
-
     validation_data = FmriDataloader(dataset=valid_data, root_path=root_path, standardizer=args.standardize,
                                        transform=transforms.Compose([transforms.Resize((training_config.image_size,
                                                                                         training_config.image_size)),
@@ -269,21 +203,22 @@ def main():
                                                                                           training_config.std)
                                                                      ]))
 
-    dataloader_train = DataLoader(training_data, batch_size=args.batch_size, drop_last=False,  # collate_fn=collate_fn,
-                                  shuffle=True, num_workers=args.num_workers)
-    dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size, drop_last=False,  # collate_fn=collate_fn,
+    dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size,  # drop_last=False,  # collate_fn=collate_fn,
                                   shuffle=shuf, num_workers=args.num_workers)
 
-    NUM_VOXELS = len(train_data[0]['fmri'])
+    NUM_VOXELS = len(valid_data[0]['fmri'])
     logging.info(f'Number of voxels: {NUM_VOXELS}')
-    logging.info(f'Train data length: {len(train_data)}')
     logging.info(f'Validation data length: {len(valid_data)}')
 
     # Load Stage 3 network weights
     # model_dir = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, args.ROI, SUBJECT_PATH,
     #                              'stage_3', args.st3_net, args.st3_net + '_{}.pth'.format(args.st3_load_epoch))
+
     if args.load_from == "networks":
-        model_dir = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, "networks",
+        # You would need to change this.
+        all_nets_root = 'D:/Lucha_Data/final_networks/'
+
+        model_dir = os.path.join(all_nets_root, args.vox_res, 'all',
                                  args.st3_net + '_{}.pth'.format(args.st3_load_epoch))
     else:
         model_dir = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, args.ROI, SUBJECT_PATH,
@@ -306,6 +241,36 @@ def main():
     # Load and show results for checkpoint
     logging.info('Load pretrained model')
 
+    # Test model load
+    test_model = False
+
+    if test_model:
+        for batch_idx, data_batch in enumerate(dataloader_valid):
+            logging.info('Testing model from pretraining')
+            model.eval()
+            data_in = Variable(data_batch['fmri'], requires_grad=False).float().to(device)
+            data_target = Variable(data_batch['image'], requires_grad=False).float().to(device)
+            out, _ = model(data_in)
+
+            out = out.data.cpu()
+
+            fig, ax = plt.subplots(figsize=(10, 10))
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.imshow(make_grid(out[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+            test_output_dir = os.path.join(SAVE_PATH, 'model_test_valid')
+            plt.savefig(test_output_dir)
+
+            fig, ax = plt.subplots(figsize=(10, 10))
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.imshow(make_grid(data_target[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+            gt_dir = os.path.join(SAVE_PATH, 'model_test_ground_truth')
+            plt.savefig(gt_dir)
+            plt.show()
+            exit(0)
+
+    # raise Exception('Check output.')
     # ----------- MAIN CODE ------------
     # Make directory
     images_dir = os.path.join(SAVE_PATH, 'images')
@@ -321,39 +286,56 @@ def main():
     # save_out(model, dataloader_valid, path=images_dir)
     pcc, ssim, mse = evaluate(model, dataloader_valid, norm=False, mean=training_config.mean,
                               std=training_config.std, path=images_dir, save=save, resize=200)
-    # logging.info("Mean PCC: {:.2f}".format(pcc.item()))
-    # logging.info("Mean SSIM: {:.2f}".format(ssim.item()))
-    # logging.info("Mean MSE: {:.2f}".format(mse.item()))
+    logging.info("Mean PCC: {:.2f}".format(pcc.item()))
+    logging.info("Mean SSIM: {:.2f}".format(ssim.item()))
+    logging.info("Mean MSE: {:.2f}".format(mse.item()))
     # logging.info("Mean LPIPS: {:.2f}".format(lpips.item()))
     # logging.info("Mean IS:", is_score)
 
     # Plot histogram for objective assessment
-    obj_score = dict(pcc=[], ssim=[], lpips=[], mse=[])
+    obj_score = dict(
+        pcc=[],
+        pcc_sd=[],
+        ssim=[],
+        ssim_sd=[],
+        lpips=[],
+        lpips_sd=[],
+        mse=[],
+        mse_sd=[]
+    )
+
     for top in [2, 5, 10]:
-        obj_pcc, obj_ssim, obj_lpips, obj_mse, averages = objective_assessment(model, dataloader_valid, top=top,
-                                                                               save_path=SAVE_PATH)
-        obj_score['pcc'].append(obj_pcc.item())
-        obj_score['ssim'].append(obj_ssim.item())
-        obj_score['lpips'].append(obj_lpips.item())
-        obj_score['mse'].append(obj_mse.item())
+        obj_all = objective_assessment(model, dataloader_valid, top=top, save_path=SAVE_PATH, repeats=5)
+        # obj_all['score']
+        obj_score['pcc'].append(statistics.mean(obj_all['pcc_score']))
+        obj_score['pcc_sd'].append(statistics.stdev(obj_all['pcc_score']))
+        obj_score['ssim'].append(statistics.mean(obj_all['ssim_score']))
+        obj_score['ssim_sd'].append(statistics.stdev(obj_all['ssim_score']))
+        obj_score['lpips'].append(statistics.mean(obj_all['lpips_score']))
+        obj_score['lpips_sd'].append(statistics.stdev(obj_all['lpips_score']))
+        obj_score['mse'].append(statistics.mean(obj_all['mse_score']))
+        obj_score['mse_sd'].append(statistics.stdev(obj_all['mse_score']))
 
-    logging.info("Mean PCC: {:.2f}".format(averages[0]))
-    logging.info("Mean SSIM: {:.2f}".format(averages[1]))
-    logging.info("Mean LPIPS: {:.2f}".format(averages[2]))
-    logging.info("Mean MSE: {:.2f}".format(averages[3]))
+    # logging.info("Mean PCC (obj): {:.2f}".format(averages[0]))
+    # logging.info("Mean SSIM (obj): {:.2f}".format(averages[1]))
+    # logging.info("Mean LPIPS (obj): {:.2f}".format(averages[2]))
+    # logging.info("Mean MSE (obj): {:.2f}".format(averages[3]))
 
-    obj_results_to_save = pd.DataFrame(obj_score)
-    results_to_save = pd.DataFrame(obj_results_to_save)
-    results_to_save.to_csv(os.path.join(SAVE_PATH, "results.csv"), index=False)
+    # obj_results_to_save = pd.DataFrame(obj_score)
+    # results_to_save = pd.DataFrame(obj_results_to_save)
+    # results_to_save.to_csv(os.path.join(SAVE_PATH, "results.csv"), index=False)
 
     # Graphing for PCC
     for test in ('pcc', 'ssim', 'lpips', 'mse'):
         x_axis = ['2-way', '5-way', '10-way']
         y_axis = [obj_score[test][0], obj_score[test][1], obj_score[test][2]]
+        y_axis_err = [obj_score[test + '_sd'][0], obj_score[test + '_sd'][1], obj_score[test + '_sd'][2]]
         bars = plt.bar(x_axis, y_axis, width=0.5)
+        plt.errorbar(x_axis, y_axis, yerr=y_axis_err, capsize=10, ecolor='black')
         plt.axhline(y=0.5, xmin=0, xmax=0.33, linewidth=1, color='k')
         plt.axhline(y=0.2, xmin=0.33, xmax=0.66, linewidth=1, color='k')
         plt.axhline(y=0.1, xmin=0.66, xmax=1.0, linewidth=1, color='k')
+        # TODO: remove trhe blue line connecting the bars
         for i, bar in enumerate(bars):
             yval = bar.get_height()
             plt.text(bar.get_x() + 0.10, yval + .005, f'{y_axis[i] * 100:.2f}')

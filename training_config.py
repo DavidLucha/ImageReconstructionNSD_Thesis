@@ -56,7 +56,8 @@ std = [0.5, 0.5, 0.5]
 """____________________Data Config___________________________"""
 
 LOGS_PATH = 'logs/'
-data_root = '/scratch/qbi/uqdlucha/datasets/'
+# data_root = '/scratch/qbi/uqdlucha/datasets/'
+data_root = 'D:/Lucha_Data/datasets/'
 # data_root for home: 'D:/Lucha_Data/datasets/'
 # save_training_results = ''
 TRAINED_NET_ROOT = ''

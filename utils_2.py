@@ -531,7 +531,7 @@ def denormalize_image(pred, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225
     return denorm_img
 
 
-def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc/", resize=200, save=True):
+def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc/", repeats=100, resize=200, save=True):
     """
     Calculates objective score of the predictions
 
@@ -547,22 +547,23 @@ def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc
     structural_similarity = StructuralSimilarity()
     mse_loss = nn.MSELoss()
 
-    # [PCC, SSIM, PSM, MSE]
-    true_positives = torch.tensor([0, 0, 0, 0])
-    dataset_size = 0
-    score_pcc = 0
-    score_ssim = 0
-    score_lpips = 0
-    score_mse = 0
-
     # Make a results var to save individual image metrics
     results = dict(
+        repeat=[],
         trial_id=[],
         image_path=[],
         pcc_im=[],
         ssim_im=[],
         lpips_im=[],
         mse_im=[]
+    )
+
+    objective_score = dict(
+        repeat=[],
+        pcc_score=[],
+        ssim_score=[],
+        lpips_score=[],
+        mse_score=[]
     )
 
     for batch_idx, data_batch in enumerate(dataloader):
@@ -586,78 +587,105 @@ def objective_assessment(model, dataloader, top=5, save_path="D:/Lucha_Data/misc
                 target_cpu = data_target.data.cpu()
                 # out = out.data.cpu()
 
-            for idx, image in enumerate(out):
-                numbers = list(range(0, len(out)))
-                numbers.remove(idx)
-                for i in range(top-1):
-                    # Get random number not including ID of original
-                    # Note: this is only a random choice of the mini-batch.
-                    rand_idx = random.choice(numbers)
-                    # PCC Metric
-                    score_rand_pcc = pearson_correlation(image, data_target[rand_idx])
-                    score_recon_pcc = pearson_correlation(image, data_target[idx])
-                    if score_recon_pcc > score_rand_pcc:
-                        score_pcc += 1
-
-                    # SSIM
-                    # TODO: check if the unsqueeze is needed
-                    image_for_ssim = torch.unsqueeze(image, 0)
-                    target_gt_for_ssim = torch.unsqueeze(data_target[idx], 0)
-                    target_rand_for_ssim = torch.unsqueeze(data_target[rand_idx], 0)
-                    score_rand_ssim = structural_similarity(image_for_ssim, target_rand_for_ssim)
-                    score_recon_ssim = structural_similarity(image_for_ssim, target_gt_for_ssim)
-                    if score_recon_ssim > score_rand_ssim:
-                        score_ssim += 1
-
-                    # Perceptual Similarity Metric - requires -1 to 1 normalization
-                    # TODO: check if it's normalized
-                    image_cpu = image.data.cpu()
-                    score_rand_lpips = perceptual_similarity(image_cpu, target_cpu[rand_idx])
-                    score_recon_lpips = perceptual_similarity(image_cpu, target_cpu[idx])
-                    # Lower number means images are 'closer' together
-                    if score_recon_lpips < score_rand_lpips:
-                        score_lpips += 1
-
-                    # MSE
-                    score_rand_mse = mse_loss(image, data_target[rand_idx])
-                    score_recon_mse = mse_loss(image, data_target[idx])
-                    if score_recon_mse < score_rand_mse:
-                        score_mse += 1
-
-                # Save individual scores per image
-                results['trial_id'].append(dataset_size)
-                results['image_path'].append(data_path[idx])
-                results['pcc_im'].append(score_recon_pcc.item())
-                results['ssim_im'].append(score_recon_ssim.item())
-                results['lpips_im'].append(score_recon_lpips.item())
-                results['mse_im'].append(score_recon_mse.item())
-
-                if score_pcc == top - 1:
-                    true_positives[0] += 1
-                if score_ssim == top - 1:
-                    true_positives[1] += 1
-                if score_lpips == top - 1:
-                    true_positives[2] += 1
-                if score_mse == top - 1:
-                    true_positives[3] += 1
-
-                dataset_size += 1
+            # TODO Insert loop here for repeats
+            for repeat in range(repeats):
+                # [PCC, SSIM, PSM, MSE]
+                true_positives = torch.tensor([0, 0, 0, 0])
+                dataset_size = 0
                 score_pcc = 0
                 score_ssim = 0
                 score_lpips = 0
                 score_mse = 0
 
-    objective_score = true_positives.float() / dataset_size
+                for idx, image in enumerate(out):
+                    numbers = list(range(0, len(out)))
+                    numbers.remove(idx)
+                    for i in range(top-1):
+                        # Get random number not including ID of original
+                        # Note: this is only a random choice of the mini-batch.
+                        rand_idx = random.choice(numbers)
+                        # PCC Metric
+                        score_rand_pcc = pearson_correlation(image, data_target[rand_idx])
+                        score_recon_pcc = pearson_correlation(image, data_target[idx])
+                        if score_recon_pcc > score_rand_pcc:
+                            score_pcc += 1
 
-    averages = []
-    for key, values in results.items():
-        if key in ('pcc_im', 'ssim_im', 'lpips_im', 'mse_im'):
-            averages.append(sum(values)/float(len(values)))
+                        # SSIM
+                        # TODO: check if the unsqueeze is needed
+                        image_for_ssim = torch.unsqueeze(image, 0)
+                        target_gt_for_ssim = torch.unsqueeze(data_target[idx], 0)
+                        target_rand_for_ssim = torch.unsqueeze(data_target[rand_idx], 0)
+                        score_rand_ssim = structural_similarity(image_for_ssim, target_rand_for_ssim)
+                        score_recon_ssim = structural_similarity(image_for_ssim, target_gt_for_ssim)
+                        if score_recon_ssim > score_rand_ssim:
+                            score_ssim += 1
+
+                        # Perceptual Similarity Metric - requires -1 to 1 normalization
+                        # TODO: check if it's normalized
+                        image_cpu = image.data.cpu()
+                        score_rand_lpips = perceptual_similarity(image_cpu, target_cpu[rand_idx])
+                        score_recon_lpips = perceptual_similarity(image_cpu, target_cpu[idx])
+                        # Lower number means images are 'closer' together
+                        if score_recon_lpips < score_rand_lpips:
+                            score_lpips += 1
+
+                        # MSE
+                        score_rand_mse = mse_loss(image, data_target[rand_idx])
+                        score_recon_mse = mse_loss(image, data_target[idx])
+                        if score_recon_mse < score_rand_mse:
+                            score_mse += 1
+
+                    # Save individual scores per image
+                    results['repeat'].append(repeat + 1)
+                    results['trial_id'].append(dataset_size)
+                    results['image_path'].append(data_path[idx])
+                    results['pcc_im'].append(score_recon_pcc.item())
+                    results['ssim_im'].append(score_recon_ssim.item())
+                    results['lpips_im'].append(score_recon_lpips.item())
+                    results['mse_im'].append(score_recon_mse.item())
+
+                    if score_pcc == top - 1:
+                        true_positives[0] += 1
+                    if score_ssim == top - 1:
+                        true_positives[1] += 1
+                    if score_lpips == top - 1:
+                        true_positives[2] += 1
+                    if score_mse == top - 1:
+                        true_positives[3] += 1
+
+                    dataset_size += 1
+                    score_pcc = 0
+                    score_ssim = 0
+                    score_lpips = 0
+                    score_mse = 0
+
+                # Get objective scores
+                acc = true_positives.float() / dataset_size
+
+                # Save all results
+                objective_score['repeat'].append(repeat + 1)
+                objective_score['pcc_score'].append(acc[0].item())
+                objective_score['ssim_score'].append(acc[1].item())
+                objective_score['lpips_score'].append(acc[2].item())
+                objective_score['mse_score'].append(acc[3].item())
+                print('PCC score at repeat {} is: {}'.format(repeat, acc[0].item()))
+                print('SSIM score at repeat {} is: {}'.format(repeat, acc[1].item()))
+                print('LPIPS score at repeat {} is: {}'.format(repeat, acc[2].item()))
+                print('MSE score at repeat {} is: {}'.format(repeat, acc[3].item()))
+
+
+    # averages = []
+    # for key, values in results.items():
+    #     if key in ('pcc_im', 'ssim_im', 'lpips_im', 'mse_im'):
+    #         averages.append(sum(values)/float(len(values)))
 
     results_to_save = pd.DataFrame(results)
     results_to_save.to_csv(os.path.join(save_path, "trial_results.csv"), index=True)
 
-    return objective_score[0], objective_score[1], objective_score[2], objective_score[3], averages
+    obj_score_to_save = pd.DataFrame(objective_score)
+    obj_score_to_save.to_csv(os.path.join(save_path, "{}_way_obj_results.csv".format(top)), index=True)
+
+    return objective_score # , objective_score[1], objective_score[2], objective_score[3]  # , averages
 
 
 def parse_args(args):  # TODO: Add a second term here 'stage' and do conditional

@@ -211,7 +211,7 @@ Creating trainable datasets (list of dicts)
     data_type = train/test both?
 """
 
-dict_prep = True
+dict_prep = False
 # TODO: Run this twice, for 1.8 and for 3mm
 if dict_prep:
     # Hello there. - Obi Wan
@@ -261,11 +261,16 @@ if dict_prep:
         data_dir = os.path.join("D:/Honours/nsd_pickles", vox_res, norm + "_concat_pickle")
 
         nsd_data_dict_prep(data_dir, image_list_dir, subj_list, "1pt8mm", data_type, save_path, norm, single_pres=True)
+        # TODO: this is to redo training
+        nsd_data_dict_prep(data_dir, image_list_dir, subj_list, "1pt8mm", "train", save_path, norm, single_pres=True)
 
         vox_res = "3mm"
         save_path = os.path.join("D:/Lucha_Data/datasets/NSD", vox_res)
         data_dir = os.path.join("D:/Honours/nsd_pickles", vox_res, norm + "_concat_pickle")
         nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, "3mm", data_type, save_path, norm, single_pres=True)
+        # TODO: this is to redo training
+        nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, "3mm", "train", save_path, norm, single_pres=True)
+
 
 
 """
@@ -314,7 +319,7 @@ if get_array:
 
 # var_training set grabs the variable-sized training sets based on the set random arrays from above
 # TODO Run this to get sub sets - Twice and change vox_res
-var_training_set = False
+var_training_set = True
 
 if var_training_set:
     input_path = "D:/Lucha_Data/datasets/NSD/"

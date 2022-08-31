@@ -73,7 +73,8 @@ class NSDProcess:
         # return sdataset[image_index]
 
 
-def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, norm, single_pres=False):
+def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, norm, single_pres=False,
+                       save=True):
     """
     Loads beta, pulls voxels from ROI and image index. (TRAINING)
     Combines these into a list of dictionaries formatted as:
@@ -108,6 +109,8 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
     if data_type == 'both':
         train = True
         valid = True
+
+    save = save
 
     session_count = [0, 37, 37, 29, 27, 37, 29, 37, 27]
 
@@ -233,6 +236,8 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
         # Remove duplicate columns
         # Randomly sampled voxels can include whole brain except for V1-V3 (double ups in HVC are possible)
         cleaned_merged_data = merged_data.loc[:, ~merged_data.columns.duplicated()].copy()
+
+        # TODO: Save as new FINAL pickles.
         # Using list(df) to get the column headers as a list
         column_names = list(cleaned_merged_data.columns)
 
@@ -245,6 +250,9 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
             data = pd.DataFrame(data, columns=column_names)
             # read index rows starting from 1
             data.index = np.arange(1, len(data) + 1)
+            # TODO: Save as new FINAL pickles.
+        else:
+            data = cleaned_merged_data
 
         if train:
             image_type = 'train/'
@@ -282,13 +290,14 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
                     for idx, (vox, pix) in enumerate(zip(fmri_zip, image_names)):
                         fmri_image_dataset.append({'fmri': vox, 'image': pix})
                     # Save pickle
-                    output_path = os.path.join(save_path, image_type, pres, key)
-                    if not os.path.exists(output_path):
-                        os.makedirs(output_path)
-                    with open(os.path.join(output_path, sub + '_NSD_' + pres + '_train.pickle'),
-                              'wb') as f:
-                        # e.g., /Subj_01_NSD_max_train.pickle OR /Subj_01_NSD_single_pres_train.pickle
-                        pickle.dump(fmri_image_dataset, f)
+                    if save:
+                        output_path = os.path.join(save_path, image_type, pres, key)
+                        if not os.path.exists(output_path):
+                            os.makedirs(output_path)
+                        with open(os.path.join(output_path, sub + '_NSD_' + pres + '_train.pickle'),
+                                  'wb') as f:
+                            # e.g., /Subj_01_NSD_max_train.pickle OR /Subj_01_NSD_single_pres_train.pickle
+                            pickle.dump(fmri_image_dataset, f)
 
             if single_pres:
                 fmri_image_dataset = []
@@ -299,7 +308,7 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
                 # Convert fMRI data for zipping
                 fmri_zip = fmri.to_numpy()
                 # Make dataframe with just image_idx
-                image_idx = train_list.filter(['Image_Idx'], axis=1)
+                image_idx = single_pres_train_list.filter(['Image_Idx'], axis=1)
                 # Update numbering with leading 0s
                 image_names = image_idx['Image_Idx'].astype(str).str.zfill(5)
                 # Convert back to dframe
@@ -312,71 +321,40 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
                 for idx, (vox, pix) in enumerate(zip(fmri_zip, image_names)):
                     fmri_image_dataset.append({'fmri': vox, 'image': pix})
                 # Save pickle
-                output_path = os.path.join(save_path, image_type, pres)
-                if not os.path.exists(output_path):
-                    os.makedirs(output_path)
-                with open(os.path.join(output_path, sub + '_NSD_' + pres + '_train.pickle'),
-                          'wb') as f:
-                    # e.g., /Subj_01_NSD_max_train.pickle OR /Subj_01_NSD_single_pres_train.pickle
-                    pickle.dump(fmri_image_dataset, f)
+                if save:
+                    output_path = os.path.join(save_path, image_type, pres)
+                    if not os.path.exists(output_path):
+                        os.makedirs(output_path)
+                    with open(os.path.join(output_path, sub + '_NSD_' + pres + '_train.pickle'),
+                              'wb') as f:
+                        # e.g., /Subj_01_NSD_max_train.pickle OR /Subj_01_NSD_single_pres_train.pickle
+                        pickle.dump(fmri_image_dataset, f)
+            # raise Exception('end of train')
 
         if valid:
             image_type = 'valid/'
             FILE_NAME_OUTPUT = '/images/' + image_type  # Defines the path in the dictionary outputs
             fmri_image_dataset = []
 
-            if not single_pres: # ROI selection is only for max voxels
-                for key, array in all_arrays.items():
-                    fmri_image_dataset = []
-                    # Select voxels from fmri dataframe
-                    # Grab columns (voxel_IDs) for each ROI array
-                    fmri_voxels = data.loc[:, array]
-
-                    # if key == "V1_to_V3_n_rand":
-                    #     fmri_voxels = pd.concat([fmri_voxels, rand_data], axis=1)
-
-                    # cut down fmri dataframe to training trials
-                    fmri = fmri_voxels.loc[test_array]
-
-                    # raise Exception('check voxels and array')
-
-                    # Convert fMRI data for zipping
-                    fmri_zip = fmri.to_numpy()
-                    # Make dataframe with just image_idx
-                    image_idx = test_list.filter(['Image_Idx'], axis=1)
-                    # Update numbering with leading 0s
-                    image_names = image_idx['Image_Idx'].astype(str).str.zfill(5)
-                    # Convert back to dframe
-                    image_names = image_names.to_frame(name='Image_Idx')
-                    # Update values in cells to full image paths
-                    image_names['Image_Idx'] = FILE_NAME_OUTPUT + "shared_nsd" + image_names['Image_Idx'] + ".png"
-
-                    image_names = image_names['Image_Idx'].astype(str)
-
-                    for idx, (vox, pix) in enumerate(zip(fmri_zip, image_names)):
-                        fmri_image_dataset.append({'fmri': vox, 'image': pix})
-
-                    # raise Exception()
-                    output_path = os.path.join(save_path, image_type, pres, key)
-                    if not os.path.exists(output_path):
-                        os.makedirs(output_path)
-                    with open(os.path.join(output_path, sub + '_NSD_' + pres + '_valid.pickle'),
-                              'wb') as f:
-                        # e.g., /Subj_01_NSD_max_valid.pickle OR /Subj_01_NSD_single_pres_valid.pickle
-                        pickle.dump(fmri_image_dataset, f)
-
-            if single_pres: # ROI selection is only for max voxels
+            for key, array in all_arrays.items():
                 fmri_image_dataset = []
-                # Grab columns (voxel_IDs) just for VC (excluding rand sampled)
-                fmri_voxels = data.loc[:, VC_array]
-                # cut down fmri dataframe to test trials
+                # Select voxels from fmri dataframe
+                # Grab columns (voxel_IDs) for each ROI array
+                fmri_voxels = data.loc[:, array]
+
+                # if key == "V1_to_V3_n_rand":
+                #     fmri_voxels = pd.concat([fmri_voxels, rand_data], axis=1)
+
+                # cut down fmri dataframe to training trials
                 fmri = fmri_voxels.loc[test_array]
+
                 # raise Exception('check voxels and array')
 
                 # Convert fMRI data for zipping
                 fmri_zip = fmri.to_numpy()
                 # Make dataframe with just image_idx
-                image_idx = test_list.filter(['Image_Idx'], axis=1)
+                # TODO: This is where it was breaking. from test_list to single_pres_test_list
+                image_idx = single_pres_test_list.filter(['Image_Idx'], axis=1)
                 # Update numbering with leading 0s
                 image_names = image_idx['Image_Idx'].astype(str).str.zfill(5)
                 # Convert back to dframe
@@ -390,16 +368,19 @@ def nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, data_type, 
                     fmri_image_dataset.append({'fmri': vox, 'image': pix})
 
                 # raise Exception()
-                output_path = os.path.join(save_path, image_type, pres)
-                if not os.path.exists(output_path):
-                    os.makedirs(output_path)
-                with open(os.path.join(output_path, sub + '_NSD_' + pres + '_valid.pickle'),
-                          'wb') as f:
-                    # e.g., /Subj_01_NSD_max_valid.pickle OR /Subj_01_NSD_single_pres_valid.pickle
-                    pickle.dump(fmri_image_dataset, f)
+
+                if save:
+                    output_path = os.path.join(save_path, image_type, pres, key)
+                    if not os.path.exists(output_path):
+                        os.makedirs(output_path)
+                    with open(os.path.join(output_path, sub + '_NSD_' + pres + '_valid.pickle'),
+                              'wb') as f:
+                        # e.g., /Subj_01_NSD_max_valid.pickle OR /Subj_01_NSD_single_pres_valid.pickle
+                        pickle.dump(fmri_image_dataset, f)
 
 
-def nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, norm, single_pres=False):
+def nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_type, save_path, norm, single_pres=False,
+                           save=True):
     """
     Loads beta, pulls voxels from ROI and image index. (TRAINING)
     Combines these into a list of dictionaries formatted as:
@@ -433,6 +414,8 @@ def nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_ty
     if data_type == 'both':
         train = True
         valid = True
+
+    save = save
 
     session_count = [0, 37, 37, 29, 27, 37, 29, 37, 27]
 
@@ -516,7 +499,8 @@ def nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_ty
             # Convert fMRI data for zipping
             fmri_zip = fmri.to_numpy()
             # Make dataframe with just image_idx
-            image_idx = train_list.filter(['Image_Idx'], axis=1)
+            # Change this to just train list if nto doing single_pres
+            image_idx = single_pres_train_list.filter(['Image_Idx'], axis=1)
             # Update numbering with leading 0s
             image_names = image_idx['Image_Idx'].astype(str).str.zfill(5)
             # Convert back to dframe
@@ -529,13 +513,14 @@ def nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_ty
             for idx, (vox, pix) in enumerate(zip(fmri_zip, image_names)):
                 fmri_image_dataset.append({'fmri': vox, 'image': pix})
             # Save pickle
-            output_path = os.path.join(save_path, image_type, pres)
-            if not os.path.exists(output_path):
-                os.makedirs(output_path)
-            with open(os.path.join(output_path, sub + '_NSD_' + pres + '_train.pickle'),
-                      'wb') as f:
-                # e.g., /Subj_01_NSD_max_train.pickle OR /Subj_01_NSD_single_pres_train.pickle
-                pickle.dump(fmri_image_dataset, f)
+            if save:
+                output_path = os.path.join(save_path, image_type, pres)
+                if not os.path.exists(output_path):
+                    os.makedirs(output_path)
+                with open(os.path.join(output_path, sub + '_NSD_' + pres + '_train.pickle'),
+                          'wb') as f:
+                    # e.g., /Subj_01_NSD_max_train.pickle OR /Subj_01_NSD_single_pres_train.pickle
+                    pickle.dump(fmri_image_dataset, f)
 
         if valid:
             image_type = 'valid/'
@@ -546,7 +531,7 @@ def nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_ty
             # Convert fMRI data for zipping
             fmri_zip = fmri.to_numpy()
             # Make dataframe with just image_idx
-            image_idx = test_list.filter(['Image_Idx'], axis=1)
+            image_idx = single_pres_test_list.filter(['Image_Idx'], axis=1)
             # Update numbering with leading 0s
             image_names = image_idx['Image_Idx'].astype(str).str.zfill(5)
             # Convert back to dframe
@@ -560,11 +545,12 @@ def nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_ty
                 fmri_image_dataset.append({'fmri': vox, 'image': pix})
 
             # raise Exception()
-            output_path = os.path.join(save_path, image_type, pres)
-            if not os.path.exists(output_path):
-                os.makedirs(output_path)
-            with open(os.path.join(output_path, sub + '_NSD_' + pres + '_valid.pickle'),
-                      'wb') as f:
-                # e.g., /Subj_01_NSD_max_valid.pickle OR /Subj_01_NSD_single_pres_valid.pickle
-                pickle.dump(fmri_image_dataset, f)
+            if save:
+                output_path = os.path.join(save_path, image_type, pres, "VC")
+                if not os.path.exists(output_path):
+                    os.makedirs(output_path)
+                with open(os.path.join(output_path, sub + '_NSD_' + pres + '_valid.pickle'),
+                          'wb') as f:
+                    # e.g., /Subj_01_NSD_max_valid.pickle OR /Subj_01_NSD_single_pres_valid.pickle
+                    pickle.dump(fmri_image_dataset, f)
 
