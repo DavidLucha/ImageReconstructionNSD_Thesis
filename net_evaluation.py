@@ -331,7 +331,7 @@ def main():
         y_axis = [obj_score[test][0], obj_score[test][1], obj_score[test][2]]
         y_axis_err = [obj_score[test + '_sd'][0], obj_score[test + '_sd'][1], obj_score[test + '_sd'][2]]
         bars = plt.bar(x_axis, y_axis, width=0.5)
-        plt.errorbar(x_axis, y_axis, yerr=y_axis_err, capsize=10, ecolor='black')
+        plt.errorbar(x_axis, y_axis, yerr=y_axis_err, capsize=10, ecolor='black', linestyle='')
         plt.axhline(y=0.5, xmin=0, xmax=0.33, linewidth=1, color='k')
         plt.axhline(y=0.2, xmin=0.33, xmax=0.66, linewidth=1, color='k')
         plt.axhline(y=0.1, xmin=0.66, xmax=1.0, linewidth=1, color='k')
