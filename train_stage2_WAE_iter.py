@@ -149,8 +149,11 @@ def main():
             # Currently valid data is set to 'max' meaning validation data contains multiple image presentations
             # If you only want to evaluate a single presentation of images replace both 'max' in strings below ...
             # with 'single_pres' and remove args.ROI
-            VALID_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'valid', 'max', args.ROI,
-                                           'Subj_0{}_NSD_max_valid.pickle'.format(args.subject))
+            # VALID_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'valid', 'max', args.ROI,
+            #                                'Subj_0{}_NSD_max_valid.pickle'.format(args.subject))
+            VALID_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'valid/single_pres', args.ROI,
+                                           'Subj_0{}_NSD_single_pres_valid.pickle'.format(args.subject))
+
         else:
             # Used to test on Generic Object Decoding Dataset (not used in Thesis)
             TRAIN_DATA_PATH = os.path.join(args.data_root, 'GOD',
