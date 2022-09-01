@@ -52,7 +52,7 @@ def main():
 
         # parser.add_argument('--run_name', default=timestep, help='sets the run name to the time shell script run',
         #                     type=str)
-        parser.add_argument('--data_root', default=training_config.data_root,
+        parser.add_argument('--data_root', default='D:/Lucha_Data/datasets/',
                             help='sets directory of /datasets folder. Default set to scratch.'
                                  'If on HPC, use /scratch/qbi/uqdlucha/datasets/,'
                                  'If on home PC, us D:/Lucha_Data/datasets/', type=str)
@@ -305,7 +305,7 @@ def main():
     )
 
     for top in [2, 5, 10]:
-        obj_all = objective_assessment(model, dataloader_valid, top=top, save_path=SAVE_PATH, repeats=5)
+        obj_all = objective_assessment(model, dataloader_valid, top=top, save_path=SAVE_PATH, repeats=10)
         # obj_all['score']
         obj_score['pcc'].append(statistics.mean(obj_all['pcc_score']))
         obj_score['pcc_sd'].append(statistics.stdev(obj_all['pcc_score']))
