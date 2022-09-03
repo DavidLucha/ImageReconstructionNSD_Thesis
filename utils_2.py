@@ -930,6 +930,126 @@ def objective_assessment_table(model, dataloader, save_path="D:/Lucha_Data/misc/
     return table_pcc_pd, table_ssim_pd, table_lpips_pd
 
 
+def objective_assessment_table_batch(model, dataloader, save_path="D:/Lucha_Data/misc/"):
+    """
+    Calculates objective score of the predictions
+
+    @param model: network for evaluation
+    @param dataloader: DataLoader object
+    @param top: n-top score: n=2,5,10
+    @return: objective score - percentage of correct predictions
+    """
+    import lpips
+
+    # CPU
+    perceptual_similarity_gpu = lpips.LPIPS(net='alex').cuda()
+    pearson_correlation = PearsonCorrelation().cuda()
+    structural_similarity = StructuralSimilarity().cuda()
+
+    header = []
+
+    table_pcc = np.zeros(shape=(872,872))
+    table_ssim = np.zeros(shape=(872,872))
+    table_lpips = np.zeros(shape=(872,872))
+
+    for batch_idx, data_batch in enumerate(dataloader):
+        model.eval()
+
+        with no_grad():
+            cpu = False
+            if cpu:
+                data_target = Variable(data_batch['image'], requires_grad=False).cpu().detach()
+
+                out, _ = model(data_batch['fmri'])
+                out = out.data.cpu()
+            else:
+                data_target = Variable(data_batch['image'], requires_grad=False).float().to('cuda')
+                data_fmri = Variable(data_batch['fmri'], requires_grad=False).float().to('cuda')
+                # data_path = Variable(data_batch['path'], requires_grad=False).float().to('cuda')
+                data_path = data_batch['path']
+
+                out, _ = model(data_fmri)
+                if batch_idx == 0:
+                    out_comp = out.detach()
+                    target_comp = data_target.detach()
+                    path_comp = data_path
+                    # print("out_comp size before stack: {}".format(out_comp.size()))
+                else:
+                    out_comp = torch.cat((out_comp, out))
+                    target_comp = torch.cat((target_comp, data_target.detach()))
+                    path_comp = path_comp + data_path
+                    # print("out_comp size after stack: {}".format(out_comp.size()))
+
+    for idx, recon in enumerate(out_comp):
+        print('Evaluating reconstruction:', idx)
+        numbers = list(range(0, len(out_comp)))
+
+        row_pcc = []
+        row_ssim = []
+        row_lpips = []
+
+        start = time.time()
+        for i in numbers:
+            # if not idx % 20:
+            #     print(i)
+            if idx == 0:
+                header.append(path_comp[i])
+
+            # PCC Metric
+            # start = time.time()
+
+            score_pcc = pearson_correlation(recon, target_comp[i])
+            row_pcc.append(score_pcc)
+
+            # print('score between recon {} and real {} is {}'.format(idx, i, score_pcc))
+            # end = time.time()
+            # print('time for pcc =', end - start)
+
+            # SSIM
+            # start = time.time()
+
+            recon_for_ssim = torch.unsqueeze(recon, 0)
+            target_for_ssim = torch.unsqueeze(target_comp[i], 0)
+            score_ssim = structural_similarity(recon_for_ssim, target_for_ssim)
+            row_ssim.append(score_ssim)
+
+            # end = time.time()
+            # print('time for ssim =', end - start)
+
+            # Perceptual Similarity Metric - requires -1 to 1 normalization
+            score_lpips = perceptual_similarity_gpu(recon, target_comp[i])
+            row_lpips.append(score_lpips)
+
+            # end = time.time()
+            # print('time for lpips =', end - start)
+            # Lower number means images are 'closer' together
+
+            """if i == 5:
+                break"""
+
+            # if i == 50:
+            #     raise Exception('check')
+
+        # Only thing is it might get very slow towards the end?
+
+        table_pcc[idx] = row_pcc
+        table_ssim[idx] = row_ssim
+        table_lpips[idx] = row_lpips
+        end = time.time()
+        print('time for numbers loop =', end - start)
+
+    table_pcc_pd = pd.DataFrame(table_pcc, columns=header, index=header)
+    table_pcc_pd.to_excel(os.path.join(save_path, "pcc_table.xlsx"))
+
+    table_ssim_pd = pd.DataFrame(table_ssim, columns=header, index=header)
+    table_ssim_pd.to_excel(os.path.join(save_path, "ssim_table.xlsx"))
+
+    table_lpips_pd = pd.DataFrame(table_lpips, columns=header, index=header)
+    table_lpips_pd.to_excel(os.path.join(save_path, "lpips_table.xlsx"))
+
+    return table_pcc_pd, table_ssim_pd, table_lpips_pd
+
+
 def nway_comp(df, n=5, repeats=10, metric="pcc"):
     # To ensure reproducibility, and that every comparison gets the same 'random' batch
     # But need to work the how the assumption of independence works with our data

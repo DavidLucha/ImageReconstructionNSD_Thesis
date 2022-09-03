@@ -22,7 +22,7 @@ from torch.utils.data import DataLoader, ConcatDataset
 import training_config
 from model_2 import VaeGan, Encoder, Decoder, VaeGanCognitive, Discriminator, CognitiveEncoder, WaeGan, WaeGanCognitive
 from utils_2 import GreyToColor, evaluate, PearsonCorrelation, objective_assessment_table, \
-    StructuralSimilarity, objective_assessment, parse_args, FmriDataloader, potentiation, save_out, save_network_out
+    objective_assessment_table_batch,  FmriDataloader, save_network_out
 
 
 def main():
@@ -299,7 +299,13 @@ def main():
         save_network_out(model, dataloader_valid, path=images_dir, save=save, resize=200)
 
     # gets all tables for each metric
-    table_pcc_pd, table_ssim_pd, table_lpips_pd = objective_assessment_table(model, dataloader_valid, save_path=SAVE_PATH)
+    # TODO Get rid of this
+    if args.batch_size == 872:
+        table_pcc_pd, table_ssim_pd, table_lpips_pd = objective_assessment_table(model, dataloader_valid,
+                                                                                 save_path=SAVE_PATH)
+    else:
+        table_pcc_pd, table_ssim_pd, table_lpips_pd = objective_assessment_table_batch(model, dataloader_valid,
+                                                                                      save_path=SAVE_PATH)
 
     # obj_all['score']
     """obj_score['pcc'].append(statistics.mean(obj_all['pcc_score']))

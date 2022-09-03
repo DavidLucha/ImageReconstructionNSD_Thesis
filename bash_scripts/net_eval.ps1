@@ -12,6 +12,10 @@ python C:\Users\david\Python\deepReconPyTorch\net_evaluation_tabular.py --st3_ne
 python C:\Users\david\Python\deepReconPyTorch\net_evaluation_tabular.py --st3_net "Study1_SUBJ07_1pt8mm_VC_max_Stage3_20220817-172226" --st3_load_epoch final --latent_dims 1024 --lin_size 2048 --lin_layers 2 --save True --vox_res 1pt8mm --ROI VC --set_size max --subject 7 --num_workers 2 --dataset NSD --seed 277603 --message "hello"
 python C:\Users\david\Python\deepReconPyTorch\net_evaluation_tabular.py --st3_net "Study1_SUBJ08_1pt8mm_VC_max_Stage3_20220817-172325" --st3_load_epoch final --latent_dims 1024 --lin_size 2048 --lin_layers 2 --save True --vox_res 1pt8mm --ROI VC --set_size max --subject 8 --num_workers 2 --dataset NSD --seed 277603 --message "hello"
 
+# Testing out concat
+python C:\Users\david\Python\deepReconPyTorch\net_evaluation_tabular.py --st3_net "Study1_SUBJ01_1pt8mm_VC_max_Stage3_20220817-112810" --batch_size 109 --save True --st3_load_epoch final --latent_dims 1024 --lin_size 2048 --lin_layers 2 --save True --vox_res 1pt8mm --ROI VC --set_size max --subject 1 --num_workers 2 --dataset NSD --seed 277603 --message "hello"
+
+
 
 # Study 1 subj 1 hpc test
 python C:\Users\david\Python\deepReconPyTorch\net_evaluation_tabular.py --data_root '/scratch/qbi/uqdlucha/datasets/' --network_root '/scratch/qbi/uqdlucha/final_networks/' --st3_net "Study1_SUBJ01_1pt8mm_VC_max_Stage3_20220817-112810" --st3_load_epoch final --latent_dims 1024 --lin_size 2048 --lin_layers 2 --save True --vox_res 1pt8mm --ROI VC --set_size max --subject 1 --num_workers 2 --dataset NSD --seed 277603 --message "hello"
