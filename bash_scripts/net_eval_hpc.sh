@@ -22,7 +22,7 @@ source activate /scratch/qbi/uqdlucha/python/dvaegan
 
 # Evaluation
 echo "Running evaluation at $(date +%Y%m%d-%H%M%S)"
-srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python C:\Users\david\Python\deepReconPyTorch\net_evaluation_tabular.py --data_root '/scratch/qbi/uqdlucha/datasets/' --network_root '/scratch/qbi/uqdlucha/final_networks/' --st3_net "Study1_SUBJ01_1pt8mm_VC_max_Stage3_20220817-112810" --st3_load_epoch final --latent_dims 1024 --lin_size 2048 --lin_layers 2 --save True --vox_res 1pt8mm --ROI VC --set_size max --subject 1 --num_workers 2 --dataset NSD --seed 277603 --message "hello"
+srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/net_evaluation_tabular.py --data_root '/scratch/qbi/uqdlucha/datasets/' --network_root '/scratch/qbi/uqdlucha/final_networks/' --st3_net "Study1_SUBJ01_1pt8mm_VC_max_Stage3_20220817-112810" --st3_load_epoch final --latent_dims 1024 --lin_size 2048 --lin_layers 2 --save True --vox_res 1pt8mm --ROI VC --set_size max --subject 1 --num_workers 2 --dataset NSD --seed 277603 --message "hello"
 echo "Evaluation complete at $(date +%Y%m%d-%H%M%S)"
 
 # tar the folder after complete
