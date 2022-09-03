@@ -11,6 +11,112 @@ import torchvision.transforms as transforms
 from sklearn import preprocessing
 import training_config as cfg
 import random
+import statistics
+
+from utils_2 import nway_comp, pairwise_comp
+
+path = 'D:/Lucha_Data/datasets/output/NSD/1pt8mm/max/VC/Subj_01/evaluation/Study1_SUBJ01_1pt8mm_VC_max_Stage3_20220817-112810_20220902-100454'
+file = os.path.join(path, 'pcc_table.xlsx')
+
+data = pd.read_excel(file, engine='openpyxl', index_col=0)
+
+repeats = [10, 25, 50, 100, 250]
+for repeat in repeats:
+    print(repeat)
+    pcc_nway_out = nway_comp(data, n=2, repeats=repeat, metric="pcc")
+
+# pcc_nway_out = nway_comp(data, n=2, repeats=10, metric="pcc")
+pcc_pairwise_out = pairwise_comp(data, metric="pcc")
+
+raise Exception('stop')
+
+
+
+
+
+# Testing the rand and rand replace thing
+test = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+test = pd.DataFrame(test)
+for i in range(4):
+    rand = test.sample(n=5, replace=False)
+    rand_replace = test.sample(n=5, replace=True)
+    print('rand at {}: {}'.format(i, rand))
+    print('rand_replace at {}: {}'.format(i, rand_replace))
+
+
+
+
+
+# developing the new eval code.
+n = 5
+total_score = 0
+trials = 0
+
+# n-way comparison
+for i, row in data.iterrows():
+    trials += 1
+    print('Comparison {}'.format(trials))
+    score_pcc = 0
+    row = row.to_frame()
+    matched = row.loc[i]
+    print('Value of matched is: ',matched)
+    new_row = row.drop([i])
+    rand = row.sample(n=n-1, replace=False, random_state=-2012)
+    for idx, rand_val in rand.iterrows():
+        if matched.item() > rand_val.item():
+            # TODO: Should this not be abs? No.
+            score_pcc += 1
+    if score_pcc == n - 1:
+        total_score += 1
+        print('Winner!')
+    else:
+        print('Recon? More like bozo.')
+    print(rand)
+    if trials==10:
+        break
+
+accuracy = total_score / trials * 100
+print('Accuracy rate is {}%'.format(accuracy))
+
+
+rowwise_full = []
+trials = 0
+
+# pairwise comparison
+for i, row in data.iterrows():
+    trials += 1
+    score_pcc = 0
+    row_count = 0
+    print('Comparison {}'.format(trials))
+    row = row.to_frame()
+    matched = row.loc[i]
+    print('Value of matched is: ',matched)
+    new_row = row.drop([i])
+    # rand = row.sample(n=n-1, replace=False, random_state=2012)
+    for idx, comparison in new_row.iterrows():
+        row_count += 1
+        if matched.item() > comparison.item():
+            # TODO: Should this not be abs? No.
+            score_pcc += 1
+
+    rowwise_accuracy = score_pcc / row_count * 100
+    print('Recon of {} accuracy is {:.2f}'.format(i, rowwise_accuracy))
+    rowwise_full.append(rowwise_accuracy)
+
+    if trials==10:
+        break
+
+print('Average pairwise accuracy: {:.2f} \n'
+      'Standard deviation of pairwise accuracy: {:.2f}'.format(statistics.mean(rowwise_full),
+                                                               statistics.stdev(rowwise_full)))
+
+raise Exception('check')
+
+
+replace = 'David is a fucking_'
+list = [1, 3, 'David is a fucking_goat']
+new_string = list[2].replace(replace,'')
+print(new_string)
 
 single_pres = 'D:/Lucha_Data/datasets/NSD/1pt8mm/valid/single_pres/VC/'
 single_pres = os.path.join(single_pres, 'Subj_01_NSD_single_pres_valid.pickle')

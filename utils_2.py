@@ -12,9 +12,11 @@ import numpy as np
 import random
 import logging
 import lpips as lpips
+import statistics
 import pandas as pd
 import torch.nn.functional as F
 import torchvision.transforms as transforms
+import time
 
 from torch import nn, no_grad
 from torch.autograd import Variable
@@ -47,6 +49,7 @@ class FmriDataloader(object):
         self.transform = transform
         self.root_path = root_path
         self.standardizer = standardizer
+        self.path_to_rm = root_path + '/images/valid/'
 
     def __len__(self):
         return len(self.dataset)
@@ -76,7 +79,9 @@ class FmriDataloader(object):
             fmri_tensor = F.normalize((fmri_tensor))
 
         # TODO: Check this doesn't break everything
-        path = self.dataset[idx]['image']
+        # root path = args.data_root + dataset (NSD)
+
+        path = self.dataset[idx]['image'].replace(self.path_to_rm, '')
 
         transformed_sample = {'fmri': fmri_tensor, 'image': mod_stimulus, 'path': path}
 
@@ -451,6 +456,52 @@ def save_out(model, dataloader, path=None, resize=200):
                 torchvision.utils.save_image(im, fp=os.path.join(real_path, '{}.png'.format(data_path[i])), normalize=True)
 
 
+def save_network_out(model, dataloader, path=None, save=False, resize=None):
+    """
+    Calculate metrics for the dataset specified with dataloader
+
+    @param model: network for evaluation
+    @param dataloader: DataLoader object
+    @param norm: normalization
+    @param mean: mean of the dataset
+    @param std: standard deviation of the dataset
+    @param path: path to save images
+    @param save: True if save images, otherwise False
+    @param resize: the size of the image to save
+    @return: mean PCC, mean SSIM, MSE, mean IS (inception score)
+    """
+    real_path = path + '/real'
+    recon_path = path + '/recon'
+
+    for batch_idx, data_batch in enumerate(dataloader):
+        model.eval()
+
+        with no_grad():
+
+            data_target = Variable(data_batch['image'], requires_grad=False).cpu().detach()
+            data_path = data_batch['path']
+
+            out, _ = model(data_batch['fmri'])
+
+            out = out.data.cpu()
+            if save:
+                # Make directory
+                if not os.path.exists(real_path):
+                    os.makedirs(real_path)
+                if not os.path.exists(recon_path):
+                    os.makedirs(recon_path)
+
+                if resize is not None:
+                    out = F.interpolate(out, size=resize)
+                    data_target = F.interpolate(data_target, size=resize)
+                for i, im in enumerate(out):
+                    # torchvision.utils.save_image(size_out,
+                    #                              fp=save_path + '/' + str(idx) + str(data_path[i]) + '_recon.png',
+                    #                              normalize=True)
+                    torchvision.utils.save_image(im, fp=recon_path + '/' + str(data_path[i]), normalize=True)  # could add + str(i)
+                for i, im in enumerate(data_target):
+                    torchvision.utils.save_image(im, fp=real_path + '/' + str(data_path[i]), normalize=True)
+
 
 def evaluate(model, dataloader, norm=True, mean=None, std=None, path=None, save=False, resize=None):
     """
@@ -486,6 +537,7 @@ def evaluate(model, dataloader, norm=True, mean=None, std=None, path=None, save=
         with no_grad():
 
             data_target = Variable(data_batch['image'], requires_grad=False).cpu().detach()
+            data_path = data_batch['path']
 
             out, _ = model(data_batch['fmri'])
 
@@ -501,9 +553,12 @@ def evaluate(model, dataloader, norm=True, mean=None, std=None, path=None, save=
                     out = F.interpolate(out, size=resize)
                     data_target = F.interpolate(data_target, size=resize)
                 for i, im in enumerate(out):
-                    torchvision.utils.save_image(im, fp=recon_path + '/' + str(batch_idx * len(data_target) + i) + '.png', normalize=True)
+                    # torchvision.utils.save_image(size_out,
+                    #                              fp=save_path + '/' + str(idx) + str(data_path[i]) + '_recon.png',
+                    #                              normalize=True)
+                    torchvision.utils.save_image(im, fp=recon_path + '/' + str(data_path[i]), normalize=True)  # could add + str(i)
                 for i, im in enumerate(data_target):
-                    torchvision.utils.save_image(im, fp=real_path + '/' + str(batch_idx * len(data_target) + i) + '.png', normalize=True)
+                    torchvision.utils.save_image(im, fp=real_path + '/' + str(data_path[i]), normalize=True)
         if norm and mean is not None and std is not None:
             data_target = denormalize_image(data_target, mean=mean, std=std)
             out = denormalize_image(out, mean=mean, std=std)
@@ -753,5 +808,242 @@ def potentiation(start_lr, decay_lr, epochs):
     x_c = start_lr * (decay_lr ** epochs)
     return x_c
 
+
+def objective_assessment_table(model, dataloader, save_path="D:/Lucha_Data/misc/"):
+    """
+    Calculates objective score of the predictions
+
+    @param model: network for evaluation
+    @param dataloader: DataLoader object
+    @param top: n-top score: n=2,5,10
+    @return: objective score - percentage of correct predictions
+    """
+    import lpips
+
+    # CPU
+    # perceptual_similarity = lpips.LPIPS(net='alex') # .to('cuda')
+    perceptual_similarity_gpu = lpips.LPIPS(net='alex').cuda()
+    pearson_correlation = PearsonCorrelation().cuda()
+    structural_similarity = StructuralSimilarity().cuda()
+
+    header = []
+
+    table_pcc = np.zeros(shape=(872,872))
+    table_ssim = np.zeros(shape=(872,872))
+    table_lpips = np.zeros(shape=(872,872))
+
+    for batch_idx, data_batch in enumerate(dataloader):
+        model.eval()
+
+        with no_grad():
+            cpu = False
+            if cpu:
+                data_target = Variable(data_batch['image'], requires_grad=False).cpu().detach()
+
+                out, _ = model(data_batch['fmri'])
+                out = out.data.cpu()
+            else:
+                data_target = Variable(data_batch['image'], requires_grad=False).float().to('cuda')
+                data_fmri = Variable(data_batch['fmri'], requires_grad=False).float().to('cuda')
+                # data_path = Variable(data_batch['path'], requires_grad=False).float().to('cuda')
+                data_path = data_batch['path']
+
+                out, _ = model(data_fmri)
+                # TODO: could add an argument for path, and spit this out with the recon
+
+                # TODO: uncomment for cpu use
+                # out_cpu = out.data.cpu()
+                # target_cpu = Variable(data_batch['image'], requires_grad=False).cpu().detach()
+
+                # out = out.data.cpu()
+
+            for idx, recon in enumerate(out):
+                print('Evaluating reconstruction:', idx)
+                numbers = list(range(0, len(out)))
+
+                row_pcc = []
+                row_ssim = []
+                row_lpips = []
+
+                start = time.time()
+                for i in numbers:
+                    # if not idx % 20:
+                    #     print(i)
+                    if idx==0:
+                        header.append(data_path[i])
+
+                    # PCC Metric
+                    # start = time.time()
+                    score_pcc = pearson_correlation(recon, data_target[i])
+                    # print('score between recon {} and real {} is {}'.format(idx, i, score_pcc))
+                    row_pcc.append(score_pcc)
+                    # end = time.time()
+                    # print('time for pcc =', end - start)
+
+                    # SSIM
+                    # TODO: check if the unsqueeze is needed
+                    # start = time.time()
+                    recon_for_ssim = torch.unsqueeze(recon, 0)
+                    target_for_ssim = torch.unsqueeze(data_target[i], 0)
+                    score_ssim = structural_similarity(recon_for_ssim, target_for_ssim)
+                    row_ssim.append(score_ssim)
+                    # end = time.time()
+                    # print('time for ssim =', end - start)
+
+                    # Perceptual Similarity Metric - requires -1 to 1 normalization
+                    # TODO: check if it's normalized
+                    # start = time.time()
+                    # CPU
+                    # recon_cpu = recon.data.cpu()
+                    # score_lpips = perceptual_similarity(out_cpu[idx], target_cpu[i])
+                    # GPU
+                    score_lpips = perceptual_similarity_gpu(recon, data_target[i])
+
+                    row_lpips.append(score_lpips)
+                    # end = time.time()
+                    # print('time for lpips =', end - start)
+                    # Lower number means images are 'closer' together
+
+                    """if i == 5:
+                        break"""
+
+                    # if i == 50:
+                    #     raise Exception('check')
+
+                # Only thing is it might get very slow towards the end?
+
+                table_pcc[idx] = row_pcc
+                table_ssim[idx] = row_ssim
+                table_lpips[idx] = row_lpips
+                end = time.time()
+                print('time for numbers loop =', end - start)
+
+    table_pcc_pd = pd.DataFrame(table_pcc, columns=header, index=header)
+    table_pcc_pd.to_excel(os.path.join(save_path, "pcc_table.xlsx"))
+
+    table_ssim_pd = pd.DataFrame(table_ssim, columns=header, index=header)
+    table_ssim_pd.to_excel(os.path.join(save_path, "ssim_table.xlsx"))
+
+    table_lpips_pd = pd.DataFrame(table_lpips, columns=header, index=header)
+    table_lpips_pd.to_excel(os.path.join(save_path, "lpips_table.xlsx"))
+
+    return table_pcc_pd, table_ssim_pd, table_lpips_pd
+
+
+def nway_comp(df, n=5, repeats=10, metric="pcc"):
+    # To ensure reproducibility, and that every comparison gets the same 'random' batch
+    # But need to work the how the assumption of independence works with our data
+    random.seed(2010)
+    # seed range as defined by .sample(random_state)
+    seed_list = random.sample(range(0, 2**32-1), repeats)
+
+    # number of comparisons (including real candidate)
+    n = n
+    repeat_count = 0
+
+    # create container for full accuracy (cross repeats)
+    accuracy_full = []
+
+    for repeat in range(repeats):
+        repeat_count += 1
+        # set counters
+        # total score is count of recons beats all n comparisons
+        total_score = 0
+        trials = 0
+        for i, row in df.iterrows():
+            # row counter
+            trials += 1
+            # print('Comparison {}'.format(trials))
+            # score per reconstruction
+            score = 0
+            # save row to dataframe
+            row = row.to_frame()
+            # select the value where recon == actual candidate image
+            matched = row.loc[i]
+            # print('Value of matched is: ', matched)
+            # remove real candidate from rest of row values
+            new_row = row.drop([i])
+            # sample n from the rest of row with reproducible seeds
+            # in any nway you can only get an image once, but the next iteration it can be called again
+            # TODO: Check this
+            rand = new_row.sample(n=n - 1, replace=False, random_state=seed_list[repeat])
+            # for every image in the random sample check if real is bigger
+            for idx, rand_val in rand.iterrows():
+                if metric=="lpips":
+                    # because lpips lower is better
+                    if matched.item() < rand_val.item():
+                        score += 1
+                else:
+                    # for pcc and ssim
+                    if matched.item() > rand_val.item():
+                        score += 1
+            # add to total score if real is bigger than all n candidates
+            if score == n - 1:
+                total_score += 1
+
+        # Get accuracy per recon
+        accuracy = total_score / trials * 100
+        # print('Accuracy rate for repeat {} is {:.2f}%'.format(repeat_count, accuracy))
+
+        # Concat this to full list for all recons
+        accuracy_full.append(accuracy)
+    print('Average n-way ({}) comparison accuracy: {:.2f} \n'
+          'Standard deviation of n-way ({}) comparison accuracy: {:.2f}'.format(n, statistics.mean(accuracy_full),
+                                                                   n, statistics.stdev(accuracy_full)))
+
+    return accuracy_full
+
+
+def pairwise_comp(df, metric="pcc"):
+    # create container
+    accuracy_full = []
+
+    # create counter (for each reconstruction)
+    trials = 0
+
+    # pull rows from full table
+    for i, row in df.iterrows():
+        trials += 1
+        # set score (count of wins for real vs each pairwise comp)
+        score = 0
+
+        # counts comparisons per row
+        row_count = 0
+        # print('Comparison {}'.format(trials))
+
+        # convert to df
+        row = row.to_frame()
+
+        # grab real candidate value
+        matched = row.loc[i]
+        # print('Value of matched is: ', matched)
+
+        # remove candidate from rest of row values
+        new_row = row.drop([i])
+
+        # pull value for each remaining comparison
+        for idx, comparison in new_row.iterrows():
+            row_count += 1
+            if metric == "lpips":
+                # because lpips lower is better
+                if matched.item() < comparison.item():
+                    score += 1
+            else:
+                # for pcc and ssim
+                if matched.item() > comparison.item():
+                    score += 1
+
+        # calculate accuracy per reconstruction
+        accuracy = score / row_count * 100
+        # print('Recon of {} accuracy is {:.2f}'.format(i, accuracy))
+
+        # adds accuracy to full list
+        accuracy_full.append(accuracy)
+
+    print('Average pairwise accuracy: {:.2f} \n'
+          'Standard deviation of pairwise accuracy: {:.2f}'.format(statistics.mean(accuracy_full),
+                                                                   statistics.stdev(accuracy_full)))
+
+    return accuracy_full
 
 

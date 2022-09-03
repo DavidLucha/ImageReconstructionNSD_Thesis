@@ -25,8 +25,8 @@ from torch.optim.lr_scheduler import ExponentialLR, StepLR
 
 import training_config
 from model_2 import VaeGan, Encoder, Decoder, VaeGanCognitive, Discriminator, CognitiveEncoder, WaeGan, WaeGanCognitive
-from utils_2 import GreyToColor, evaluate, PearsonCorrelation, \
-    StructuralSimilarity, objective_assessment, parse_args, FmriDataloader, potentiation, save_out
+from utils_2 import GreyToColor, evaluate, PearsonCorrelation, objective_assessment_table, \
+    StructuralSimilarity, objective_assessment, parse_args, FmriDataloader, potentiation, save_out, save_network_out
 
 def free_params(module: nn.Module):
     for p in module.parameters():
@@ -56,6 +56,10 @@ def main():
                             help='sets directory of /datasets folder. Default set to scratch.'
                                  'If on HPC, use /scratch/qbi/uqdlucha/datasets/,'
                                  'If on home PC, us D:/Lucha_Data/datasets/', type=str)
+        parser.add_argument('--network_root', default='D:/Lucha_Data/final_networks/',
+                            help='sets directory of /datasets folder. Default set to scratch.'
+                                 'If on HPC, use /scratch/qbi/uqdlucha/final_networks/,'
+                                 'If on home PC, us D:/Lucha_Data/final_networks/', type=str)
         # Optimizing parameters | also, see lambda and margin in training_config.py
         parser.add_argument('--batch_size', default=872, help='batch size for dataloader, set to full',
                             type=int)
@@ -104,7 +108,7 @@ def main():
     """
     # Get current working directory
     CWD = os.getcwd()
-    OUTPUT_PATH = os.path.join(args.data_root, 'output/')
+    OUTPUT_PATH = os.path.join(args.network_root, 'output/')
     SUBJECT_PATH = 'Subj_0{}/'.format(str(args.subject))
 
     # Load training data for GOD and NSD, default is NSD
@@ -114,8 +118,7 @@ def main():
         # VALID_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'old_valid', 'max', args.ROI,
         #                                'Subj_0{}_NSD_max_valid.pickle'.format(args.subject))
 
-    SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, args.ROI, SUBJECT_PATH,
-                             "evaluation", args.st3_net + "_" + timestep)
+    SAVE_PATH = os.path.join(OUTPUT_PATH, args.vox_res, args.st3_net)
 
     if not os.path.exists(SAVE_PATH):
         os.makedirs(SAVE_PATH)
@@ -216,7 +219,7 @@ def main():
 
     if args.load_from == "networks":
         # You would need to change this.
-        all_nets_root = 'D:/Lucha_Data/final_networks/'
+        all_nets_root = args.network_root
 
         model_dir = os.path.join(all_nets_root, args.vox_res, 'all',
                                  args.st3_net + '_{}.pth'.format(args.st3_load_epoch))
@@ -283,16 +286,16 @@ def main():
     else:
         save = False
 
-    # save_out(model, dataloader_valid, path=images_dir)
-    pcc, ssim, mse = evaluate(model, dataloader_valid, norm=False, mean=training_config.mean,
-                              std=training_config.std, path=images_dir, save=save, resize=200)
-    logging.info("Mean PCC: {:.2f}".format(pcc.item()))
-    logging.info("Mean SSIM: {:.2f}".format(ssim.item()))
-    logging.info("Mean MSE: {:.2f}".format(mse.item()))
-    # logging.info("Mean LPIPS: {:.2f}".format(lpips.item()))
-    # logging.info("Mean IS:", is_score)
+    ## save_out(model, dataloader_valid, path=images_dir)
 
-    exit(0)
+    # pcc, ssim, mse = evaluate(model, dataloader_valid, norm=False, mean=training_config.mean,
+    #                           std=training_config.std, path=images_dir, save=save, resize=200)
+    # logging.info("Mean PCC: {:.2f}".format(pcc.item()))
+    # logging.info("Mean SSIM: {:.2f}".format(ssim.item()))
+    # logging.info("Mean MSE: {:.2f}".format(mse.item()))
+
+    ## logging.info("Mean LPIPS: {:.2f}".format(lpips.item()))
+    ## logging.info("Mean IS:", is_score)
 
     # Plot histogram for objective assessment
     obj_score = dict(
@@ -306,17 +309,21 @@ def main():
         mse_sd=[]
     )
 
-    for top in [2, 5, 10]:
-        obj_all = objective_assessment(model, dataloader_valid, top=top, save_path=SAVE_PATH, repeats=10)
-        # obj_all['score']
-        obj_score['pcc'].append(statistics.mean(obj_all['pcc_score']))
-        obj_score['pcc_sd'].append(statistics.stdev(obj_all['pcc_score']))
-        obj_score['ssim'].append(statistics.mean(obj_all['ssim_score']))
-        obj_score['ssim_sd'].append(statistics.stdev(obj_all['ssim_score']))
-        obj_score['lpips'].append(statistics.mean(obj_all['lpips_score']))
-        obj_score['lpips_sd'].append(statistics.stdev(obj_all['lpips_score']))
-        obj_score['mse'].append(statistics.mean(obj_all['mse_score']))
-        obj_score['mse_sd'].append(statistics.stdev(obj_all['mse_score']))
+    if save:
+        save_network_out(model, dataloader_valid, path=images_dir, save=save, resize=200)
+
+    # gets all tables for each metric
+    table_pcc_pd, table_ssim_pd, table_lpips_pd = objective_assessment_table(model, dataloader_valid, save_path=SAVE_PATH)
+
+    # obj_all['score']
+    """obj_score['pcc'].append(statistics.mean(obj_all['pcc_score']))
+    obj_score['pcc_sd'].append(statistics.stdev(obj_all['pcc_score']))
+    obj_score['ssim'].append(statistics.mean(obj_all['ssim_score']))
+    obj_score['ssim_sd'].append(statistics.stdev(obj_all['ssim_score']))
+    obj_score['lpips'].append(statistics.mean(obj_all['lpips_score']))
+    obj_score['lpips_sd'].append(statistics.stdev(obj_all['lpips_score']))
+    obj_score['mse'].append(statistics.mean(obj_all['mse_score']))
+    obj_score['mse_sd'].append(statistics.stdev(obj_all['mse_score']))
 
     # logging.info("Mean PCC (obj): {:.2f}".format(averages[0]))
     # logging.info("Mean SSIM (obj): {:.2f}".format(averages[1]))
@@ -353,7 +360,7 @@ def main():
     logging.info("Objective score SSIM: {:.2f}".format(obj_score['ssim'][0]))
     logging.info("Objective score LPIPS: {:.2f}".format(obj_score['lpips'][0]))
     logging.info("Objective score MSE: {:.2f}".format(obj_score['mse'][0]))
-    plt.close()
+    plt.close()"""
     exit(0)
 
 
