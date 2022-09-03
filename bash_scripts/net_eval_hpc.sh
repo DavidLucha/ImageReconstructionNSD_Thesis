@@ -18,7 +18,8 @@ module load cuda/11.3.0
 module load mvapich2
 # module load openmpi3
 
-source activate /scratch/qbi/uqdlucha/python/dvaegan
+# source activate /scratch/qbi/uqdlucha/python/dvaegan
+source activate /scratch/qbi/uqdlucha/python/dvaegan3_6
 
 # Evaluation
 echo "Running evaluation at $(date +%Y%m%d-%H%M%S)"

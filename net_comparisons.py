@@ -13,9 +13,7 @@ import random
 
 
 import training_config
-from model_2 import VaeGan, Encoder, Decoder, VaeGanCognitive, Discriminator, CognitiveEncoder, WaeGan, WaeGanCognitive
-from utils_2 import GreyToColor, evaluate, PearsonCorrelation, objective_assessment_table, \
-    StructuralSimilarity, objective_assessment, parse_args, FmriDataloader, potentiation, save_out, save_network_out
+from utils_2 import objective_assessment_table
 
 # This script takes the full tables of each metric value and runs either n-way or pairwise comparison
 

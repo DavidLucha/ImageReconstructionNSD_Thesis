@@ -1,9 +1,7 @@
 import os
-import time
 import numpy
 import json
 import torch
-import sys
 import pickle
 import logging
 import argparse
@@ -20,26 +18,14 @@ from torchvision import transforms
 from torch.autograd import Variable
 from torchvision.utils import make_grid
 from torch.utils.data import DataLoader, ConcatDataset
-from torch.utils.tensorboard import SummaryWriter
-from torch.optim.lr_scheduler import ExponentialLR, StepLR
 
 import training_config
 from model_2 import VaeGan, Encoder, Decoder, VaeGanCognitive, Discriminator, CognitiveEncoder, WaeGan, WaeGanCognitive
 from utils_2 import GreyToColor, evaluate, PearsonCorrelation, objective_assessment_table, \
     StructuralSimilarity, objective_assessment, parse_args, FmriDataloader, potentiation, save_out, save_network_out
 
-def free_params(module: nn.Module):
-    for p in module.parameters():
-        p.requires_grad = True
-
-
-def frozen_params(module: nn.Module):
-    for p in module.parameters():
-        p.requires_grad = False
-
 
 def main():
-    timestep = time.strftime("%Y%m%d-%H%M%S")
 
     """
     ARGS PARSER
