@@ -4,7 +4,7 @@
 #SBATCH --job-name=HPC_Eval_Test
 #SBATCH -n 2
 #SBATCH -c 25
-#SBATCH --mem=50000
+#SBATCH --mem=100000
 #SBATCH -o HPC_Eval_Test_output.txt
 #SBATCH -e HPC_Eval_Test_error.txt
 #SBATCH --partition=gpu
