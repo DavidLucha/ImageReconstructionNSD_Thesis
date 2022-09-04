@@ -107,7 +107,7 @@ def main():
     SAVE_PATH = os.path.join(OUTPUT_PATH, args.vox_res, args.st3_net)
 
     if not os.path.exists(SAVE_PATH):
-        os.makedirs(SAVE_PATH)
+        os.makedirs(SAVE_PATH, exist_ok=True)
 
     # saving_dir = os.path.join(SAVE_PATH, 'evaluation_{}_{}'.format(args.st3_net, timestep))
 
