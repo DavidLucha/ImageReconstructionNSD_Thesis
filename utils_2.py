@@ -1124,6 +1124,8 @@ def pairwise_comp(df, metric="pcc"):
     # pull rows from full table
     for i, row in df.iterrows():
         trials += 1
+        if not trials % 100:
+            print('Completed {} evaluations...'.format(trials))
         # set score (count of wins for real vs each pairwise comp)
         score = 0
 

@@ -161,6 +161,11 @@ srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/de
 srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/net_evaluation_tabular.py --data_root '/scratch/qbi/uqdlucha/datasets/' --network_root '/scratch/qbi/uqdlucha/final_networks/' --batch_size 100 --st3_net "Study2_SUBJ04_3mm_VC_4000_Stage3_20220903-104357" --st3_load_epoch final --latent_dims 1024 --lin_size 2048 --lin_layers 2 --save True --vox_res 3mm --ROI VC --set_size 4000 --subject 4 --num_workers 2 --dataset NSD --seed 277603 --message "hello"
 srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/net_evaluation_tabular.py --data_root '/scratch/qbi/uqdlucha/datasets/' --network_root '/scratch/qbi/uqdlucha/final_networks/' --batch_size 100 --st3_net "Study2_SUBJ04_3mm_VC_7500_Stage3_20220903-090221" --st3_load_epoch final --latent_dims 1024 --lin_size 2048 --lin_layers 2 --save True --vox_res 3mm --ROI VC --set_size 7500 --subject 4 --num_workers 2 --dataset NSD --seed 277603 --message "hello"
 
+Study2_SUBJ04_1pt8mm_VC_1200_Stage3_20220904-120320_final
+Study2_SUBJ04_3mm_VC_1200_Stage3_20220905-000707_final
+
+Study2_SUBJ08_1pt8mm_VC_1200_Stage3_20220904-134221_final
+Study2_SUBJ08_3mm_VC_1200_Stage3_20220905-010754_final
 ####################
 
 # SUBJ 5
@@ -205,4 +210,23 @@ srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/de
 
 
 
+# SUBJ 4
+# 1.8
+srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/net_evaluation_tabular.py --data_root '/scratch/qbi/uqdlucha/datasets/' --network_root '/scratch/qbi/uqdlucha/final_networks/' --batch_size 100 --st3_net "Study2_SUBJ04_1pt8mm_VC_1200_Stage3_20220904-120320" --st3_load_epoch final --latent_dims 1024 --lin_size 2048 --lin_layers 2 --save True --vox_res 1pt8mm --ROI VC --set_size 1200 --subject 4 --num_workers 2 --dataset NSD --seed 277603 --message "hello"
+# 3
+srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/net_evaluation_tabular.py --data_root '/scratch/qbi/uqdlucha/datasets/' --network_root '/scratch/qbi/uqdlucha/final_networks/' --batch_size 100 --st3_net "Study2_SUBJ04_3mm_VC_1200_Stage3_20220905-000707" --st3_load_epoch final --latent_dims 1024 --lin_size 2048 --lin_layers 2 --save True --vox_res 3mm --ROI VC --set_size 1200 --subject 4 --num_workers 2 --dataset NSD --seed 277603 --message "hello"
+
+
+# SUBJ 8
+# 1.8mm
+srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/net_evaluation_tabular.py --data_root '/scratch/qbi/uqdlucha/datasets/' --network_root '/scratch/qbi/uqdlucha/final_networks/' --batch_size 100 --st3_net "Study2_SUBJ08_1pt8mm_VC_1200_Stage3_20220904-134221" --st3_load_epoch final --latent_dims 1024 --lin_size 2048 --lin_layers 2 --save True --vox_res 1pt8mm --ROI VC --set_size 1200 --subject 8 --num_workers 2 --dataset NSD --seed 277603 --message "hello"
+
+# 3mm
+srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/net_evaluation_tabular.py --data_root '/scratch/qbi/uqdlucha/datasets/' --network_root '/scratch/qbi/uqdlucha/final_networks/' --batch_size 100 --st3_net "Study2_SUBJ08_3mm_VC_1200_Stage3_20220905-010754" --st3_load_epoch final --latent_dims 1024 --lin_size 2048 --lin_layers 2 --save True --vox_res 3mm --ROI VC --set_size 1200 --subject 8 --num_workers 2 --dataset NSD --seed 277603 --message "hello"
+
+# Study2_SUBJ04_1pt8mm_VC_1200_Stage3_20220904-120320
+# Study2_SUBJ04_3mm_VC_1200_Stage3_20220905-000707
+
+# Study2_SUBJ08_1pt8mm_VC_1200_Stage3_20220904-134221
+# Study2_SUBJ08_3mm_VC_1200_Stage3_20220905-010754
 
