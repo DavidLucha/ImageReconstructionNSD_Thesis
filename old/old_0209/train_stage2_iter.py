@@ -23,7 +23,7 @@ from torch.optim.lr_scheduler import ExponentialLR
 import training_config
 from model_2 import VaeGan, Encoder, Decoder, VaeGanCognitive, Discriminator, CognitiveEncoder
 from utils_2 import GreyToColor, evaluate, PearsonCorrelation, \
-    StructuralSimilarity, objective_assessment, parse_args, NLLNormal, FmriDataloader, potentiation
+    StructuralSimilarity, objective_assessment, parse_args, FmriDataloader, potentiation
 
 if __name__ == "__main__":
     try:
@@ -47,16 +47,16 @@ if __name__ == "__main__":
             # Optimizing parameters | also, see lambda and margin in training_config.py
             parser.add_argument('--batch_size', default=training_config.batch_size, help='batch size for dataloader',
                                 type=int)
-            parser.add_argument('--epochs', default=training_config.n_epochs_s3, help='number of epochs', type=int)
-            parser.add_argument('--iters', default=15000, help='sets max number of forward passes. 30k for stage 2'
+            parser.add_argument('--epochs', default=training_config.n_epochs, help='number of epochs', type=int)
+            parser.add_argument('--iters', default=30000, help='sets max number of forward passes. 30k for stage 2'
                                                                ', 15k for stage 3.', type=int)
             parser.add_argument('--num_workers', '-nw', default=training_config.num_workers,
                                 help='number of workers for dataloader', type=int)
-            parser.add_argument('--lr_dec', default=.0001, type=float)
+            parser.add_argument('--lr_enc', default=.0001, type=float)
             parser.add_argument('--lr_disc', default=.00001, type=float)
             parser.add_argument('--decay_lr', default=training_config.decay_lr,
                                 help='.98 in Maria, .75 in original VAE/GAN', type=float)
-            parser.add_argument('--equilibrium_game', default='y', type=str,
+            parser.add_argument('--equilibrium_game', default='n', type=str,
                                 help='Sets whether to engage the equilibrium game for decoder/disc updates (y/n)')
             parser.add_argument('--backprop_method', default='clip', help='trad sets three diff loss functions,'
                                                                           'but clip, clips the gradients to help'
@@ -68,11 +68,13 @@ if __name__ == "__main__":
             # Pretrained/checkpoint network components
             parser.add_argument('--network_checkpoint', default=None, help='loads checkpoint in the format '
                                                                            'vaegan_20220613-014326', type=str)
-            parser.add_argument('--checkpoint_epoch', default=400, help='epoch of checkpoint network', type=int)
-            parser.add_argument('--stage_2_trained', default=training_config.stage_2_trained,
-                                help='pretrained network from stage 2', type=str)
+            parser.add_argument('--checkpoint_epoch', default=90, help='epoch of checkpoint network', type=int)
+            parser.add_argument('--pretrained_net', '-pretrain', default=training_config.pretrained_net,
+                                help='pretrained network', type=str)
+            parser.add_argument('--load_from',default='stage_1', help='sets whether pretrained net is from pretrain'
+                                                                      'or from stage_1 output', type=str)
             parser.add_argument('--load_epoch', '-pretrain_epoch', default='final',
-                                help='epoch of the pretrained model from stage 2', type=str)
+                                help='epoch of the pretrained model', type=str)
             parser.add_argument('--dataset', default='NSD', help='GOD, NSD', type=str)
             # Only need vox_res arg from stage 2 and 3
             parser.add_argument('--vox_res', default='1.8mm', help='1.8mm, 3mm', type=str)
@@ -80,7 +82,7 @@ if __name__ == "__main__":
             # Thing where we do a smaller set for stage 1. But I think I might do a Maria and just have stage 1 with no...
             # pretraining phase...
             parser.add_argument('--set_size', default='max', help='max:max available (including repeats), '
-                                                                  'single_pres: max available single presentations, '
+                                                                  'single_pres: max available single presentations,'
                                                                   '7500, 4000, 1200', type=str)
             parser.add_argument('--subject', default=1, help='Select subject number. GOD(1-5) and NSD(1-8)', type=int)
             parser.add_argument('--message', default='', help='Any notes or other information')
@@ -94,18 +96,17 @@ if __name__ == "__main__":
         """
         # Get current working directory
         CWD = os.getcwd()
-        OUTPUT_PATH = os.path.join(args.data_root, 'output/')
+        OUTPUT_PATH = os.path.join(args.data_root, '../../output/')
         SUBJECT_PATH = 'Subj_0{}/'.format(str(args.subject))
 
         # Load training data for GOD and NSD, default is NSD
         if args.dataset == 'NSD':
             if args.set_size == 'max' or args.set_size == 'single_pres':
                 TRAIN_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'train', args.set_size,
-                                               'Subj_0{}_NSD_{}_train.pickle'.format(args.subject, args.set_size))
+                                           'Subj_0{}_NSD_{}_train.pickle'.format(args.subject, args.set_size))
             else:
                 TRAIN_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'train', args.set_size,
-                                               'Subj_0{}_{}_NSD_single_pres_train.pickle'.format(args.subject,
-                                                                                                 args.set_size))
+                                           'Subj_0{}_{}_NSD_single_pres_train.pickle'.format(args.subject, args.set_size))
 
             # Currently valid data is set to 'max' meaning validation data contains multiple image presentations
             # If you only want to evaluate a single presentation of images replace both 'max' in strings below ...
@@ -119,15 +120,15 @@ if __name__ == "__main__":
                                            'GOD_Subject{}_valid_normed.pickle'.format(args.subject))
 
         # Create directory for results
-        stage_num = 'stage_3'
-        stage = 3
+        stage_num = 'stage_2'
+        stage = 2
 
         SAVE_PATH = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, SUBJECT_PATH, stage_num,
                                  args.run_name)
         if not os.path.exists(SAVE_PATH):
             os.makedirs(SAVE_PATH)
 
-        SAVE_SUB_PATH = os.path.join(SAVE_PATH, 'stage_3_vaegan_{}.pth'.format(args.run_name))
+        SAVE_SUB_PATH = os.path.join(SAVE_PATH, 'stage_2_vaegan_{}.pth'.format(args.run_name))
         if not os.path.exists(SAVE_SUB_PATH):
             os.makedirs(SAVE_SUB_PATH)
 
@@ -154,7 +155,6 @@ if __name__ == "__main__":
         file_handler.setLevel(logging.INFO)
         logger.addHandler(file_handler)
 
-
         """
         SETTING SEEDS
         """
@@ -169,11 +169,9 @@ if __name__ == "__main__":
         torch.autograd.set_detect_anomaly(True)
         # print('timestep is ',timestep)
 
-
         """
         DEVICE SETTING
         """
-
         # Check available gpu
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         logger.info("Used device: %s" % device)
@@ -193,7 +191,6 @@ if __name__ == "__main__":
         """
         DATASET LOADING
         """
-        # image_crop = training_config.image_crop
         if args.valid_shuffle == 'True':
             shuf = True
         else:
@@ -228,9 +225,9 @@ if __name__ == "__main__":
                                                                                               training_config.std)
                                                                          ]))
 
-        dataloader_train = DataLoader(training_data, batch_size=args.batch_size,  # collate_fn=PadCollate(dim=0),
+        dataloader_train = DataLoader(training_data, batch_size=args.batch_size,  # collate_fn=collate_fn,
                                       shuffle=True, num_workers=args.num_workers)
-        dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size,  # collate_fn=PadCollate(dim=0),
+        dataloader_valid = DataLoader(validation_data, batch_size=args.batch_size,  # collate_fn=collate_fn,
                                       shuffle=shuf, num_workers=args.num_workers)
 
         NUM_VOXELS = len(train_data[0]['fmri'])
@@ -241,79 +238,52 @@ if __name__ == "__main__":
         writer_decoder = SummaryWriter(SAVE_PATH + '/runs_' + args.run_name + '/decoder')
         writer_discriminator = SummaryWriter(SAVE_PATH + '/runs_' + args.run_name + '/discriminator')
 
+        # Load Stage 1 network weights
+        model_dir = os.path.join(OUTPUT_PATH, 'NSD', 'stage_1', args.pretrained_net,
+                                   'stage_1_vaegan_' + args.pretrained_net + '_{}.pth'.format(args.load_epoch))
+
+        if args.load_from == 'pretrain':
+            # Used if we didn't do pretrain -> stage 1, but just pretrain and use that.
+            model_dir = os.path.join(OUTPUT_PATH, 'NSD', 'pretrain', args.pretrained_net,
+                                     'pretrained_vaegan_' + args.pretrained_net + '_{}.pth'.format(args.load_epoch))
+
+        logging.info('Loaded network is:', model_dir)
+
+        # Initialize network and load Stage 1 weights
+        teacher_model = VaeGan(device=device, z_size=training_config.latent_dim).to(device)
+        logging.info('Loading model from Stage 1')
+        teacher_model.load_state_dict(torch.load(model_dir, map_location=device))
+        discriminator = teacher_model.discriminator
+        teacher_model.discriminator.train() # Not discriminator.train()?
+
+        # Fix decoder weights
+        for param in teacher_model.decoder.parameters():
+            param.requires_grad = False
+
         logging.info(f'Validation data length: {NUM_VOXELS}')
         logging.info(f'Validation data length: {len(train_data)}')
         logging.info(f'Validation data length: {len(valid_data)}')
 
-        """
-        What model components do we need?
-            Generator from Stage 1/Stage 2 works because it's the same
-            Cognitive encoder from Stage 2
-            Discriminator from Stage 2
-            
-        We don't need teacher model. Though Maria, loads it, but doesn't load any weights into it.
-        """
-
-        # Initialize network and load Stage 2 weights
-        # decoder = Decoder(z_size=training_config.latent_dim, size=encoder.size).to(device)
-        # teacher_model = VaeGan(device=device, z_size=training_config.latent_dim).to(device)
-        # teacher_model.load_state_dict(torch.load(model_dir, map_location=device))
-        # discriminator = teacher_model.discriminator
-        # teacher_model.discriminator.train() # Not discriminator.train()?
-        # teacher_model = None  # Don't need for stage 3 (use images as real)
-
-        # If error with loading model then:
-        teacher_model = VaeGan(device=device, z_size=training_config.latent_dim).to(device)
-        # David: they don't load model params here (teacher_model specifically)
-        for param in teacher_model.parameters():
-            param.requires_grad = False
-
-        vis_encoder = Encoder(z_size=training_config.latent_dim).to(device)  # Only used to grab size for decoder
-
-        # Define model for stage II
+        # Define model
         cognitive_encoder = CognitiveEncoder(input_size=NUM_VOXELS, z_size=training_config.latent_dim).to(device)
-        decoder = Decoder(z_size=training_config.latent_dim, size=vis_encoder.size).to(device)
-        # Though it should be because every one instance uses decoder.size=encoder.size
-        # Given that we use the same decoder, this should be the same
-        discriminator = Discriminator().to(device)  # Default: channels=3, recon_level=3
-
-        # Initialize VaeGanCognitive
-        model = VaeGanCognitive(device=device, encoder=cognitive_encoder, decoder=decoder,
-                                discriminator=discriminator, teacher_net=teacher_model,
-                                z_size=training_config.latent_dim, stage=3).to(device)
+        model = VaeGanCognitive(device=device, encoder=cognitive_encoder, decoder=teacher_model.decoder,
+                                discriminator=discriminator, teacher_net=teacher_model, stage=2,
+                                z_size=training_config.latent_dim).to(device)
 
         # Variables for equilibrium to improve GAN stability
         margin = training_config.margin
         equilibrium = training_config.equilibrium
         lambda_mse = training_config.lambda_mse
         decay_mse = training_config.decay_mse
-        lr_dec = args.lr_dec
+        lr_enc = args.lr_enc
         lr_disc = args.lr_disc
-
-        # Load Stage 2 network weights
-        model_dir = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, SUBJECT_PATH,
-                                 'stage_2', args.stage_2_trained,
-                                 'stage_2_vaegan_' + args.stage_2_trained + '_{}.pth'.format(args.load_epoch))
-        logging.info('Loaded network is:', model_dir)
-
-        # Load weights from stage 2
-        logging.info('Loading model from Stage 2')
-        model.load_state_dict(torch.load(model_dir, map_location=device))
-        # I wonder if this gives us an issue, because we don't have the teacher model but
-        # Stage 2 would include a teacher_network. Might need it after all.
-        model.discriminator.train()
-        model.decoder.train()
-
-        # Fix Encoder (as per Ren's stages)
-        for param in model.encoder.parameters():
-            param.requires_grad = False
 
         # Loading Checkpoint | If you want to continue training for existing checkpoint
         # Set checkpoint path
         if args.network_checkpoint is not None:
             net_checkpoint_path = os.path.join(OUTPUT_PATH, args.dataset, args.vox_res, args.set_size, SUBJECT_PATH,
-                                               'stage_3', args.network_checkpoint,
-                                               'stage_3_vaegan_' + args.network_checkpoint + '.pth')
+                                               'stage_2', args.network_checkpoint,
+                                               'stage_2_vaegan_' + args.network_checkpoint + '.pth')
             print(net_checkpoint_path)
 
         # Load and show results for checkpoint
@@ -326,6 +296,7 @@ if __name__ == "__main__":
             results = {col_name: list(results[col_name].values) for col_name in results.columns}
             stp = 1 + len(results['epochs'])
             # Calculates the lr at time of checkpoint
+            # TODO: potentiation breaks here because two lrs.
             lr = potentiation(lr, args.decay_lr, args.checkpoint_epoch)
             if training_config.evaluate:
                 images_dir = os.path.join(SAVE_PATH, 'images')
@@ -353,16 +324,17 @@ if __name__ == "__main__":
         )
 
         # An optimizer and schedulers for each of the sub-networks, so we can selectively backprop
-        # optimizer_encoder = torch.optim.RMSprop(params=model.encoder.parameters(), lr=lr,
+        optimizer_encoder = torch.optim.RMSprop(params=model.encoder.parameters(), lr=lr_enc,
+                                                alpha=0.9,
+                                                eps=1e-8, weight_decay=training_config.weight_decay, momentum=0,
+                                                centered=False)
+        lr_encoder = ExponentialLR(optimizer_encoder, gamma=args.decay_lr)
+
+        # optimizer_decoder = torch.optim.RMSprop(params=model.decoder.parameters(), lr=lr,
         #                                         alpha=0.9,
         #                                         eps=1e-8, weight_decay=training_config.weight_decay, momentum=0,
         #                                         centered=False)
-        # lr_encoder = ExponentialLR(optimizer_encoder, gamma=args.decay_lr)
-
-        optimizer_decoder = torch.optim.RMSprop(params=model.decoder.parameters(), lr=lr_dec,
-                                                alpha=0.9, eps=1e-8, weight_decay=training_config.weight_decay,
-                                                momentum=0, centered=False)
-        lr_decoder = ExponentialLR(optimizer_decoder, gamma=args.decay_lr)
+        # lr_decoder = ExponentialLR(optimizer_decoder, gamma=args.decay_lr)
 
         optimizer_discriminator = torch.optim.RMSprop(params=model.discriminator.parameters(),
                                                       lr=lr_disc,
@@ -396,6 +368,7 @@ if __name__ == "__main__":
         batch_number = len(dataloader_train)
         step_index = 0
         epochs_n = args.epochs
+        # iters = 0
         max_iters = args.iters
 
         while step_index < max_iters:
@@ -408,19 +381,20 @@ if __name__ == "__main__":
                             batch_size = len(data_batch['image'])
                             # x = Variable(data_batch, requires_grad=False).float().to(device)
 
-                            # Fix encoder weights
-                            for param in teacher_model.parameters():
-                                param.requires_grad = False
-                            for param in model.encoder.parameters():
-                                param.requires_grad = False
+                            # Fix decoder weights
                             for param in model.decoder.parameters():
-                                param.requires_grad = True
-                            for param in model.discriminator.parameters():
-                                param.requires_grad = True
+                                param.requires_grad = False
 
                             x_gt, x_tilde, disc_class, disc_layer, mus, log_variances = model(data_batch)
+                            # x_gt = reconstruction by teacher (vis enc)
+                            # x_tilde = reconstruction from cog
+                            # x_tilde, disc_class, disc_layer, mus, log_variances = model(x) # OLD STAGE 1
 
                             # Split so we can get the different parts
+                            # hid_ refers to hidden discriminator layer
+                            # dis_ refers to final sigmoid output from discriminator
+                            # real = vis reconstruction (teacher)
+                            # pred = cog reconstruction
                             hid_dis_real = disc_layer[:batch_size]
                             hid_dis_pred = disc_layer[batch_size:-batch_size]
                             hid_dis_sampled = disc_layer[-batch_size:]
@@ -440,10 +414,9 @@ if __name__ == "__main__":
                                 bce_dis_sampled)
                             loss_decoder = torch.sum(training_config.lambda_mse * mse) - (1.0 - training_config.lambda_mse) * loss_discriminator
 
-                            logging.info(
-                                'Encoder loss: {} \nDecoder loss: {} \nDiscriminator loss: {}'.format(loss_encoder,
-                                                                                                      loss_decoder,
-                                                                                                      loss_discriminator))
+                            logging.info('Encoder loss: {} \nDecoder loss: {} \nDiscriminator loss: {}'.format(loss_encoder,
+                                                                                                               loss_decoder,
+                                                                                                               loss_discriminator))
 
                             # Register mean values for logging
                             loss_encoder_mean = loss_encoder.data.cpu().numpy() / batch_size
@@ -453,7 +426,7 @@ if __name__ == "__main__":
 
                             # Selectively disable the decoder of the discriminator if they are unbalanced
                             train_dis = True
-                            train_dec = True
+                            train_dec = False
 
                             # Initially try training without equilibrium
                             equilibrium_game = args.equilibrium_game
@@ -471,14 +444,13 @@ if __name__ == "__main__":
 
                             if args.backprop_method == 'trad':
                                 # BACKPROP
-                                model.zero_grad()
-                                # loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
-                                # optimizer_encoder.step()
+                                loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
+                                optimizer_encoder.step()
 
-                                if train_dec:
-                                    model.decoder.zero_grad()
-                                    loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
-                                    optimizer_decoder.step()
+                                # if train_dec:
+                                #     model.decoder.zero_grad()
+                                #     loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
+                                #     optimizer_decoder.step()
 
                                 if train_dis:
                                     model.discriminator.zero_grad()
@@ -489,15 +461,14 @@ if __name__ == "__main__":
 
                             if args.backprop_method == 'clip':
                                 # BACKPROP
-                                model.zero_grad()
-                                # loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
-                                # optimizer_encoder.step()
+                                loss_encoder.backward(retain_graph=True, inputs=list(model.encoder.parameters()))
+                                [p.grad.data.clamp_(-1, 1) for p in model.encoder.parameters()]
+                                optimizer_encoder.step()
 
-                                if train_dec:
-                                    model.decoder.zero_grad()
-                                    loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
-                                    [p.grad.data.clamp_(-1, 1) for p in model.decoder.parameters()]
-                                    optimizer_decoder.step()
+                                # if train_dec:
+                                #     model.decoder.zero_grad()
+                                #     loss_decoder.backward(retain_graph=True, inputs=list(model.decoder.parameters()))
+                                #     optimizer_decoder.step()
 
                                 if train_dis:
                                     model.discriminator.zero_grad()
@@ -524,10 +495,9 @@ if __name__ == "__main__":
                             break
 
                     # EPOCH END
-                    # lr_encoder.step()
-                    lr_decoder.step()
+                    lr_encoder.step()
+                    # lr_decoder.step()
                     lr_discriminator.step()
-
                     margin *= training_config.decay_margin
                     equilibrium *= training_config.decay_equilibrium
 
@@ -559,9 +529,18 @@ if __name__ == "__main__":
                         fig, ax = plt.subplots(figsize=(10, 10))
                         ax.set_xticks([])
                         ax.set_yticks([])
-                        ax.set_title('Training Reconstruction at Epoch {}'.format(idx_epoch))
+                        ax.set_title('Training Vis Enc Reconstruction (Real) at Epoch {}'.format(idx_epoch))
+                        ax.imshow(
+                            make_grid(x_gt[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                        gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
+                        plt.savefig(gt_dir)
+
+                        fig, ax = plt.subplots(figsize=(10, 10))
+                        ax.set_xticks([])
+                        ax.set_yticks([])
+                        ax.set_title('Training Cog Enc Reconstruction at Epoch {}'.format(idx_epoch))
                         ax.imshow(make_grid(x_tilde[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
-                        output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
+                        output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_cog_output_' + 'grid')
                         plt.savefig(output_dir)
 
                     logging.info('Evaluation')
@@ -572,7 +551,7 @@ if __name__ == "__main__":
                         with no_grad():
 
                             data_target = Variable(data_batch['image'], requires_grad=False).float().to(device)
-                            out = model(data_batch)
+                            out, vis_out = model(data_batch)
 
                             # Validation metrics for the first validation batch
                             if metrics_valid is not None:
@@ -590,12 +569,16 @@ if __name__ == "__main__":
                                     else:
                                         result_metrics_train[key] = metric(x_tilde, x_gt)
 
-                        out = out.data.cpu()
+                            out = out.data.cpu()
 
                         # Save validation examples
                         images_dir = os.path.join(SAVE_PATH, 'images', 'valid')
                         if not os.path.exists(images_dir):
                             os.makedirs(images_dir)
+                            os.makedirs(os.path.join(images_dir, 'random'))
+
+                        out = out.data.cpu()
+                        vis_out = vis_out.data.cpu()
 
                         if shuf:
                             fig, ax = plt.subplots(figsize=(10, 10))
@@ -606,7 +589,16 @@ if __name__ == "__main__":
                                 make_grid(data_target[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
                             gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                             plt.savefig(gt_dir)
-                        else:
+
+                            fig, ax = plt.subplots(figsize=(10, 10))
+                            ax.set_xticks([])
+                            ax.set_yticks([])
+                            ax.set_title('Validation Vis Enc Reconstruction at Epoch {}'.format(idx_epoch))
+                            ax.imshow(make_grid(vis_out[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                            output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
+                            plt.savefig(output_dir)
+
+                        else:  # valid_shuffle is false, so same images are shown
                             if idx_epoch == 0:
                                 fig, ax = plt.subplots(figsize=(10, 10))
                                 ax.set_xticks([])
@@ -616,12 +608,22 @@ if __name__ == "__main__":
                                 gt_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_ground_truth_' + 'grid')
                                 plt.savefig(gt_dir)
 
+                                fig, ax = plt.subplots(figsize=(10, 10))
+                                ax.set_xticks([])
+                                ax.set_yticks([])
+                                ax.set_title('Validation Vis Enc Reconstruction at Epoch {}'.format(idx_epoch))
+                                ax.imshow(
+                                    make_grid(vis_out[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
+                                output_dir = os.path.join(images_dir,
+                                                          'epoch_' + str(idx_epoch) + '_vis_output_' + 'grid')
+                                plt.savefig(output_dir)
+
                         fig, ax = plt.subplots(figsize=(10, 10))
                         ax.set_xticks([])
                         ax.set_yticks([])
-                        ax.set_title('Validation Reconstruction at Epoch {}'.format(idx_epoch))
+                        ax.set_title('Validation Cog Enc Reconstruction at Epoch {}'.format(idx_epoch))
                         ax.imshow(make_grid(out[: 25].cpu().detach(), nrow=5, normalize=True).permute(1, 2, 0))
-                        output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_output_' + 'grid')
+                        output_dir = os.path.join(images_dir, 'epoch_' + str(idx_epoch) + '_cog_output_' + 'grid')
                         plt.savefig(output_dir)
 
                         out = (out + 1) / 2
@@ -665,6 +667,7 @@ if __name__ == "__main__":
                             f'---- valid SSIM: {result_metrics_valid["valid_SSIM"].item():.5f} ---- '
                             f'---- valid MSE: {result_metrics_valid["valid_MSE"].item():.5f} ---- ')
 
+                        # only for one batch due to memory issue
                         break
 
                     if not idx_epoch % 10 or idx_epoch == epochs_n-1:

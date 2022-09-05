@@ -85,7 +85,7 @@ def main():
         """
         # Get current working directory
         CWD = os.getcwd()
-        OUTPUT_PATH = os.path.join(args.data_root, 'output/')
+        OUTPUT_PATH = os.path.join(args.data_root, '../../output/')
 
         # Load data paths
         TRAIN_DATA_PATH = os.path.join(args.data_root, 'NSD/images/train/')

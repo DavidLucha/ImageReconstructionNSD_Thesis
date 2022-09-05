@@ -1,3 +1,5 @@
+# This takes the networks, and computes the metrics for each reconstruction and candidates
+
 import os
 import numpy
 import json
@@ -5,15 +7,9 @@ import torch
 import pickle
 import logging
 import argparse
-import pandas as pd
 import matplotlib.pyplot as plt
 import random
-import math
-import lpips
-import statistics
 
-import torchvision
-from torch import nn, no_grad
 from torchvision import transforms
 from torch.autograd import Variable
 from torchvision.utils import make_grid

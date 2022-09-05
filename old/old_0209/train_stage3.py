@@ -88,7 +88,7 @@ if __name__ == "__main__":
         """
         # Get current working directory
         CWD = os.getcwd()
-        OUTPUT_PATH = os.path.join(args.data_root, 'output/')
+        OUTPUT_PATH = os.path.join(args.data_root, '../../output/')
         SUBJECT_PATH = 'Subj_0{}/'.format(str(args.subject))
 
         # Load training data for GOD and NSD, default is NSD

@@ -1,3 +1,5 @@
+# This script takes the full tables of each metric value and runs either n-way or pairwise comparison
+# use all_net_eval instead
 import os
 import time
 import numpy
@@ -14,8 +16,6 @@ import random
 
 import training_config
 from utils_2 import objective_assessment_table
-
-# This script takes the full tables of each metric value and runs either n-way or pairwise comparison
 
 def main():
     timestep = time.strftime("%Y%m%d-%H%M%S")
@@ -54,7 +54,7 @@ def main():
     """
     # Get current working directory
     CWD = os.getcwd()
-    OUTPUT_PATH = os.path.join(args.data_root, 'output/')
+    OUTPUT_PATH = os.path.join(args.data_root, '../../output/')
     SUBJECT_PATH = 'Subj_0{}/'.format(str(args.subject))
 
     # Load training data for GOD and NSD, default is NSD

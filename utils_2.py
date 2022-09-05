@@ -1065,6 +1065,7 @@ def nway_comp(df, n=5, repeats=10, metric="pcc"):
     accuracy_full = []
 
     for repeat in range(repeats):
+        print('Starting repeat {} of {} metric...'.format(repeat, metric))
         repeat_count += 1
         # set counters
         # total score is count of recons beats all n comparisons
@@ -1169,3 +1170,56 @@ def pairwise_comp(df, metric="pcc"):
     return accuracy_full
 
 
+def load_masters(master_root, comparison="nway"):
+    out_dict = {}
+
+    # Load data
+    print('Reading Data')
+
+    if comparison == "pairwise":
+        sheet = "pairwise_comparison"
+
+    else:  # "nway"
+        out_dict['pcc'] = {}
+        out_dict['lpips'] = {}
+
+        ns = [2, 5, 10]
+
+        for n in ns:
+            way_label = "{}-way_comparison".format(n)
+
+            # Load PCC
+            pcc_master = pd.read_excel(os.path.join(master_root, 'pcc_master_out.xlsx'), sheet_name=way_label,
+                                       engine='openpyxl', index_col=0, header=0)
+            out_dict['pcc'][way_label] = pcc_master
+
+            # Load LPIPS
+            lpips_master = pd.read_excel(os.path.join(master_root, 'lpips_master_out.xlsx'), sheet_name=way_label,
+                                       engine='openpyxl', index_col=0, header=0)
+            out_dict['lpips'][way_label] = lpips_master
+
+    return out_dict
+
+
+def eval_grab(master, networks):
+    # For each name in list, grab each column from both metrics and each comparison. FUCK.
+    # metrics = ['pcc', 'lpips']
+    grab_out = {}
+
+    grab_out['pcc'] = {}
+    grab_out['lpips'] = {}
+
+    # but also check for length
+    if len(networks) > 1:
+        single = False
+
+    # for network in networks:
+        # e.g. "Study1_SUBJ01_1pt8mm_VC_max"
+        # TODO: I don't think I need to iterate through networks, I can select single or multiple with the list
+    for metric in master:
+        # key is pcc/lpips, value is another dictionary with n way as key, dataframe as value
+        for nway, dataframe in master[metric].items():
+            columns = dataframe[networks]
+            # POGs in the chat :D
+
+    return columns  # dict {PCC=list; LPIPS=list}

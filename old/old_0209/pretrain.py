@@ -107,7 +107,7 @@ def main():
         """
         # Get current working directory
         CWD = os.getcwd()
-        OUTPUT_PATH = os.path.join(args.data_root, 'output/')
+        OUTPUT_PATH = os.path.join(args.data_root, '../../output/')
 
         TRAIN_DATA_PATH = os.path.join(args.data_root, training_config.god_pretrain_imgs)
         VALID_DATA_PATH = os.path.join(args.data_root, 'NSD/images/valid/')

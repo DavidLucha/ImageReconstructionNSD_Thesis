@@ -17,105 +17,15 @@ import time
 from utils_2 import nway_comp, pairwise_comp
 
 
-# string = 'Study3_SUBJ04_1pt8mm_V1_to_V3_n_HVC_max_Stage3_20220822-062600'
 
-# Walk through folders in all eval network folders
-networks = 'D:/Lucha_Data/final_networks/output/1pt8mm/'
-save_path = 'D:/Lucha_Data/final_networks/output/'
 
-nway = True
-pairwise = False
 
-count = 0
 
-# Set n way comparisons
-ns = [2, 5, 10]
-repeats = 10
 
-# Empty list to house all networks pcc evals
-pcc_master = {}
-ssim_master = {}
-lpips_master = {}
 
-for folder in os.listdir(networks):
-    start = time.time()
-    count += 1
 
-    # print(folder)
-    folder_dir = os.path.join(networks, folder)
 
-    # Get name of network
-    sep = '_Stage3_'
-    network = folder.split(sep, 1)[0]
-    print('Evaluating network: {}'.format(network))
 
-    # Load data
-    print('Reading Data')
-    pcc = pd.read_excel(os.path.join(folder_dir, 'pcc_table.xlsx'), engine='openpyxl', index_col=0)
-    ssim = pd.read_excel(os.path.join(folder_dir, 'ssim_table.xlsx'), engine='openpyxl', index_col=0)
-    lpips = pd.read_excel(os.path.join(folder_dir, 'lpips_table.xlsx'), engine='openpyxl', index_col=0)
-    print('Data Ready')
-
-    if count == 1:
-        print('Saving reconstruction names')
-        recon_names = list(pcc.columns)
-
-    if nway:
-        print('Running n-way comparisons')
-        for n in ns:
-            pcc_master[n] = {}
-            ssim_master[n] = {}
-            lpips_master[n] = {}
-
-            print('Running n-way comparisons')
-            pcc_nway_out = nway_comp(pcc, n=n, repeats=repeats, metric="pcc")
-            print('PCC Complete')
-            ssim_nway_out = nway_comp(ssim, n=n, repeats=repeats, metric="ssim")
-            print('SSIM Complete')
-            lpips_nway_out = nway_comp(lpips, n=n, repeats=repeats, metric="lpips")
-            print('LPIPS Complete')
-
-            # So, for n, add a dictionary that has the n as key, and another dictionary as the value
-            # The second dictionary has run name as key and the accuracies of the repeats for values
-            pcc_master[n][network] = pcc_nway_out
-            ssim_master[n][network] = ssim_nway_out
-            lpips_master[n][network] = lpips_nway_out
-            print('Evaluations saved to master list.')
-
-    if pairwise:
-        # pcc_nway_out = nway_comp(data, n=2, repeats=10, metric="pcc")
-        print('Running pairwise comparisons')
-        pcc_pairwise_out = pairwise_comp(pcc, metric="pcc")
-        print('PCC Complete')
-        ssim_pairwise_out = pairwise_comp(ssim, metric="ssim")
-        print('SSIM Complete')
-        lpips_pairwise_out = pairwise_comp(lpips, metric="lpips")
-        print('LPIPS Complete')
-
-        pcc_master[network] = pcc_pairwise_out
-        ssim_master[network] = ssim_pairwise_out
-        lpips_master[network] = lpips_pairwise_out
-        print('Evaluations saved to master list.')
-
-    end = time.time()
-    print('Time per run =', end - start)
-
-    if count == 3:
-        break
-
-if pairwise:
-    pcc_save = pd.DataFrame(pcc_master, index=recon_names)
-    ssim_save = pd.DataFrame(ssim_master, index=recon_names)
-    lpips_save = pd.DataFrame(lpips_master, index=recon_names)
-    print('Dataframes established.')
-
-    print('Saving data...')
-    pcc_save.to_excel(os.path.join(save_path, "pcc_master_out.xlsx"))
-    ssim_save.to_excel(os.path.join(save_path, "ssim_master_out.xlsx"))
-    lpips_save.to_excel(os.path.join(save_path, "lpips_master_out.xlsx"))
-    print('Complete.')
-
-exit(69)
 
 
 
