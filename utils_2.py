@@ -944,12 +944,12 @@ def objective_assessment_table_batch(model, dataloader, save_path="D:/Lucha_Data
     # CPU
     perceptual_similarity_gpu = lpips.LPIPS(net='alex').cuda()
     pearson_correlation = PearsonCorrelation().cuda()
-    structural_similarity = StructuralSimilarity().cuda()
+    # structural_similarity = StructuralSimilarity().cuda()
 
     header = []
 
     table_pcc = np.zeros(shape=(872,872))
-    table_ssim = np.zeros(shape=(872,872))
+    # table_ssim = np.zeros(shape=(872,872))
     table_lpips = np.zeros(shape=(872,872))
 
     for batch_idx, data_batch in enumerate(dataloader):
@@ -985,7 +985,7 @@ def objective_assessment_table_batch(model, dataloader, save_path="D:/Lucha_Data
         numbers = list(range(0, len(out_comp)))
 
         row_pcc = []
-        row_ssim = []
+        # row_ssim = []
         row_lpips = []
 
         start = time.time()
@@ -1008,10 +1008,10 @@ def objective_assessment_table_batch(model, dataloader, save_path="D:/Lucha_Data
             # SSIM
             # start = time.time()
 
-            recon_for_ssim = torch.unsqueeze(recon, 0)
-            target_for_ssim = torch.unsqueeze(target_comp[i], 0)
-            score_ssim = structural_similarity(recon_for_ssim, target_for_ssim)
-            row_ssim.append(score_ssim)
+            # recon_for_ssim = torch.unsqueeze(recon, 0)
+            # target_for_ssim = torch.unsqueeze(target_comp[i], 0)
+            # score_ssim = structural_similarity(recon_for_ssim, target_for_ssim)
+            # row_ssim.append(score_ssim)
 
             # end = time.time()
             # print('time for ssim =', end - start)
@@ -1033,21 +1033,21 @@ def objective_assessment_table_batch(model, dataloader, save_path="D:/Lucha_Data
         # Only thing is it might get very slow towards the end?
 
         table_pcc[idx] = row_pcc
-        table_ssim[idx] = row_ssim
+        # table_ssim[idx] = row_ssim
         table_lpips[idx] = row_lpips
         end = time.time()
         print('time for numbers loop =', end - start)
 
     table_pcc_pd = pd.DataFrame(table_pcc, columns=header, index=header)
-    table_pcc_pd.to_excel(os.path.join(save_path, "pcc_table.xlsx"))
+    table_pcc_pd.to_csv(os.path.join(save_path, "pcc_table.csv"))
 
-    table_ssim_pd = pd.DataFrame(table_ssim, columns=header, index=header)
-    table_ssim_pd.to_excel(os.path.join(save_path, "ssim_table.xlsx"))
+    # table_ssim_pd = pd.DataFrame(table_ssim, columns=header, index=header)
+    # table_ssim_pd.to_csv(os.path.join(save_path, "ssim_table.csv"))
 
     table_lpips_pd = pd.DataFrame(table_lpips, columns=header, index=header)
-    table_lpips_pd.to_excel(os.path.join(save_path, "lpips_table.xlsx"))
+    table_lpips_pd.to_csv(os.path.join(save_path, "lpips_table.csv"))
 
-    return table_pcc_pd, table_ssim_pd, table_lpips_pd
+    return table_pcc_pd, table_lpips_pd  # table_ssim_pd,
 
 
 def nway_comp(df, n=5, repeats=10, metric="pcc"):

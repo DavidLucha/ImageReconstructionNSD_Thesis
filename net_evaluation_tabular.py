@@ -100,7 +100,7 @@ def main():
         # VALID_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'old_valid', 'max', args.ROI,
         #                                'Subj_0{}_NSD_max_valid.pickle'.format(args.subject))
 
-    SAVE_PATH = os.path.join(OUTPUT_PATH, args.vox_res, args.st3_net)
+    SAVE_PATH = os.path.join(OUTPUT_PATH, "all", args.st3_net)
 
     if not os.path.exists(SAVE_PATH):
         os.makedirs(SAVE_PATH, exist_ok=True)
@@ -300,7 +300,7 @@ def main():
         table_pcc_pd, table_ssim_pd, table_lpips_pd = objective_assessment_table(model, dataloader_valid,
                                                                                  save_path=SAVE_PATH)
     else:
-        table_pcc_pd, table_ssim_pd, table_lpips_pd = objective_assessment_table_batch(model, dataloader_valid,
+        table_pcc_pd, table_lpips_pd = objective_assessment_table_batch(model, dataloader_valid,
                                                                                       save_path=SAVE_PATH)
 
     # obj_all['score']
