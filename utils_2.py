@@ -1177,7 +1177,15 @@ def load_masters(master_root, comparison="nway"):
     print('Reading Data')
 
     if comparison == "pairwise":
-        sheet = "pairwise_comparison"
+        pcc_dir = os.path.join(master_root, 'pcc_master_pairwise_out.csv')
+        lpips_dir = os.path.join(master_root, 'lpips_master_pairwise_out.csv')
+
+        pcc_master = pd.read_csv(pcc_dir, index_col=0)
+        lpips_master = pd.read_csv(lpips_dir, index_col=0)
+
+        out_dict['pcc'] = pcc_master
+        out_dict['lpips'] = lpips_master
+        # pcc_columns = pcc_master.loc[,]
 
     else:  # "nway"
         out_dict['pcc'] = {}
@@ -1201,25 +1209,49 @@ def load_masters(master_root, comparison="nway"):
     return out_dict
 
 
-def eval_grab(master, networks):
+def eval_grab(master, networks, comparison='pairwise'):
     # For each name in list, grab each column from both metrics and each comparison. FUCK.
     # metrics = ['pcc', 'lpips']
     grab_out = {}
 
-    grab_out['pcc'] = {}
-    grab_out['lpips'] = {}
+    if comparison == "pairwise":
+        print('pairwise')
+        # Grab columns from list for each
+        pcc_grab = master['pcc'].loc[:, networks]
+        lpips_grab = master['lpips'].loc[:, networks]
 
-    # but also check for length
-    if len(networks) > 1:
-        single = False
+        if len(networks)==1:
+            print('Loner.')
+            grab_out['pcc'] = pcc_grab
+            grab_out['lpips'] = lpips_grab
 
-    # for network in networks:
-        # e.g. "Study1_SUBJ01_1pt8mm_VC_max"
-        # TODO: I don't think I need to iterate through networks, I can select single or multiple with the list
-    for metric in master:
-        # key is pcc/lpips, value is another dictionary with n way as key, dataframe as value
-        for nway, dataframe in master[metric].items():
-            columns = dataframe[networks]
-            # POGs in the chat :D
+        else:
+            # Stacks columns into one long column
+            pcc_stack = pcc_grab.unstack().reset_index(drop=True)
+            lpips_stack = lpips_grab.unstack().reset_index(drop=True)
 
-    return columns  # dict {PCC=list; LPIPS=list}
+            grab_out['pcc'] = pcc_stack
+            grab_out['lpips'] = lpips_stack
+
+        return grab_out
+
+        # grab_out['pcc'] = master.loc[:, networks]
+
+    else:
+        grab_out['pcc'] = {}
+        grab_out['lpips'] = {}
+
+        # but also check for length
+        if len(networks) > 1:
+            single = False
+
+        # for network in networks:
+            # e.g. "Study1_SUBJ01_1pt8mm_VC_max"
+            # TODO: I don't think I need to iterate through networks, I can select single or multiple with the list
+        for metric in master:
+            # key is pcc/lpips, value is another dictionary with n way as key, dataframe as value
+            for nway, dataframe in master[metric].items():
+                columns = dataframe[networks]
+                # POGs in the chat :D
+
+        return columns  # dict {PCC=list; LPIPS=list}

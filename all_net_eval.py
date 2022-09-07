@@ -54,9 +54,10 @@ def main():
 
         # Load data
         print('Reading Data')
-        pcc = pd.read_excel(os.path.join(folder_dir, 'pcc_table.xlsx'), engine='openpyxl', index_col=0)
+        # TODO: Do I nead header here? No.
+        pcc = pd.read_csv(os.path.join(folder_dir, 'pcc_table.csv'), index_col=0)
         # ssim = pd.read_excel(os.path.join(folder_dir, 'ssim_table.xlsx'), engine='openpyxl', index_col=0)
-        lpips = pd.read_excel(os.path.join(folder_dir, 'lpips_table.xlsx'), engine='openpyxl', index_col=0)
+        lpips = pd.read_csv(os.path.join(folder_dir, 'lpips_table.csv'), index_col=0)
         print('Data Ready')
 
         if count == 1:
@@ -108,9 +109,10 @@ def main():
 
     # Setup writers
     # TODO: Change this to appropriate file name
-    pcc_writer = pd.ExcelWriter(os.path.join(save_path, "pcc_master_pairwise_out.xlsx"))
+    # TODO: Test saving CSV
+    # pcc_writer = pd.ExcelWriter(os.path.join(save_path, "pcc_master_pairwise_out.csv"))
     # ssim_writer = pd.ExcelWriter(os.path.join(save_path, "ssim_master_pairwise_out.xlsx"))
-    lpips_writer = pd.ExcelWriter(os.path.join(save_path, "lpips_master_pairwise_out.xlsx"))
+    # lpips_writer = pd.ExcelWriter(os.path.join(save_path, "lpips_master_pairwise_out.csv"))
 
     if pairwise:
         pcc_save = pd.DataFrame(pcc_master['pairwise'], index=recon_names)
@@ -120,11 +122,11 @@ def main():
 
         print('Saving data...')
         # with pd.ExcelWriter(os.path.join(save_path, "pcc_master_out.xlsx")) as writer:
-        pcc_save.to_excel(pcc_writer, sheet_name='pairwise_comparison')
+        pcc_save.to_csv(os.path.join(save_path, "pcc_master_pairwise_out.csv"))
         # with pd.ExcelWriter(os.path.join(save_path, "ssim_master_out.xlsx")) as writer:
         # ssim_save.to_excel(ssim_writer, sheet_name='pairwise_comparison')
         # with pd.ExcelWriter(os.path.join(save_path, "lpips_master_out.xlsx")) as writer:
-        lpips_save.to_excel(lpips_writer, sheet_name='pairwise_comparison')
+        lpips_save.to_csv(os.path.join(save_path, "lpips_master_pairwise_out.csv"))
 
         # pcc_save.to_excel(os.path.join(save_path, "pcc_master_out.xlsx"))
         # ssim_save.to_excel(os.path.join(save_path, "ssim_master_out.xlsx"))
@@ -134,24 +136,25 @@ def main():
         print('Saving data...')
         # with pd.ExcelWriter(os.path.join(save_path, "pcc_master_out.xlsx")) as writer:
         for n in ns:
+            # TODO: Test working with csv writing
             way_label = '{}-way'.format(n)
 
             pcc_list = pd.DataFrame(pcc_master[way_label])
-            pcc_list.to_excel(pcc_writer, sheet_name='{}_comparison'.format(way_label))
+            pcc_list.to_csv(os.path.join(save_path, 'pcc_master_{}_comparison_out.csv'.format(way_label)))
 
             # ssim_list = pd.DataFrame(ssim_master[way_label])
             # ssim_list.to_excel(ssim_writer, sheet_name='{}_comparison'.format(way_label))
 
             lpips_list = pd.DataFrame(lpips_master[way_label])
-            lpips_list.to_excel(lpips_writer, sheet_name='{}_comparison'.format(way_label))
+            lpips_list.to_csv(os.path.join(save_path, 'lpips_master_{}_comparison_out.csv'.format(way_label)))
 
-    pcc_writer.save()
+    # pcc_writer.save()
     # ssim_writer.save()
-    lpips_writer.save()
+    # lpips_writer.save()
 
-    pcc_writer.close()
+    # pcc_writer.close()
     # ssim_writer.close()
-    lpips_writer.close()
+    # lpips_writer.close()
     print('Complete.')
 
 

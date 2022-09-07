@@ -510,6 +510,8 @@ def main():
                                 loss_discriminator_real.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
                                 mean_mult = batch_size * args.lambda_GAN
                             elif args.disc_loss == "Both":
+                                # SINCE WE DON'T UPDATE THE ENCODER HERE, THIS HAS NO ROLE
+                                # IT TRAINS THE DISCRIMINATOR BUT THAT DOESN'T INFORM ANYTHING.
                                 # This will be as Maria's but with the discriminator fixed
                                 z_cog_enc, var = model.encoder(x_fmri)
                                 z_vis_enc, var = teacher_model.encoder(x_image)

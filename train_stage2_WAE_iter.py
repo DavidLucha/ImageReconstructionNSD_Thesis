@@ -484,27 +484,6 @@ def main():
                                 loss_discriminator_fake.backward(retain_graph=True)
                                 loss_discriminator_real.backward(retain_graph=True)
                                 mean_mult = batch_size * args.lambda_GAN
-                            elif args.disc_loss == "Maria_Flip":
-                                # Corrects the flip of cog and vis enc for real and fake
-                                sig_cog_enc = torch.sigmoid(logits_cog_enc)
-                                sig_vis_enc = torch.sigmoid(logits_vis_enc)
-                                # THEY HAVE FUCKED UP.
-                                # here taking the BCE (1, cogenc) INCORRECT
-                                # under the assumption we want the cog enc latent to be more like the VIS ENC
-                                # the effect of this is a network which classifies a virgin cogenc as real
-                                loss_discriminator_fake = - args.lambda_GAN * torch.sum(torch.log(sig_vis_enc + 1e-3))
-                                # here taking the BCE of (0, vis enc)
-                                # minimizes likelihood of discriminator identifying vis enc as 0
-                                # is that the network incorrectly classifies the trained network encs as false
-                                loss_discriminator_real = - args.lambda_GAN * torch.sum(torch.log(1 - sig_cog_enc + 1e-3))
-
-                                loss_discriminator = loss_discriminator_fake + loss_discriminator_real
-
-                                loss_discriminator_fake.backward(retain_graph=True,
-                                                                 inputs=list(model.discriminator.parameters()))
-                                loss_discriminator_real.backward(retain_graph=True,
-                                                                 inputs=list(model.discriminator.parameters()))
-                                mean_mult = batch_size * args.lambda_GAN
                             elif args.disc_loss == "Both":
                                 # Using Maria's but with modern Pytorch BCE loss + addition of loss terms before back pass
                                 bce_loss = nn.BCEWithLogitsLoss(reduction='none').to(device)
