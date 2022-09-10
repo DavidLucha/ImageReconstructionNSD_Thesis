@@ -66,8 +66,11 @@ cp -r logs plots /afm02/Q3/Q3789/datasets/output/NSD/${VOX_RES}/networks/${STAGE
 
 # Save just final network to all folder
 cp ${STAGE_3_NAME}_final.pth /afm02/Q3/Q3789/datasets/output/NSD/${VOX_RES}/networks/all/
-cp ${STAGE_3_NAME}_final.pth /scratch/qbi/uqdlucha/final_networks/${VOX_RES}/networks/all/
+cp ${STAGE_3_NAME}_final.pth /scratch/qbi/uqdlucha/final_networks/${VOX_RES}/all/
 
 # EVAL
 source activate /scratch/qbi/uqdlucha/python/dvaegan3_6
 srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/net_evaluation_tabular.py --data_root '/scratch/qbi/uqdlucha/datasets/' --network_root '/scratch/qbi/uqdlucha/final_networks/' --batch_size ${BATCH_SIZE} --st3_net ${STAGE_3_NAME} --st3_load_epoch final --latent_dims 1024 --lin_size 2048 --lin_layers 2 --save True --vox_res ${VOX_RES} --ROI ${ROI} --set_size ${SET_SIZE} --subject ${SUBJ} --num_workers 2 --dataset NSD --seed 277603 --message "hello"
+
+# Do missed subj 1 from before
+srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/net_evaluation_tabular.py --data_root '/scratch/qbi/uqdlucha/datasets/' --network_root '/scratch/qbi/uqdlucha/final_networks/' --batch_size ${BATCH_SIZE} --st3_net 'Study2_SUBJ01_3mm_VC_max_Stage3_20220910-164249_final' --st3_load_epoch final --latent_dims 1024 --lin_size 2048 --lin_layers 2 --save True --vox_res ${VOX_RES} --ROI ${ROI} --set_size ${SET_SIZE} --subject 1 --num_workers 2 --dataset NSD --seed 277603 --message "hello"

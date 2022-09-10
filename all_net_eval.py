@@ -10,18 +10,21 @@ from utils_2 import nway_comp, pairwise_comp
 
 # Walk through folders in all eval network folders
 def main():
-    networks = 'D:/Lucha_Data/final_networks/output/all_eval/'
-    save_path = 'D:/Lucha_Data/final_networks/output/'
+    # TODO: Change this for laptop
+    root_dir = 'D:/Lucha_Data/final_networks/output/'
+    # root_dir = 'C:/Users/david/Documents/Thesis/final_networks/output/'  # FOR laptop
+    networks = os.path.join(root_dir,'all_eval/')
+    save_path = root_dir
 
-    nway = False
-    pairwise = True
+    nway = True
+    pairwise = False
 
     count = 0
 
     # Set n way comparisons
     ns = [2, 5, 10]
-    # TODO: should I do a power calculation for this?
-    repeats = 100
+    # 1000 according to Guy Gaziv
+    repeats = 1000
 
     # Empty list to house all networks pcc evals
     pcc_master = {}

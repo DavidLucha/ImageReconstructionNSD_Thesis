@@ -66,7 +66,7 @@ cp -r logs plots /afm02/Q3/Q3789/datasets/output/NSD/${VOX_RES}/networks/${STAGE
 
 # Save just final network to all folder
 cp ${STAGE_3_NAME}_final.pth /afm02/Q3/Q3789/datasets/output/NSD/${VOX_RES}/networks/all/
-cp ${STAGE_3_NAME}_final.pth /scratch/qbi/uqdlucha/final_networks/${VOX_RES}/networks/all/
+cp ${STAGE_3_NAME}_final.pth /scratch/qbi/uqdlucha/final_networks/${VOX_RES}/all/
 
 # EVAL
 source activate /scratch/qbi/uqdlucha/python/dvaegan3_6

@@ -7,47 +7,7 @@ import matplotlib.pyplot as plt
 import scipy.stats as stats
 import numpy as np
 
-# TESTING GAZIV EVAL CODe
-# Loads file
-master_root = 'D:/Lucha_Data/final_networks/output/'
 
-lpips_dir = os.path.join(master_root, 'lpips_master_pairwise_out.csv')
-lpips_master = pd.read_csv(lpips_dir, index_col=0)
-
-rank = []
-result = []
-distances = [0.5432, 0.9190, 0.6807, 0.7516, 0.8031]
-# argsort places the list in order from lowest to highest
-# given our distance metric, the closest image will be at the front
-# the distance == 0 thing prints where in the list is the 'real' image (0)
-step_1 = np.argsort(distances) == 0
-# gives us the index of our real x recon
-step_2 = np.argwhere(step_1)
-# grabs the actual value of it (the index, that is)
-step_3 = step_2.flatten()[0]
-# number of candidates
-denom = (len(distances) - 1)
-
-# rank is the proportion of images that beat the main comparison
-final = step_3 / denom
-
-rank.append(np.argwhere(np.argsort(distances) == 0).flatten()[0] / (len(distances) - 1))
-
-# did the main comp win?
-result = np.argsort(distances)[0] == 0
-
-# Test lambda
-rank = [0.2, 0.0, 0.0, 0.0, 0.5]
-results = [False, True, True, True, False]
-
-# Just spits it back out.
-identity = lambda x: x
-
-identity(rank)
-identity(results)
-
-recon_rank = np.mean(rank)
-recon_result = np.mean(results)
 
 
 
