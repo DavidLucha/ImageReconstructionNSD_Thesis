@@ -206,6 +206,20 @@ sbatch Study3_Subj8.sh
 
 
 
+# RERUN STUDY 2 BUT ONLY VOX_RES
+cd bash_scripts/study2/3mm/
+sbatch Study2_Subj1.sh
+sbatch Study2_Subj2.sh
+sbatch Study2_Subj3.sh
+sbatch Study2_Subj4.sh
+sbatch Study2_Subj5.sh
+sbatch Study2_Subj6.sh
+sbatch Study2_Subj7.sh
+sbatch Study2_Subj8.sh
+
+
+
+
 
 
 

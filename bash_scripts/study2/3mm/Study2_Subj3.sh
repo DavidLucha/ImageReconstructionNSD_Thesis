@@ -1,12 +1,12 @@
 #!/bin/bash
 
 #SBATCH -N 1
-#SBATCH --job-name=Study2New_Subj1_3mm
+#SBATCH --job-name=Study2_NEW_Subj3
 #SBATCH -n 2
 #SBATCH -c 25
 #SBATCH --mem=20000
-#SBATCH -o Study2New_Subj1_3mm_output.txt
-#SBATCH -e Study2New_Subj1_3mm_error.txt
+#SBATCH -o Study2_NEW_Subj3_output.txt
+#SBATCH -e Study2_NEW_Subj3_error.txt
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:tesla:1
 #SBATCH --mail-type=ALL
@@ -23,7 +23,7 @@ source activate /scratch/qbi/uqdlucha/python/dvaegan
 RUN_TIME=$(date +%Y%m%d-%H%M%S)
 # ------ CHANGE THESE ------- #
 STUDY=2
-SUBJ=1
+SUBJ=3
 VOX_RES="3mm"
 BATCH_SIZE=100
 SET_SIZE="max"
@@ -33,7 +33,7 @@ LOAD_FROM="pretrain"
 STAGE_1_NET="WAE_1024_Stage1_bs100_20220816-231451"
 STAGE_1_EPOCH="99"
 RUN_NAME="Study${STUDY}_SUBJ0${SUBJ}_${VOX_RES}_${ROI}_${SET_SIZE}"
-MESSAGE="Study2New_Subj1"
+MESSAGE="Study2_NEW_Subj3"
 # ------ CHANGE THESE ------- #
 STAGE_2_NAME=${RUN_NAME}_Stage2_${RUN_TIME}
 STAGE_3_NAME=${RUN_NAME}_Stage3_${RUN_TIME}
@@ -68,9 +68,6 @@ cp -r logs plots /afm02/Q3/Q3789/datasets/output/NSD/${VOX_RES}/networks/${STAGE
 cp ${STAGE_3_NAME}_final.pth /afm02/Q3/Q3789/datasets/output/NSD/${VOX_RES}/networks/all/
 cp ${STAGE_3_NAME}_final.pth /scratch/qbi/uqdlucha/final_networks/${VOX_RES}/networks/all/
 
-# EVALUATION
+# EVAL
 source activate /scratch/qbi/uqdlucha/python/dvaegan3_6
-
 srun -N 1 -p gpu --gres=gpu:1 --mpi=pmi2 python /clusterdata/uqdlucha/scripts/deepReconPyTorch/net_evaluation_tabular.py --data_root '/scratch/qbi/uqdlucha/datasets/' --network_root '/scratch/qbi/uqdlucha/final_networks/' --batch_size ${BATCH_SIZE} --st3_net ${STAGE_3_NAME} --st3_load_epoch final --latent_dims 1024 --lin_size 2048 --lin_layers 2 --save True --vox_res ${VOX_RES} --ROI ${ROI} --set_size ${SET_SIZE} --subject ${SUBJ} --num_workers 2 --dataset NSD --seed 277603 --message "hello"
-
-

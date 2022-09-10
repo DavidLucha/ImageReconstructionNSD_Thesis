@@ -134,10 +134,6 @@ def main():
                 # To pull for study 1 and study 3 (ROIs) - default is VC (all ROIs)
                 TRAIN_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'train', args.set_size, args.ROI,
                                                'Subj_0{}_NSD_{}_train.pickle'.format(args.subject, args.set_size))
-                if args.vox_res == "3mm":
-                    # If needing to load max of 3mm (not in any studies for thesis) use this
-                    TRAIN_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'train', args.set_size,
-                                                   'Subj_0{}_NSD_{}_train.pickle'.format(args.subject, args.set_size))
             elif args.set_size == 'single_pres':
                 TRAIN_DATA_PATH = os.path.join(args.data_root, 'NSD', args.vox_res, 'train', args.set_size,
                                            'Subj_0{}_NSD_{}_train.pickle'.format(args.subject, args.set_size))

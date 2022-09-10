@@ -16,6 +16,21 @@ import time
 
 from utils_2 import nway_comp, pairwise_comp
 
+LOAD_PATH_ROOT = "D:/Lucha_Data/datasets/NSD/3mm/train/max/"
+LOAD_OLD = os.path.join(LOAD_PATH_ROOT, 'Subj_01_NSD_max_train.pickle')
+LOAD_NEW = os.path.join(LOAD_PATH_ROOT, 'VC/Subj_01_NSD_max_train.pickle')
+
+with open(LOAD_OLD, "rb") as input_file:
+    old = pickle.load(input_file)
+
+with open(LOAD_NEW, "rb") as input_file:
+    new = pickle.load(input_file)
+
+old_df = pd.DataFrame(old)
+new_df = pd.DataFrame(new)
+
+print(new_df.equals(old_df))
+
 
 
 

@@ -495,6 +495,48 @@ def nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_ty
             FILE_NAME_OUTPUT = '/images/' + image_type  # Defines the path in the dictionary outputs
             fmri_image_dataset = []
 
+            if not single_pres: # ROI selection is only for max voxels
+                # for key, array in all_arrays.items(): # TODO: NO
+                fmri_image_dataset = []
+                # Select voxels from fmri dataframe
+                # Grab columns (voxel_IDs) for each ROI array
+                # fmri_voxels = data.loc[:, array]
+
+                # if key == "V1_to_V3_n_rand":
+                #     fmri_voxels = pd.concat([fmri_voxels, rand_data], axis=1)
+
+                # cut down fmri dataframe to training trials
+                fmri = data.loc[train_array]
+
+                # raise Exception('check voxels and array')
+
+                # Convert fMRI data for zipping
+                fmri_zip = fmri.to_numpy()
+                # Make dataframe with just image_idx
+                image_idx = train_list.filter(['Image_Idx'], axis=1)
+                # Update numbering with leading 0s
+                image_names = image_idx['Image_Idx'].astype(str).str.zfill(5)
+                # Convert back to dframe
+                image_names = image_names.to_frame(name='Image_Idx')
+                # Update values in cells to full image paths
+                image_names['Image_Idx'] = FILE_NAME_OUTPUT + sub + "_nsd" + image_names['Image_Idx'] + ".png"
+                # Set to strings
+                image_names = image_names['Image_Idx'].astype(str)
+                # Combine for list of dictionaries
+                for idx, (vox, pix) in enumerate(zip(fmri_zip, image_names)):
+                    fmri_image_dataset.append({'fmri': vox, 'image': pix})
+                # Save pickle
+                if save:
+                    output_path = os.path.join(save_path, image_type, pres, "VC")
+                    if not os.path.exists(output_path):
+                        os.makedirs(output_path)
+                    with open(os.path.join(output_path, sub + '_NSD_' + pres + '_train.pickle'),
+                              'wb') as f:
+                        # e.g., /Subj_01_NSD_max_train.pickle OR /Subj_01_NSD_single_pres_train.pickle
+                        pickle.dump(fmri_image_dataset, f)
+
+            """
+            OLD CODE FOR SINGLE PRES
             fmri = data.loc[train_array]
             # Convert fMRI data for zipping
             fmri_zip = fmri.to_numpy()
@@ -520,7 +562,7 @@ def nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, data_ty
                 with open(os.path.join(output_path, sub + '_NSD_' + pres + '_train.pickle'),
                           'wb') as f:
                     # e.g., /Subj_01_NSD_max_train.pickle OR /Subj_01_NSD_single_pres_train.pickle
-                    pickle.dump(fmri_image_dataset, f)
+                    pickle.dump(fmri_image_dataset, f)"""
 
         if valid:
             image_type = 'valid/'

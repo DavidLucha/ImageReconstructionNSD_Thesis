@@ -1197,12 +1197,12 @@ def load_masters(master_root, comparison="nway"):
             way_label = "{}-way_comparison".format(n)
 
             # Load PCC
-            pcc_master = pd.read_excel(os.path.join(master_root, 'pcc_master_out.xlsx'), sheet_name=way_label,
+            pcc_master = pd.read_excel(os.path.join(master_root, 'pcc_master_pairwise_out.xlsx'), sheet_name=way_label,
                                        engine='openpyxl', index_col=0, header=0)
             out_dict['pcc'][way_label] = pcc_master
 
             # Load LPIPS
-            lpips_master = pd.read_excel(os.path.join(master_root, 'lpips_master_out.xlsx'), sheet_name=way_label,
+            lpips_master = pd.read_excel(os.path.join(master_root, 'lpips_master_pairwise_out.xlsx'), sheet_name=way_label,
                                        engine='openpyxl', index_col=0, header=0)
             out_dict['lpips'][way_label] = lpips_master
 

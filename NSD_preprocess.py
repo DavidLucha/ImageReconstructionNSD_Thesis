@@ -211,7 +211,7 @@ Creating trainable datasets (list of dicts)
     data_type = train/test both?
 """
 
-dict_prep = False
+dict_prep = True
 # TODO: Run this twice, for 1.8 and for 3mm
 if dict_prep:
     # Hello there. - Obi Wan
@@ -231,14 +231,14 @@ if dict_prep:
 
     # Runs the 3mm process
     # the two if statements below only apply now to training data
-    train = False
+    train = True
     if train:
         # mm_3 = True
         if vox_res == "3mm":
             # Gets max, all pres - not currently planned use
             nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, "train", save_path, norm, single_pres=False)
             # Using first presentation only
-            nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, "train", save_path, norm, single_pres=True)
+            # nsd_data_dict_prep_3mm(data_dir, image_list_dir, subj_list, vox_res, "train", save_path, norm, single_pres=True)
 
         # Runs the 1.8mm process
         # mm_1pt8 = False
@@ -249,7 +249,7 @@ if dict_prep:
             nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, "train", save_path, norm, single_pres=True)
 
     # Only need the single pres eval
-    evalu = True
+    evalu = False
     if evalu:
         data_type = "valid"
         image_list_dir = "D:/NSD/trial_information"
@@ -319,7 +319,7 @@ if get_array:
 
 # var_training set grabs the variable-sized training sets based on the set random arrays from above
 # TODO Run this to get sub sets - Twice and change vox_res
-var_training_set = True
+var_training_set = False
 
 if var_training_set:
     input_path = "D:/Lucha_Data/datasets/NSD/"

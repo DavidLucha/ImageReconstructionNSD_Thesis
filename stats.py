@@ -7,6 +7,52 @@ import matplotlib.pyplot as plt
 import scipy.stats as stats
 import numpy as np
 
+# TESTING GAZIV EVAL CODe
+# Loads file
+master_root = 'D:/Lucha_Data/final_networks/output/'
+
+lpips_dir = os.path.join(master_root, 'lpips_master_pairwise_out.csv')
+lpips_master = pd.read_csv(lpips_dir, index_col=0)
+
+rank = []
+result = []
+distances = [0.5432, 0.9190, 0.6807, 0.7516, 0.8031]
+# argsort places the list in order from lowest to highest
+# given our distance metric, the closest image will be at the front
+# the distance == 0 thing prints where in the list is the 'real' image (0)
+step_1 = np.argsort(distances) == 0
+# gives us the index of our real x recon
+step_2 = np.argwhere(step_1)
+# grabs the actual value of it (the index, that is)
+step_3 = step_2.flatten()[0]
+# number of candidates
+denom = (len(distances) - 1)
+
+# rank is the proportion of images that beat the main comparison
+final = step_3 / denom
+
+rank.append(np.argwhere(np.argsort(distances) == 0).flatten()[0] / (len(distances) - 1))
+
+# did the main comp win?
+result = np.argsort(distances)[0] == 0
+
+# Test lambda
+rank = [0.2, 0.0, 0.0, 0.0, 0.5]
+results = [False, True, True, True, False]
+
+# Just spits it back out.
+identity = lambda x: x
+
+identity(rank)
+identity(results)
+
+recon_rank = np.mean(rank)
+recon_result = np.mean(results)
+
+
+
+# ------------ SAVE DATA IN SPSS FRIENDLY FORMAT ---------------- #
+
 # Loads file
 # give directory, metric, comparison_type, list of column (network name)
 # if list, combine
@@ -16,14 +62,70 @@ master_root = 'D:/Lucha_Data/final_networks/output/'
 # nway_master = load_masters(master_root, "nway")
 pairwise_master = load_masters(master_root, "pairwise")
 
+master = {'trial': [],
+          'study': [],
+          'subj': [],
+          'vox_res': [],
+          'ROI': [],
+          'set_size': [],
+          'recon': [],
+          'PCC': [],
+          'LPIPS': []
+          }
+
+df_master = pd.DataFrame(master)
+
+full_list = []
+
+for (columnNamePCC, columnDataPCC), (_, columnDataLPIPS) in zip(pairwise_master['pcc'].iteritems(), pairwise_master['lpips'].iteritems()):
+    # run_name = str(columnName).split('_')
+    vals = {'PCC': columnDataPCC, 'LPIPS': columnDataLPIPS}
+    column_df = pd.DataFrame(data=vals).reset_index()
+
+    study, subj, vox_res, ROI, set_size = str(columnNamePCC).split('_')
+
+    column_df['trial'] = column_df.index + 1
+    column_df['study'] = study
+    column_df['subj'] = subj
+    column_df['vox_res'] = vox_res
+    column_df['ROI'] = ROI
+    column_df['set_size'] = set_size
+    column_df['recon'] = columnDataPCC.index.values.tolist()
+
+    # Rearrange
+    column_df = column_df[['trial','study', 'subj', 'vox_res', 'ROI', 'set_size', 'recon', 'PCC', 'LPIPS']]
+
+    full_list.append(column_df)
+
+df_master = pd.concat(full_list)
+
+save_path = 'D:/Lucha_Data/final_networks/output/'
+df_master.to_csv(os.path.join(save_path, "Full_Data_SPSS.csv"))
+
+# ------------ END ---------------- #
+
+    # row = {# 'recon': recon,
+    #        'study': study,
+    #        'subj': subj,
+    #        'vox_res': vox_res,
+    #        'ROI': ROI,
+    #        'set_size': set_size
+    #        }
+        # df_master = df_master.append(row, ignore_index=True)
+    # recon = columnData.index[]
+
 # TESTING 7500 vs 1200 at 1.8mm.
 comp_1 = eval_grab(pairwise_master, nets.data_1pt8mm_7500)
 comp_2 = eval_grab(pairwise_master, nets.data_1pt8mm_1200)
+
+
 
 pcc_diffs = comp_1['pcc'] - comp_2['pcc']
 lpips_diffs = comp_1['lpips'] - comp_2['lpips']
 
 kwargs = dict(alpha=0.2, bins=50)
+
+plt.hist(comp_1['lpips'], **kwargs, color='b', label='LPIPS')
 
 plt.hist(pcc_diffs, **kwargs, color='g', label='PCC')
 plt.hist(lpips_diffs, **kwargs, color='b', label='LPIPS')
@@ -55,15 +157,10 @@ print('Original differences: \n'
       '----- STD: {}\n'
       'Cleaned differences: \n'
       '----- Mean: {}\n'
-      '----- STD: {}'.format(lpips_diffs.mean(), lpips_diffs.std(), lpips_diffs_cleaned.mean(), lpips_diffs_cleaned.std()))
+      '----- STD: {}'.format(lpips_diffs.mean(), lpips_diffs.std(), lpips_diffs_cleaned.mean(),
+                             lpips_diffs_cleaned.std()))
 
 stats.wilcoxon(comp_1['lpips'], comp_2['lpips'])
-
-
-
-
-
-
 
 # Save all stats columns
 
@@ -77,43 +174,38 @@ master_root = 'D:/Lucha_Data/final_networks/output/'
 pairwise_master = load_masters(master_root, "pairwise")
 
 test_list = [
-      nets.data_subj_01,
-      nets.data_subj_02,
-      nets.data_subj_03,
-      nets.data_subj_04,
-      nets.data_subj_05,
-      nets.data_subj_06,
-      nets.data_subj_07,
-      nets.data_subj_08,
-      nets.data_1pt8mm_1200,
-      nets.data_1pt8mm_4000,
-      nets.data_1pt8mm_7500,
-      nets.data_3mm_1200,
-      nets.data_3mm_4000,
-      nets.data_3mm_7500,
-      nets.data_V1toV3,
-      nets.data_V1toV3nHVC,
-      nets.data_V1toV3nRAND,
-      nets.data_HVC
-      ]
+    nets.data_subj_01,
+    nets.data_subj_02,
+    nets.data_subj_03,
+    nets.data_subj_04,
+    nets.data_subj_05,
+    nets.data_subj_06,
+    nets.data_subj_07,
+    nets.data_subj_08,
+    nets.data_1pt8mm_1200,
+    nets.data_1pt8mm_4000,
+    nets.data_1pt8mm_7500,
+    nets.data_3mm_1200,
+    nets.data_3mm_4000,
+    nets.data_3mm_7500,
+    nets.data_V1toV3,
+    nets.data_V1toV3nHVC,
+    nets.data_V1toV3nRAND,
+    nets.data_HVC
+]
 
 pcc_full = {}
 lpips_full = {}
 header = []
 
 for test in test_list:
-      header.append(str(test).replace('nets.', ''))
-      comp = eval_grab(pairwise_master, test)
-      pcc_full[str(test)] = (comp['pcc'])
-      lpips_full[str(test)] = (comp['lpips'])
+    header.append(str(test).replace('nets.', ''))
+    comp = eval_grab(pairwise_master, test)
+    pcc_full[str(test)] = (comp['pcc'])
+    lpips_full[str(test)] = (comp['lpips'])
 
 pcc_df = pd.concat(pcc_full)
 table_lpips_pd.to_csv(os.path.join(save_path, "lpips_table.csv"))
-
-
-
-
-
 
 exit(200000)
 
@@ -151,8 +243,3 @@ nets.data_V1toV3
 nets.data_V1toV3nHVC
 nets.data_V1toV3nRAND
 nets.data_HVC
-
-
-
-
-

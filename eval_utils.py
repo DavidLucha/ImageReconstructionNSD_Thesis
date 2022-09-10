@@ -83,6 +83,7 @@ data_3mm_7500 = [
 
 # STUDY 3
 # V1-V3
+# TODO: Get rid of extra underscores in ROI
 data_V1toV3 = [
     "Study3_SUBJ01_1pt8mm_V1_to_V3_max",
     "Study3_SUBJ02_1pt8mm_V1_to_V3_max",
