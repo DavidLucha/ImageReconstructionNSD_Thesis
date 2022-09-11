@@ -20,6 +20,18 @@ import time
 
 from utils_2 import nway_comp, pairwise_comp
 
+study = 'Study1'
+study = int(study.split('y', 1)[1])
+subj = int('SUBJ01'.split('0', 1)[1])
+
+var = [1, 2, 3, 4, 5, 6]
+
+for i in var:
+    print(i)
+    if i == 4:
+        name = str(var)
+        print(name)
+
 
 # TESTING THE GAZIV GRAPHING
 

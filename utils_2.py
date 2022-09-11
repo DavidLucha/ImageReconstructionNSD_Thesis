@@ -1064,11 +1064,11 @@ def nway_comp(data, n=5, repeats=10, metric="pcc"):
     accuracy_full = []
 
     results_net = []
-    results_net_rank = []
+    # results_net_rank = []
     count = 0
 
     for row in data:
-        results_recon_rank = []
+        # results_recon_rank = []
         results_recon = []
 
         count += 1
@@ -1077,25 +1077,27 @@ def nway_comp(data, n=5, repeats=10, metric="pcc"):
         real_distance = [row[i]]
 
         repeat_count = 0
-        for repeat in range(99):
+        for repeat in range(repeats):
             repeat_count += 1
+            # if not repeat_count % 250:
+            #     print(repeat_count)
             distractors = np.delete(row, i)
             distractor_distance = [row[ii] for ii in np.random.permutation(len(distractors))[:n - 1]]
             distances = real_distance + distractor_distance
 
             if metric == 'pcc':
-                print('PCC Evaluation...')
+                # print('PCC Evaluation...')
                 # Here we include [::-1] to flip the order of the argsort becasue we want the highest PCC unlike LPIPS
-                results_recon_rank.append(np.argwhere(np.argsort(distances)[::-1] == 0).flatten()[0] / (len(distances) - 1))
+                # results_recon_rank.append(np.argwhere(np.argsort(distances)[::-1] == 0).flatten()[0] / (len(distances) - 1))
                 results_recon.append(np.argsort(distances)[::-1][0] == 0)
             else:
-                results_recon_rank.append(np.argwhere(np.argsort(distances) == 0).flatten()[0] / (len(distances) - 1))
+                # results_recon_rank.append(np.argwhere(np.argsort(distances) == 0).flatten()[0] / (len(distances) - 1))
                 results_recon.append(np.argsort(distances)[0] == 0)
 
-        results_net_rank.append(np.mean(results_recon_rank))
+        # results_net_rank.append(np.mean(results_recon_rank))
         results_net.append(np.mean(results_recon))
 
-    print('Overal accuracy is {}'.format(np.mean(results_net)))
+    print('Overall accuracy is {}'.format(np.mean(results_net)))
 
     # Get accuracy per recon
     # accuracy = total_score / repeat_count * 100
@@ -1104,11 +1106,66 @@ def nway_comp(data, n=5, repeats=10, metric="pcc"):
     # Concat this to full list for all recons
     # accuracy_full.append(accuracy)
 
-    print('Average n-way ({}) comparison accuracy: {:.2f} \n'
-          'Standard deviation of n-way ({}) comparison accuracy: {:.2f}'.format(n, statistics.mean(accuracy_full),
-                                                                   n, statistics.stdev(accuracy_full)))
+    # print('Average n-way ({}) comparison accuracy: {:.2f} \n'
+    #       'Standard deviation of n-way ({}) comparison accuracy: {:.2f}'.format(n, statistics.mean(accuracy_full),
+    #                                                                n, statistics.stdev(accuracy_full)))
 
-    # return accuracy_full
+    return results_net  # , results_recon
+
+
+def permutation(data, n=5, repeats=10, metric="pcc"):
+
+    results_net = []
+    # results_net_rank = []
+    count = 0
+
+    for row in data:
+        # results_recon_rank = []
+        results_recon = []
+
+        count += 1
+        i = count - 1
+
+        # if not count % 100:
+        #     print('Completed {} recons...'.format(count))
+
+        real_distance = [row[i]]
+
+        repeat_count = 0
+        for repeat in range(repeats):
+            repeat_count += 1
+            # if not repeat_count % 10000:
+            #     print('Completed {} repeats...'.format(repeat_count))
+            # distractors = np.delete(row, i)
+            distances = [row[ii] for ii in np.random.permutation(len(row))[:n]]
+            # distances = real_distance + distractor_distance
+
+            if metric == 'pcc':
+                # print('PCC Evaluation...')
+                # Here we include [::-1] to flip the order of the argsort becasue we want the highest PCC unlike LPIPS
+                # results_recon_rank.append(np.argwhere(np.argsort(distances)[::-1] == 0).flatten()[0] / (len(distances) - 1))
+                results_recon.append(np.argsort(distances)[::-1][0] == 0)
+            else:
+                # results_recon_rank.append(np.argwhere(np.argsort(distances) == 0).flatten()[0] / (len(distances) - 1))
+                results_recon.append(np.argsort(distances)[0] == 0)
+
+        # results_net_rank.append(np.mean(results_recon_rank))
+        results_net.append(np.mean(results_recon))
+
+    print('Overall accuracy is {}'.format(np.mean(results_net)))
+
+    # Get accuracy per recon
+    # accuracy = total_score / repeat_count * 100
+    # print('Accuracy rate for repeat {} is {:.2f}%'.format(repeat_count, accuracy))
+
+    # Concat this to full list for all recons
+    # accuracy_full.append(accuracy)
+
+    # print('Average n-way ({}) comparison accuracy: {:.2f} \n'
+    #       'Standard deviation of n-way ({}) comparison accuracy: {:.2f}'.format(n, statistics.mean(accuracy_full),
+    #                                                                n, statistics.stdev(accuracy_full)))
+
+    return results_net  # , results_recon
 
 
 def pairwise_comp(df, metric="pcc"):
