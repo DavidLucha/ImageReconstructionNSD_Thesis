@@ -6,6 +6,10 @@ import csv
 import os
 import torch
 import numpy as np
+import seaborn as sns
+from matplotlib import pyplot as plt
+import itertools
+from numpy import genfromtxt
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 from sklearn import preprocessing
@@ -16,6 +20,139 @@ import time
 
 from utils_2 import nway_comp, pairwise_comp
 
+
+# TESTING THE GAZIV GRAPHING
+
+gaziv_results = 'C:/Users/david/Python/Gaviz_SelfSuperReconst-main/eval_results/eval.pkl'
+
+df = pd.read_pickle(gaziv_results)
+# df['score'][0]
+
+chained = lambda l: list(itertools.chain(*l))
+sns.set()
+sns.set_context("paper", font_scale=1.4)
+
+target_exps = chained([
+    f'sub{sbj_num}_rgb_only_noDE',
+    ] for sbj_num in [3])
+
+my_df = df[(df.collapse_func == '') & (df.n_way > 0) & \
+           (df.n_way <= 1000) & (df.repeats.isin([10])) & \
+          (df.exp_name.isin(target_exps)) & \
+#           (df['rank'] == 1) & \
+           (df.distance_metric_name == 'perceptual_vgg_noncal') & \
+           (df.eval_depth == 0)
+          ]
+
+fn = lambda x: '_'.join(x.split('_')[1:])
+# split the exp name and get everything minus subject name and number
+my_df.exp_name = my_df.exp_name.apply(fn)
+# take the list of scores and make a new row for each.
+my_df = my_df.explode('score')
+# my_df_loc = my_df
+# It flips the rank to give it a measure but this doesn't matter for us
+# we just care about accuracy rank=0
+# score = score * nway-1 ) + 1
+my_df.loc[my_df['rank']==1, 'score'] = my_df[my_df['rank']==1].score * (my_df[my_df['rank']==1].n_way - 1) + 1
+my_df.exp_name.unique()
+
+# print(my_df.equals(my_df_loc))
+
+g = sns.catplot(x='n_way', y='score', hue='exp_name', col='rank', kind="bar", data=my_df, legend=False, legend_out=True, sharey=False)
+g.set_titles(col_template='rank={col_name}')
+
+plt.gcf().set_size_inches(8, 4)
+plt.gcf().tight_layout(rect=[0, 0.03, 1, 0.96])
+
+ax1 = g.axes[0][0]
+# nways = np.unique(my_df.n_way.values)
+
+plt.minorticks_on()
+ax1.grid(axis='y', which='minor', color='#999999', linewidth=.3, alpha=0.3)
+
+plt.show()
+
+for id, list in df['score'].iteritems():
+    # 50 items. So yeah this is legit.
+    print(len(list))
+
+
+
+
+
+
+
+
+
+
+# BETTER N-WAY SCRIPT
+
+# Test loading pd or np array
+root_dir = 'D:/Lucha_Data/final_networks/output/all_eval/Study1_SUBJ01_1pt8mm_VC_max_Stage3_20220817-112810/'
+file_dir = os.path.join(root_dir, 'lpips_table.csv')
+lpips = pd.read_csv(file_dir, index_col=0)
+# lpips_np = genfromtxt(file_dir, delimiter=',')
+lpips_np = lpips.to_numpy()
+
+nway = 5
+repeats = 100
+
+results_net = []
+results_net_rank = []
+
+results_per_recon = []
+results_per_recon_rank = []
+
+count = 0
+
+start = time.time()
+for row in lpips_np:
+    results_recon_rank = []
+    results_recon = []
+
+    count += 1
+    i = count-1
+
+    real_distance = [row[i]]
+
+    repeat_count = 0
+    for repeat in range(repeats):
+        repeat_count += 1
+        distractors = np.delete(row, i)
+        distractor_distance = [row[ii] for ii in np.random.permutation(len(distractors))[:nway - 1]]
+        distances = real_distance + distractor_distance
+
+        results_recon_rank.append(np.argwhere(np.argsort(distances) == 0).flatten()[0] / (len(distances) - 1))
+        results_recon.append(np.argsort(distances)[0] == 0)
+
+    results_net_rank.append(np.mean(results_recon_rank))
+    results_net.append(np.mean(results_recon))
+    # Saves the per repeat results per recon
+    # results_per_recon_rank.append(results_recon_rank)
+    # results_per_recon.append(results_recon)
+
+end = time.time()
+print('Time for {} ='.format(repeats), end - start)
+print('Overall accuracy is {}'.format(np.mean(results_net)))
+
+
+
+
+
+count = 0
+for i, row in lpips.iterrows():
+    count += 1
+    if count == 3:
+        new_row = row.to_numpy()
+        distance = new_row[i]
+
+
+
+
+
+
+
+
 # TESTING GAZIV EVAL CODe
 # Loads file
 master_root = 'D:/Lucha_Data/final_networks/output/'
@@ -25,11 +162,16 @@ lpips_master = pd.read_csv(lpips_dir, index_col=0)
 
 rank = []
 result = []
-distances = [0.5432, 0.9190, 0.6807, 0.7516, 0.8031]
+distances = [0.5432, 0.4390, 0.6807, 0.7516, 0.8031]
 # argsort places the list in order from lowest to highest
 # given our distance metric, the closest image will be at the front
 # the distance == 0 thing prints where in the list is the 'real' image (0)
 step_1 = np.argsort(distances) == 0
+step_reverse = np.argsort(distances)[::-1]
+step_1a = np.argsort(distances)[0] == 0
+step_1b = np.argsort(distances)[::-1][0] == 0
+step_rank = np.argwhere(np.argsort(distances) == 0).flatten()[0] / (len(distances) - 1)
+step_rankb = np.argwhere(np.argsort(distances)[::-1] == 0).flatten()[0] / (len(distances) - 1)
 # gives us the index of our real x recon
 step_2 = np.argwhere(step_1)
 # grabs the actual value of it (the index, that is)

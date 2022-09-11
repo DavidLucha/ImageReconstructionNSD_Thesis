@@ -61,6 +61,9 @@ def main():
         pcc = pd.read_csv(os.path.join(folder_dir, 'pcc_table.csv'), index_col=0)
         # ssim = pd.read_excel(os.path.join(folder_dir, 'ssim_table.xlsx'), engine='openpyxl', index_col=0)
         lpips = pd.read_csv(os.path.join(folder_dir, 'lpips_table.csv'), index_col=0)
+        # I know this is redundant but...
+        pcc = pcc.to_numpy()
+        lpips = lpips.to_numpy()
         print('Data Ready')
 
         if count == 1:

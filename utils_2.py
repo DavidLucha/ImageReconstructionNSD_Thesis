@@ -1050,84 +1050,65 @@ def objective_assessment_table_batch(model, dataloader, save_path="D:/Lucha_Data
     return table_pcc_pd, table_lpips_pd  # table_ssim_pd,
 
 
-def nway_comp(df, n=5, repeats=10, metric="pcc"):
+def nway_comp(data, n=5, repeats=10, metric="pcc"):
     import sys
     # To ensure reproducibility, and that every comparison gets the same 'random' batch
     # But need to work the how the assumption of independence works with our data
-    seed = random.randrange(sys.maxsize)
-    print('Seed was: ', seed)
-    random.seed(seed)
+    # seed = random.randrange(sys.maxsize)
+    # print('Seed was: ', seed)
+    # random.seed(seed)
     # seed range as defined by .sample(random_state)
-    seed_list = random.sample(range(0, 2**32-1), repeats)
-
-    # number of comparisons (including real candidate)
-    n = n
-    repeat_count = 0
-    recon_count = 0
+    # seed_list = random.sample(range(0, 2**32-1), repeats)
 
     # create container for full accuracy (cross repeats)
     accuracy_full = []
 
-    for repeat in range(repeats):
-        start = time.time()
-        print('Starting repeat {} of {} metric...'.format(repeat, metric))
-        repeat_count += 1
-        # set counters
-        # total score is count of recons beats all n comparisons
-        total_score = 0
-        trials = 0
+    results_net = []
+    results_net_rank = []
+    count = 0
 
-    for i, row in df.iterrows():
-        row_start = time.time()
-        recon_count += 1
-        results_recon = []
+    for row in data:
         results_recon_rank = []
-        for repeat in range(repeats):
-            print('yo mama')
-        # row counter
-        trials += 1
-        # print('Comparison {}'.format(trials))
-        # score per reconstruction
-        score = 0
-        # save row to dataframe
-        row = row.to_frame()
-        # select the value where recon == actual candidate image
-        matched = row.loc[i]
-        # print('Value of matched is: ', matched)
-        # remove real candidate from rest of row values
-        new_row = row.drop([i])
-        # sample n from the rest of row with reproducible seeds
-        # in any nway you can only get an image once, but the next iteration it can be called again
-        # TODO: Check this
-        rand = new_row.sample(n=n - 1, replace=False, random_state=seed_list[repeat])
-        # for every image in the random sample check if real is bigger
-        for idx, rand_val in rand.iterrows():
-            if metric=="lpips":
-                # because lpips lower is better
-                if matched.item() < rand_val.item():
-                    score += 1
+        results_recon = []
+
+        count += 1
+        i = count - 1
+
+        real_distance = [row[i]]
+
+        repeat_count = 0
+        for repeat in range(99):
+            repeat_count += 1
+            distractors = np.delete(row, i)
+            distractor_distance = [row[ii] for ii in np.random.permutation(len(distractors))[:n - 1]]
+            distances = real_distance + distractor_distance
+
+            if metric == 'pcc':
+                print('PCC Evaluation...')
+                # Here we include [::-1] to flip the order of the argsort becasue we want the highest PCC unlike LPIPS
+                results_recon_rank.append(np.argwhere(np.argsort(distances)[::-1] == 0).flatten()[0] / (len(distances) - 1))
+                results_recon.append(np.argsort(distances)[::-1][0] == 0)
             else:
-                # for pcc and ssim
-                if matched.item() > rand_val.item():
-                    score += 1
-        # add to total score if real is bigger than all n candidates
-        if score == n - 1:
-            total_score += 1
+                results_recon_rank.append(np.argwhere(np.argsort(distances) == 0).flatten()[0] / (len(distances) - 1))
+                results_recon.append(np.argsort(distances)[0] == 0)
 
-        # Get accuracy per recon
-        accuracy = total_score / trials * 100
-        # print('Accuracy rate for repeat {} is {:.2f}%'.format(repeat_count, accuracy))
+        results_net_rank.append(np.mean(results_recon_rank))
+        results_net.append(np.mean(results_recon))
 
-        # Concat this to full list for all recons
-        accuracy_full.append(accuracy)
+    print('Overal accuracy is {}'.format(np.mean(results_net)))
 
+    # Get accuracy per recon
+    # accuracy = total_score / repeat_count * 100
+    # print('Accuracy rate for repeat {} is {:.2f}%'.format(repeat_count, accuracy))
 
+    # Concat this to full list for all recons
+    # accuracy_full.append(accuracy)
 
     print('Average n-way ({}) comparison accuracy: {:.2f} \n'
           'Standard deviation of n-way ({}) comparison accuracy: {:.2f}'.format(n, statistics.mean(accuracy_full),
                                                                    n, statistics.stdev(accuracy_full)))
 
-    return accuracy_full
+    # return accuracy_full
 
 
 def pairwise_comp(df, metric="pcc"):
