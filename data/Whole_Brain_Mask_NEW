@@ -1,0 +1,25 @@
+for s in 1
+do
+    echo "Mounting Subject ${s} Folder in /full_roi/ - to combine 3mm masks"
+    cd /mnt/d/NSD/inode/full_roi/subj_0${s}/
+
+    cd /mnt/d/NSD/inode/full_roi/subj_01/
+    cd /mnt/d/NSD/inode/full_roi/subj_02/
+    cd /mnt/d/NSD/inode/full_roi/subj_03/
+    cd /mnt/d/NSD/inode/full_roi/subj_04/
+    cd /mnt/d/NSD/inode/full_roi/subj_05/
+    cd /mnt/d/NSD/inode/full_roi/subj_06/
+    cd /mnt/d/NSD/inode/full_roi/subj_07/
+    cd /mnt/d/NSD/inode/full_roi/subj_08/
+
+
+    echo "Make random sample mask (study 3)"
+    # All manually derived
+    3dcalc -a prf-visualrois.nii.gz -b floc-bodies.nii.gz -c floc-faces.nii.gz -d floc-places.nii.gz -e floc-words.nii.gz -f thalamus.nii.gz -g MTL.nii.gz -expr "a + b + c + d + e + f + g" -prefix all_manual_ROIs
+
+    # we already have a whole brain mask
+
+    # subtracts V1-V3 from whole brain
+    3dcalc -a whole_brain_mask+orig.BRIK.gz -b all_manual_ROIs+orig.BRIK.gz -expr "step(a) * iszero(b)" -prefix whole_brain_minus_all_manual
+
+done

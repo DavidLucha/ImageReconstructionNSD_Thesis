@@ -316,7 +316,30 @@ def permute(repeats=100):
     return df
 
 
-def visualise(df):
+def show_values(axs, orient="v", space=.01):
+    def _single(ax):
+        if orient == "v":
+            for p in ax.patches:
+                _x = p.get_x() + p.get_width() / 2
+                _y = (p.get_y() + p.get_height() + (p.get_height()*0.01))/2
+                value = '{:.3f}'.format(p.get_height())
+                ax.text(_x, _y, value, ha="center")
+        elif orient == "h":
+            for p in ax.patches:
+                _x = p.get_x() + p.get_width() + float(space)
+                _y = p.get_y() + p.get_height() - (p.get_height()*0.5)
+                value = '{:.3f}'.format(p.get_width())
+                ax.text(_x, _y, value, ha="left")
+
+    if isinstance(axs, np.ndarray):
+        for idx, ax in np.ndenumerate(axs):
+            _single(ax)
+    else:
+        _single(axs)
+
+
+def visualise_s1(df):
+    plt.cla()
     chained = lambda l: list(itertools.chain(*l))
     sns.set()
     sns.set_context("paper", font_scale=1.4)
@@ -325,7 +348,7 @@ def visualise(df):
                               f'Study1_SUBJ0{sbj_num}_1pt8mm_VC_max',
                           ] for sbj_num in [1, 2, 3, 4, 5, 6, 7, 8])
 
-    my_df = df[(df.nway > 0) & (df.nway <= 1000) & (df.repeats.isin([50])) &
+    my_df = df[(df.nway > 0) & (df.nway <= 1000) &
                (df.run_name.isin(target_exps)) & (df.metric == 'LPIPS')
                ]
 
@@ -336,22 +359,87 @@ def visualise(df):
 
     # g = sns.catplot(x='nway', y='score', hue='run_name', col='subject', kind="bar", data=my_df, legend=False,
     #                 legend_out=True, sharey=False)
-    g = sns.barplot(data=my_df, x="nway", y='score', hue='subject', n_boot=50)
+    g = sns.barplot(data=my_df, x="nway", y='score', hue='subject')
     # g.set_titles(col_template='Subject')
+
+    # plt.hlines(y=0.5, xmin='0', xmax='2')
+    # plt.hlines(y=0.2, xmin=5, xmax=5)
+
+    plt.gcf().set_size_inches(8, 4)
+    plt.gcf().tight_layout(rect=[0, 0.03, 1, 0.96])
+
+    # show_values(g)
+    bar_count = 0
+    for bars in g.containers:
+        bar_count += 1
+        g.bar_label(bars, label_type='center', rotation=90, fmt='%.2f')
+        # _x = p.get_x() + p.get_width() / 2
+        # _y = (p.get_y() + p.get_height() + (p.get_height() * 0.01)) / 2
+        # g.text(_x, _y, p, va='center')
+
+    plt.legend(loc='upper right', ncol=4)
+
+    # ax1 = g.axes[0][0]
+    # nways = np.unique(my_df.nway.values)
+
+    plt.minorticks_on()
+    # ax1.grid(axis='y', which='minor', color='#999999', linewidth=.3, alpha=0.3)
+
+    # my_df.score = my_df.score.astype(float)
+
+    # print(my_df.groupby(['nway', 'run_name']).mean().score.round(2))
+    plt.suptitle(f'Identification accuracy for subjects 1-8 (higher is better)')
+    plt.show()
+
+
+def visualise_s2n3(df, iv, study, n):
+    # IV should be a list of your comparison (different rois or different vox res)
+    plt.cla()
+    # chained = lambda l: list(itertools.chain(*l))
+    sns.set()
+    sns.set_context("paper", font_scale=1.4)
+
+    # target_exps = chained([
+    #                           f'study{study}_{n}-way_{metric}_{levels}',
+    #                       ] for levels in iv)
+    if study == 2:
+        my_df = df[(df.nway == n) & (df.vox_res.isin(iv)) & (df.study == study)
+                   ]
+        var = 'vox_res'
+    else:
+        my_df = df[(df.nway == n) & (df.ROI.isin(iv)) & (df.study == study)
+                   ]
+        var = 'ROI'
+
+    # fn = lambda x: '_'.join(x.split('_')[1:])
+    # my_df.exp_name = my_df.exp_name.apply(fn)
+    my_df = my_df.explode('score')
+    # my_df.exp_name.unique()
+
+    # g = sns.catplot(x='nway', y='score', hue='run_name', col='subject', kind="bar", data=my_df, legend=False,
+    #                 legend_out=True, sharey=False)
+    g = sns.barplot(data=my_df, x=var, y='score', hue='metric')
+    g.axhline(1/n, color='k', linestyle='--')
+    # g.set_titles(col_template='Subject')
+
+    # for i in g.containers:
+    #     g.bar_label(i,)
+
+    show_values(g)
 
     plt.gcf().set_size_inches(8, 4)
     plt.gcf().tight_layout(rect=[0, 0.03, 1, 0.96])
 
     # ax1 = g.axes[0][0]
-    nways = np.unique(my_df.nway.values)
+    # nways = np.unique(my_df.nway.values)
 
     plt.minorticks_on()
     # ax1.grid(axis='y', which='minor', color='#999999', linewidth=.3, alpha=0.3)
 
-    my_df.score = my_df.score.astype(float)
+    # my_df.score = my_df.score.astype(float)
 
-    print(my_df.groupby(['nway', 'run_name']).mean().score.round(2))
-    plt.suptitle(f'Identification accuracy for subjects 1-4 (higher is better)')
+    # print(my_df.groupby(['nway', 'run_name']).mean().score.round(2))
+    plt.suptitle(f'Identification accuracy (subjects pooled) in {n}-way (higher is better)')
     plt.show()
 
 
@@ -371,6 +459,45 @@ def perm_test(perm_scores, observed_scores):
     sig = p_obs < correction
 
     return p_obs, sig
+
+
+def grab_comp(df, study, nway=2, metric='LPIPS', subject=None, roi='VC', vox='1pt8mm'):
+
+    if subject is None:
+        subject = [1, 2, 3, 4, 5, 6, 7, 8]
+    comp =(df[
+        (df['study'] == study) & (df['nway'] == nway) & (df['metric'] == metric) & (df['subject'].isin(subject))
+        & (df['ROI'] == roi) & (df['vox_res'] == vox)
+               ])
+
+    return comp
+
+
+def group_by(df, run_name):
+    explode = df.explode('score')
+    run_names = explode['run_name']
+    run_names_imp = run_names.agg({'run_name': lambda x: x.tolist()})
+    implode = explode.groupby(['study'], as_index=False).agg({'run_name': lambda x: run_name,
+                                                            'score': lambda x: x.tolist(),
+                                                            'subject': lambda x: list(set(x.tolist())),
+                                                            'study': 'first',
+                                                            'vox_res': 'first',
+                                                            'ROI': 'first',
+                                                            'set_size': 'first',
+                                                            'metric': 'first',
+                                                            'nway': 'first',
+                                                            'repeats': 'first',
+                                                            })
+
+    # CHECKS SCRIPT IS WORKING
+    # print(len(implode['score'][0]))
+    # explode_implode = implode.explode('score')
+    # score_test = explode_implode['score'].to_numpy()
+    # score_good = explode['score'].to_numpy()
+    # np.array_equal(score_good, score_test)
+
+    # s.map(lambda x: x.tolist()).to_numpy()
+    return implode
 
 
 if __name__ == "__main__":
@@ -410,51 +537,97 @@ if __name__ == "__main__":
 
     # ------------- END ------------- #
 
-    # visualise(df)
+    # Study 2 and 3
 
     full_df = pd.read_pickle('D:/Lucha_Data/final_networks/output/full_dataset.pkl')
 
-    comp_1 = full_df[
-        (full_df['study'] == 1) & (full_df['nway'] == 5) & (full_df['metric'] == 'LPIPS')
-               ]
-    comp_2 = full_df[
-        (full_df['study'] == 2) & (full_df['nway'] == 5) & (full_df['metric'] == 'LPIPS')
-               ]
 
-    comp_1_explode = comp_1.explode('score')
-    comp_2_explode = comp_2.explode('score')
+    # --------------------------------- Data for Study 2/3 --------------------------------- #
 
-    score_1 = comp_1_explode['score'].to_numpy()
-    score_2 = comp_2_explode['score'].to_numpy()
+    def study_2n3():
+        # Hyperparameters
+        all_subs = list(range(1, 9))
+        metrics = ['PCC', 'LPIPS']
+        nways = [2, 5, 10]
+        ROI = 'VC'
 
-    diffs = score_1 - score_2
+        run_count = 0
+        # ------------ Study 2 ------------ #
+        # All subjects at 1.8mm and 3mm.
+        # And/or each subject at 1.8mm and 3mm.
+        # @ each nway, for each metric (6 comparisons)
+        # Still study 2 but get the scores from study 1
+        study = 1
+        vox_res = '1pt8mm'
 
-    # sub_1 = comp_1_explode[]
+        for metric in metrics:
+            for nway in nways:
+                run_count += 1
+                comp = grab_comp(full_df, study=1, nway=nway, metric=metric, subject=all_subs, roi=ROI, vox=vox_res)
+                # run_name last variable is IV
+                run_name = 'study{}_{}-way_{}_{}'.format(study, nway, metric, vox_res)
+                implode_comp = group_by(comp, run_name)
+                if run_count == 1:
+                    data_df = implode_comp
+                else:
+                    data_df = pd.concat([data_df, implode_comp])
 
-    # min(comp_1_explode.score)
+        # rename study 1 part
+        # test = data_df
+        data_df['run_name'] = data_df['run_name'].str.replace('study1','study2')
+        data_df['study'] = data_df['study'].replace(1, 2)
 
-    kwargs = dict(alpha=0.2, bins=50)
+        study = 2
+        vox_res = '3mm'
 
-    plt.hist(comp_1_explode['score'], **kwargs, color='b', label='LPIPS')
+        for metric in metrics:
+            for nway in nways:
+                run_count += 1
+                comp = grab_comp(full_df, study=2, nway=nway, metric=metric, subject=all_subs, roi=ROI, vox=vox_res)
+                # run_name last variable is IV
+                run_name = 'study{}_{}-way_{}_{}'.format(study, nway, metric, vox_res)
+                implode_comp = group_by(comp, run_name)
+                if run_count == 1:
+                    data_df = implode_comp
+                else:
+                    data_df = pd.concat([data_df, implode_comp])
 
-    # diffs
-    plt.hist(diffs, **kwargs, color='g', label='LPIPS')
-    # plt.hist(lpips_diffs, **kwargs, color='b', label='LPIPS')
-    plt.axvline(diffs.mean(), color='r', linestyle='dashed', linewidth=1)
-    # plt.axvline(lpips_diffs.mean(), color='y', linestyle='dashed', linewidth=1)
-    plt.gca().set(title='Distribution of Accuracy Differences', ylabel='Frequency')
-    plt.legend()
+        # data_df.astype({'study': 'int32', 'nway': 'int32', 'repeats': 'int32'}).dtypes
 
-    plt.show()
 
-    plt.cla()
-    plt.close('all')
-    # comp_1_explode.reset_index()
+        # ------------ STUDY 3 ------------ #
+        study = 3
+        vox_res = '1pt8mm'
+        ROI = ['V1toV3', 'HVC', 'V1toV3nHVC', 'V1toV3nRand']
 
-    # permutation_list = dict(permutation_scores=[])
-    # list=[12,3,4]
-    # permutation_list['permutation_scores'].append(list)
-    # perm_df = pd.DataFrame.from_dict(permutation_list)
+        for area in ROI:
+            for metric in metrics:
+                for nway in nways:
+                    run_count += 1
+                    comp = grab_comp(full_df, study=study, nway=nway, metric=metric, subject=all_subs, roi=area, vox=vox_res)
+                    # run_name last variable is IV
+                    run_name = 'study{}_{}-way_{}_{}'.format(study, nway, metric, area)
+                    implode_comp = group_by(comp, run_name)
+                    if run_count == 1:
+                        data_df = implode_comp
+                    else:
+                        data_df = pd.concat([data_df, implode_comp])
 
-    # print(dist)
+        data_df.to_pickle(os.path.join(save_dir, 'full_data_study_2n3.pkl'))
+
+    # --------------------------------- END data for Study 2/3 --------------------------------- #
+
+    visualise_s1(full_df)
+
+    data_df = pd.read_pickle('D:/Lucha_Data/final_networks/output/full_data_study_2n3.pkl')
+    study2_iv = ['1pt8mm', '3mm']
+    visualise_s2n3(data_df, iv=study2_iv, study=2, n=5)
+    study3_iv = ['V1toV3', 'HVC']
+    visualise_s2n3(data_df, iv=study3_iv, study=3, n=5)
+    study3_iv = ['V1toV3', 'V1toV3nHVC', 'V1toV3nRand']
+    visualise_s2n3(data_df, iv=study3_iv, study=3, n=5)
+
+    # TODO: new method for single subject study 2 and 3 comparisons
+    # TODO: draw mean line
+    # TODO: write save image code
 

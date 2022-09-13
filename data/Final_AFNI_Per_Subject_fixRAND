@@ -15,7 +15,7 @@ do
         # maskdump random sample @ 1.8mm
         # TODO: change n_rand per subject
 
-        3dmaskdump -mask ../../../../../inode/full_roi/subj_0${s}/whole_brain_minus_V1_to_V3+orig.BRIK.gz -index -noijk -xyz -o subj_0${s}_masked_betas_session0${i}_rand_samp.txt -n_rand 7458 -n_randseed 2010 subj_0${s}_converted_betas_session0${i}+orig.BRIK
+        3dmaskdump -mask ../../../../../inode/full_roi/subj_0${s}/whole_brain_minus_all_manual+orig.BRIK.gz -index -noijk -xyz -o subj_0${s}_masked_betas_session0${i}_rand_samp.txt -overwrite -n_rand 7458 -n_randseed 2010 subj_0${s}_converted_betas_session0${i}+orig.BRIK
 
         # removes the large intermediate files
         rm subj_0${s}_converted_betas_session0${i}+orig.BRIK
@@ -33,7 +33,7 @@ do
         # TODO: change n_rand per subject
         # HVC Voxels per subject
         # [8145, 9251, 9572, 8387, 10486, 10141, 7227, 8988]
-        3dmaskdump -mask ../../../../../inode/full_roi/subj_0${s}/whole_brain_minus_V1_to_V3+orig.BRIK.gz -index -noijk -xyz -o subj_0${s}_masked_betas_session${i}_rand_samp.txt -n_rand 7458 -n_randseed 2010 subj_0${s}_converted_betas_session${i}+orig.BRIK
+        3dmaskdump -mask ../../../../../inode/full_roi/subj_0${s}/whole_brain_minus_all_manual+orig.BRIK.gz -index -noijk -xyz -o subj_0${s}_masked_betas_session${i}_rand_samp.txt -overwrite -n_rand 7458 -n_randseed 2010 subj_0${s}_converted_betas_session${i}+orig.BRIK
 
         rm subj_0${s}_converted_betas_session${i}+orig.BRIK
         rm subj_0${s}_converted_betas_session${i}+orig.HEAD

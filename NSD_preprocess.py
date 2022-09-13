@@ -80,7 +80,7 @@ if concat:
     session_count = [0, 37, 37, 29, 27, 37, 29, 37, 27]
     out_path = "D:/Honours/nsd_pickles/"
     # ------------- CHANGE THESE TWO -------------- #
-    vox_res = "1.8mm"
+    vox_res = "1pt8mm"
     data_type = "rand"  #  "1.8mm" is main 1.8mm, "3mm" is 3mm and "rand" is for the random selection of voxels
     # -------------------- END -------------------- #
 
@@ -212,13 +212,13 @@ Creating trainable datasets (list of dicts)
 """
 
 dict_prep = True
-# TODO: Run this twice, for 1.8 and for 3mm
+# TODO: Do again for all 1.8mm stuff.
 if dict_prep:
     # Hello there. - Obi Wan
     subj_list = [1, 2, 3, 4, 5, 6, 7, 8]  # 1, 2, 3, 4, 5, 6, 7, 8
 
     # ------ TODO: CHANGE THIS -------- #
-    vox_res = "3mm"
+    vox_res = "1pt8mm"
     image_list_dir = "D:/NSD/trial_information"
     # train/valid or both
     data_type = "both"
@@ -246,7 +246,10 @@ if dict_prep:
             # All data
             nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, "train", save_path, norm, single_pres=False)
             # Using first presentation only
-            nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, "train", save_path, norm, single_pres=True)
+            # nsd_data_dict_prep(data_dir, image_list_dir, subj_list, vox_res, "train", save_path, norm, single_pres=True)
+            # Training
+            nsd_data_dict_prep(data_dir, image_list_dir, subj_list, "1pt8mm", "valid", save_path, norm,
+                               single_pres=True)
 
     # Only need the single pres eval
     evalu = False

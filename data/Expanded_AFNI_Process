@@ -102,12 +102,14 @@ do
     echo "Make random sample mask (study 3)"
     # Just V1-V3 Mask
     # Returns 1 for everything but V4
+    # TODO: Change this to new exclusion area
     3dcalc -a prf-visualrois.nii.gz -expr "within(a, 0.9, 6.1)" -prefix V1_to_V3
 
     # use visualrois to get a full brain of 1s and 0s
     3dcalc -a prf-visualrois.nii.gz -expr "step(a) + 1 * equals(a, 0)" -prefix whole_brain_mask
 
     # subtracts V1-V3 from whole brain
+    # TODO: Change the relevant thing here
     3dcalc -a whole_brain_mask+orig.BRIK.gz -b V1_to_V3+orig.BRIK.gz -expr "step(a) * iszero(b)" -prefix whole_brain_minus_V1_to_V3
 
 
