@@ -220,9 +220,12 @@ sbatch Study2_Subj8.sh
 # RERUN STUDY 1 and 3 - due to issue with randomly sampled voxels
 cd ./rand_rerun/study1/
 
+# DONE
 sbatch Study1_Subj1.sh
 sbatch Study1_Subj2.sh
 sbatch Study1_Subj3.sh
+
+#RUNNING
 sbatch Study1_Subj4.sh
 sbatch Study1_Subj5.sh
 sbatch Study1_Subj6.sh
@@ -230,10 +233,12 @@ sbatch Study1_Subj7.sh
 sbatch Study1_Subj8.sh
 
 
+# NOT RUN YET
 cd ../
 cd ../
 cd ./rand_rerun/study3/
 
+# QUEUED
 sbatch Study3_Subj1.sh
 sbatch Study3_Subj2.sh
 sbatch Study3_Subj3.sh

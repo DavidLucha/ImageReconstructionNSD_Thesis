@@ -1,41 +1,44 @@
-from utils_2 import eval_grab, load_masters
-import eval_utils as nets
+import matplotlib
 
 import pandas as pd
-import os
+import matplotlib
 import matplotlib.pyplot as plt
-import scipy.stats as stats
-import numpy as np
 import pingouin as pg
 
 import numpy as np
 import operator
 import random
+import os
 
-from all_net_eval import visualise_s2n3, visualise_s1, perm_test
+matplotlib.style.use(matplotlib.get_data_path()+'/stylelib/apa.mplstyle')
 
-def grab_comp(df, study, nway=2, metric='LPIPS', subject=None, roi='VC', vox='1pt8mm'):
-
-    if subject is None:
-        subject = [1, 2, 3, 4, 5, 6, 7, 8]
-    comp =(df[
-        (df['study'] == study) & (df['nway'] == nway) & (df['metric'] == metric) & (df['subject'].isin(subject))
-        & (df['ROI'] == roi) & (df['vox_res'] == vox)
-               ])
-
-    return comp
+from eval_utils import visualise_s2n3, visualise_s2, perm_test, grab_scores, non_param_paired_CI, bootstrap_acc
 
 
-def grab_scores(df, study, nway=2, metric='LPIPS', roi='VC', vox='1pt8mm'):
+def study23_CIs():
+    # Calculates the CIs for each of the study 2 and 3 comparisons
+    df = pd.read_pickle('D:/Lucha_Data/final_networks/output/full_data_study_2n3.pkl')
 
-    comp =(df[
-        (df['study'] == study) & (df['nway'] == nway) & (df['metric'] == metric)
-        & (df['ROI'] == roi) & (df['vox_res'] == vox)
-               ])
+    # df = df.reset_index()
 
-    scores = np.array(comp['score'][0])
+    # set up p dictionary
+    values = dict(mean_acc=[], std_acc=[], CI=[], CI_diffs=[])
 
-    return scores
+    # Go through all study 1 experiments and get p value.
+    for id, row in df.iterrows():
+        # Calculate bootstrapped means
+        CI, CI_diffs = bootstrap_acc(row['score'], permutations=100, observations=500)  # TODO: Check this
+        values['CI'].append(CI)
+        values['CI_diffs'].append(CI_diffs)
+
+        mean_acc = np.mean(row['score'])
+        std_acc = np.std(row['score'])
+        values['mean_acc'].append(mean_acc)
+        values['std_acc'].append(std_acc)
+
+    values_df = pd.DataFrame.from_dict(values)
+
+    df = df.assign(mean_acc=values_df.mean_acc, std_acc=values_df.std_acc, CI=values_df.CI, CI_diffs=values_df.CI_diffs)
 
 
 def study2_analysis(df, dataframe, nways):
@@ -45,7 +48,7 @@ def study2_analysis(df, dataframe, nways):
     # Parameters
     study = 2
     # Testing voxel_resolution
-    corrections = 6
+    corrections = 6  # three nways, two metrics
     corrected_p = base_p / corrections
     # effect = 'voxel resolution'
     metrics = ['LPIPS', 'PCC']
@@ -69,9 +72,11 @@ def study2_analysis(df, dataframe, nways):
             wilcox = pg.wilcoxon(comp_1, comp_2, alternative='two-sided', correction='false')
             print(wilcox)
 
-            CI = non_param_paired_CI(comp_1, comp_2, 0.95)
-            # TODO: redefine and add new CI
-            print(CI)
+
+            CI_diff = non_param_paired_CI(comp_1, comp_2, 0.95)
+            # comp_1_mean_CI = bootstrap_acc(comp_1)
+            # comp_2_mean_CI = bootstrap_acc(comp_2)
+            # print(CI)
 
             p = wilcox.iloc[0]['p-val']
             t = wilcox.iloc[0]['W-val']
@@ -80,7 +85,7 @@ def study2_analysis(df, dataframe, nways):
             dataframe['comparison'].append(comparison)
             dataframe['comp_1_label'].append(comp_labels[0])
             dataframe['comp_2_label'].append(comp_labels[1])
-            dataframe['comp_1_scores'].append(comp_1)  # TODO: Check this is getting saved properly
+            dataframe['comp_1_scores'].append(comp_1)
             dataframe['comp_2_scores'].append(comp_2)
             dataframe['comp_diffs'].append(comp_1 - comp_2)
             dataframe['metric'].append(metric)
@@ -88,17 +93,18 @@ def study2_analysis(df, dataframe, nways):
             dataframe['comp_1_mean'].append(mean_1)
             dataframe['comp_1_mdn'].append(np.median(comp_1))
             dataframe['comp_1_std'].append(std_1)
+            # dataframe['comp_1_mean_CI'].append(comp_1_mean_CI)
             dataframe['comp_2_mean'].append(mean_2)
             dataframe['comp_2_mdn'].append(np.median(comp_2))
             dataframe['comp_2_std'].append(std_2)
+            # dataframe['comp_2_mean_CI'].append(comp_2_mean_CI)
             dataframe['mean_diff'].append(np.mean(comp_1 - comp_2))
             dataframe['mdn_diff'].append(np.median(comp_1 - comp_2))
+            dataframe['CI_diff'].append(CI_diff)
             dataframe['t'].append(t)
             dataframe['p'].append(p)
-            dataframe['CI'].append(CI)
             dataframe['RBC'].append(wilcox.iloc[0]['RBC'])
             dataframe['CLES'].append(wilcox.iloc[0]['CLES'])
-            # TODO CI and effect
 
             if sig:
                 if p < 0.001:
@@ -119,122 +125,156 @@ def study2_analysis(df, dataframe, nways):
                     comparison, corrected_p, metric, n, mean_1, std_1, mean_2, std_2, t, p_report)
             print(wilcoxon_statement)
 
-    return dataframe, wilcox, CI
+    return dataframe, wilcox
 
 
-def plot_hist(data, label, type='scores', plot_ci=False, ci=None):
-    plt.cla()
-    kwargs = dict(alpha=0.2, bins=50)
+def study3_wilcox(comp_1, comp_2, dataframe, comp_1_label, comp_2_label):
+    mean_1 = np.mean(comp_1)
+    std_1 = np.std(comp_1)
 
-    colours = ['b','r','g']
-    count = 0
-    for d in data:
-        colour = colours[count]
-        plt.hist(d, **kwargs, color=colour, label=label[count])
-        plt.axvline(d.mean(), color='k', linestyle='dashed', linewidth=1)
-        count += 1
+    mean_2 = np.mean(comp_2)
+    std_2 = np.std(comp_2)
 
-    if type=='scores':
-        plt.gca().set(title='Distribution of Accuracy Scores', ylabel='Frequency')
-    else:
-        plt.gca().set(title='Distribution of Accuracy Differences Scores', ylabel='Frequency')
+    wilcox = pg.wilcoxon(comp_1, comp_2, alternative='two-sided', correction='false')
+    print(wilcox)
 
-    if plot_ci and ci is not None:
-        plt.axvline(ci[0], color='r', linestyle='dashed', linewidth=1)
-        plt.axvline(ci[1], color='b', linestyle='dashed', linewidth=1)
-
-    plt.legend()
-    plt.show()
-
-    # custom func for confidence interval for differences
-    # for (non-Gaussian paired data) Example: Wilcoxon signed-rank test
-    # https://towardsdatascience.com/prepare-dinner-save-the-day-by-calculating-confidence-interval-of-non-parametric-statistical-29d031d079d0
-
-def non_param_paired_CI(sample1, sample2, conf):
-    n = len(sample1)
-    alpha = 1-conf
-    N = stats.norm.ppf(1 - alpha/2)
-
-    # The confidence interval for the difference between the two population
-    # medians is derived through the n(n+1)/2 possible averaged differences.
-    diff_sample = sorted(list(map(operator.sub, sample2, sample1)))
-    averages = sorted([(s1+s2)/2 for i, s1 in enumerate(diff_sample) for _, s2 in enumerate(diff_sample[i:])])
-
-    # the Kth smallest to the Kth largest of the averaged differences then
-    # determine the confidence interval, where K is:
-    k = np.math.ceil(n*(n+1)/4 - (N * (n*(n+1)*(2*n+1)/24)**0.5))
-
-    CI = (round(averages[k-1],3), round(averages[len(averages)-k],3))
-    return CI
+    CI_diff = non_param_paired_CI(comp_1, comp_2, 0.95)
 
 
-def bootstrap_acc(scores):
-    boot_orig = scores
-    boot_orig = np.array(boot_orig)
-    # mean_orig = np.mean(boot_orig)
+    p = wilcox.iloc[0]['p-val']
+    t = wilcox.iloc[0]['W-val']
+    # sig = p < corrected_p
 
-    bootstrapped_means = []
+    dataframe['comp_1_label'].append(comp_1_label)
+    dataframe['comp_2_label'].append(comp_2_label)
+    dataframe['comp_1_scores'].append(comp_1)
+    dataframe['comp_2_scores'].append(comp_2)
+    dataframe['comp_diffs'].append(comp_1 - comp_2)
+    dataframe['comp_1_mean'].append(mean_1)
+    dataframe['comp_1_mdn'].append(np.median(comp_1))
+    dataframe['comp_1_std'].append(std_1)
+    # dataframe['comp_1_mean_CI'].append(comp_1_mean_CI)
+    dataframe['comp_2_mean'].append(mean_2)
+    dataframe['comp_2_mdn'].append(np.median(comp_2))
+    dataframe['comp_2_std'].append(std_2)
+    # dataframe['comp_2_mean_CI'].append(comp_2_mean_CI)
+    dataframe['mean_diff'].append(np.mean(comp_1 - comp_2))
+    dataframe['mdn_diff'].append(np.median(comp_1 - comp_2))
+    dataframe['CI_diff'].append(CI_diff)
+    dataframe['t'].append(t)
+    dataframe['p'].append(p)
+    dataframe['RBC'].append(wilcox.iloc[0]['RBC'])
+    dataframe['CLES'].append(wilcox.iloc[0]['CLES'])
 
-    for i in range(10000):
-        # TODO: Check how many the sample
-      y = random.sample(boot_orig.tolist(), 1000)
-      avg = np.mean(y)
-      bootstrapped_means.append(avg)
+    return dataframe
 
-    bootstrapped_means_all = np.mean(bootstrapped_means)
 
-    bootstrapped_means = np.array(bootstrapped_means)
+def fried_append(dict, friedman, metric, n):
+    dict['metric'].append(metric)
+    dict['nway'].append(n)
+    dict['W'].append(friedman.iloc[0]['W'])
+    dict['df'].append(friedman.iloc[0]['ddof1'])
+    dict['Q'].append(friedman.iloc[0]['Q'])
+    dict['p'].append(friedman.iloc[0]['p-unc'])
 
-    lower_bound = np.percentile(bootstrapped_means, 2.5)
-    upper_bound = np.percentile(bootstrapped_means, 97.5)
-    ci = [lower_bound, upper_bound]
+    return dict
 
-    # plot_hist([bootstrapped_means], 'bootstrap dist', plot_ci=True, ci=ci)
 
-    # z_lower = (ci[0]-bootstrapped_means_all)/np.std(bootstrapped_means)
-    # p, sig = perm_test(bootstrapped_means, boot_orig)
-    return ci
+def study3_analysis(df, dataframe, nways):
+    #
+    df = orig_df[orig_df['study'] == 3]
+    df = df.reset_index(drop=True)
+
+    base_p = 0.05
+
+    # Study 2
+    # Parameters
+    study = 3
+    # Testing voxel_resolution
+    corrections = 6
+    corrected_p = base_p / corrections
+    # effect = 'voxel resolution'
+    metrics = ['LPIPS', 'PCC']
+    comparison = 'ROI'
+    comp_labels = ['V1toV3', 'HVC', 'V1toV3nHVC', 'V1toV3nRand']
+    fried_list = ['V1toV3', 'V1toV3nHVC', 'V1toV3nRand']
+    fried_data = dict(metric=[], nway=[], W=[], df=[], Q=[], p=[])
+
+    for metric in metrics:
+        for n in nways:
+            # TODO: Remove these
+            # metric = 'LPIPS'
+            # n = 5
+            # Do friedmans'
+            sub_df = df[(df['metric'] == metric) & (df['nway'] == n) & (df['ROI'].isin(fried_list))]
+            fried_df = sub_df[['run_name','score']]
+            # Get names
+            run_names = fried_df['run_name'].tolist()
+            fried_df_t = fried_df.T[1:]
+            fried_df_t.columns = run_names
+            explode = fried_df_t.explode(['study3_{}-way_{}_V1toV3'.format(n, metric),
+                                          'study3_{}-way_{}_V1toV3nHVC'.format(n, metric),
+                                          'study3_{}-way_{}_V1toV3nRand'.format(n, metric)]).reset_index(drop=True)
+            # explode.iloc[:,0]
+            # TODO: Check precision of how we save these values
+            explode = explode.astype(float)
+            friedman_out = pg.friedman(explode)
+
+            print(friedman_out)
+
+            # add to dictionary
+            fried_data = fried_append(fried_data, friedman_out, metric, n)
+
+            # These zipped lists defined the comparison we want
+            list_comp_1 = ['V1toV3', 'V1toV3nHVC', 'V1toV3nHVC', 'V1toV3nRand']
+            list_comp_2 = ['HVC', 'V1toV3', 'V1toV3nRand', 'V1toV3']
+
+            for big, little in zip(list_comp_1, list_comp_2):
+                comp_1 = grab_scores(df, study=study, roi=big, metric=metric, nway=n)
+
+                # 3mm
+                comp_2 = grab_scores(df, study=study, roi=little, metric=metric, nway=n)
+
+                dataframe = study3_wilcox(comp_1, comp_2, dataframe, big, little)
+                dataframe['metric'].append(metric)
+                dataframe['nway'].append(n)
+                dataframe['comparison'].append(comparison)
+
+
+    return dataframe, fried_data  # , wilcox
 
 
 full_df = pd.read_pickle('D:/Lucha_Data/final_networks/output/full_dataset.pkl')
 data_df = pd.read_pickle('D:/Lucha_Data/final_networks/output/full_data_study_2n3.pkl')
 
-data = dict(comparison=[],comp_1_label=[],comp_2_label=[],comp_1_scores=[],comp_2_scores=[],comp_diffs=[],metric=[],
-            nway=[],comp_1_mean=[],comp_1_mdn=[],comp_1_std=[],comp_2_mean=[],comp_2_mdn=[],comp_2_std=[], mean_diff=[],
-            mdn_diff=[],t=[],p=[],CI=[],RBC=[],CLES=[])
-# TODO: Add CI and effect size ,ci=[],effect_size=[]
+data = dict(comparison=[], comp_1_label=[], comp_2_label=[], comp_1_scores=[], comp_2_scores=[], comp_diffs=[],
+            metric=[], nway=[], comp_1_mean=[], comp_1_mdn=[], comp_1_std=[], comp_2_mean=[],
+            comp_2_mdn=[],comp_2_std=[], mean_diff=[], mdn_diff=[], CI_diff=[], t=[], p=[], RBC=[], CLES=[])
 
-# Study 2
 nways=[2,5,10]
-data_comp, wilcox, CI = study2_analysis(data_df, data, nways)
+save_path='D:/Lucha_Data/final_networks/output/'
+# ------------------------ Study 2 ------------------------
+study2 = False
+if study2:
+    data_comp, wilcox = study2_analysis(data_df, data, nways)
 
-data_comp_df = pd.DataFrame.from_dict(data_comp)
+    data_comp_df = pd.DataFrame.from_dict(data_comp)
 
-# wilcox.iloc[0]['W-val']
+# print(matplotlib.get_data_path())
 
+# ------------------------ STUDY 3 ------------------------
+# Data here is only used for follow up, not for friedmans
+data_s3 = dict(comparison=[], comp_1_label=[], comp_2_label=[], comp_1_scores=[], comp_2_scores=[], comp_diffs=[],
+            metric=[], nway=[], comp_1_mean=[], comp_1_mdn=[], comp_1_std=[], comp_2_mean=[],
+            comp_2_mdn=[],comp_2_std=[], mean_diff=[], mdn_diff=[], CI_diff=[], t=[], p=[], RBC=[], CLES=[])
 
-"""plot_hist([data_comp_df.iloc[0]['comp_1_scores']], label=['LPIP 1.8mm 2-way'], type='scores')
-plot_hist([data_comp_df.iloc[0]['comp_2_scores']], label=['LPIP 3mm 2-way'], type='scores')
-# plot_hist([data_comp_df.iloc[0]['comp_1_scores'],data_comp_df.iloc[0]['comp_2_scores']], label=['LPIP 1.8mm 2-way', 'LPIP 3mm 2-way'], type='scores')
-plot_hist([data_comp_df.iloc[0]['comp_diffs']], label=['LPIP 1.8 vs 3 diff 2-way'], type='scores')
+orig_df = pd.read_pickle('D:/Lucha_Data/final_networks/output/full_data_study_2n3.pkl')
+study3_wilcox_out, study3_fried_out = study3_analysis(orig_df, data_s3, nways=nways)
 
-plot_hist([data_comp_df.iloc[1]['comp_1_scores']], label=['LPIP 1.8mm 5-way'], type='scores')
-plot_hist([data_comp_df.iloc[1]['comp_2_scores']], label=['LPIP 3mm 5-way'], type='scores')
-# plot_hist([data_comp_df.iloc[0]['comp_1_scores'],data_comp_df.iloc[0]['comp_2_scores']], label=['LPIP 1.8mm 2-way', 'LPIP 3mm 2-way'], type='scores')
-plot_hist([data_comp_df.iloc[1]['comp_diffs']], label=['LPIP 1.8 vs 3 diff 5-way'], type='scores')
+study3_wilcox_out_df = pd.DataFrame.from_dict(study3_wilcox_out)
+study3_fried_out_df = pd.DataFrame.from_dict(study3_fried_out)
 
-plot_hist([data_comp_df.iloc[2]['comp_1_scores']], label=['LPIP 1.8mm 10-way'], type='scores')
-plot_hist([data_comp_df.iloc[2]['comp_2_scores']], label=['LPIP 3mm 10-way'], type='scores')
-# plot_hist([data_comp_df.iloc[0]['comp_1_scores'],data_comp_df.iloc[0]['comp_2_scores']], label=['LPIP 1.8mm 2-way', 'LPIP 3mm 2-way'], type='scores')
-plot_hist([data_comp_df.iloc[2]['comp_diffs']], label=['LPIP 1.8 vs 3 diff 10-way'], type='scores')"""
-# stats.wilcoxon(comp_1['lpips'], comp_2['lpips'])
-# TEST
+study3_wilcox_out_df.to_pickle(os.path.join(save_path, 'study3_wilcox_out.pkl'))
+study3_fried_out_df.to_pickle(os.path.join(save_path, 'study3_fried_out.pkl'))
+#TEST
 # df = pd.read_pickle('D:/Lucha_Data/final_networks/output/full_data_study_2n3.pkl')
-# study = 2
-# metric = 'LPIPS'
-# n = 2
-
-# spss_grab = grab_comp(data_df,2,2,'LPIPS',roi='VC',vox='3mm')
-# spss_test = data_comp_df.iloc[0].explode('')
-
-
