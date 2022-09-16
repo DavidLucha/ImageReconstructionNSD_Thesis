@@ -247,34 +247,69 @@ def study3_analysis(df, dataframe, nways):
 full_df = pd.read_pickle('D:/Lucha_Data/final_networks/output/full_dataset.pkl')
 data_df = pd.read_pickle('D:/Lucha_Data/final_networks/output/full_data_study_2n3.pkl')
 
-data = dict(comparison=[], comp_1_label=[], comp_2_label=[], comp_1_scores=[], comp_2_scores=[], comp_diffs=[],
-            metric=[], nway=[], comp_1_mean=[], comp_1_mdn=[], comp_1_std=[], comp_2_mean=[],
-            comp_2_mdn=[],comp_2_std=[], mean_diff=[], mdn_diff=[], CI_diff=[], t=[], p=[], RBC=[], CLES=[])
-
 nways=[2,5,10]
+
 save_path='D:/Lucha_Data/final_networks/output/'
+
 # ------------------------ Study 2 ------------------------
 study2 = False
 if study2:
+    data = dict(comparison=[], comp_1_label=[], comp_2_label=[], comp_1_scores=[], comp_2_scores=[], comp_diffs=[],
+                metric=[], nway=[], comp_1_mean=[], comp_1_mdn=[], comp_1_std=[], comp_2_mean=[],
+                comp_2_mdn=[], comp_2_std=[], mean_diff=[], mdn_diff=[], CI_diff=[], t=[], p=[], RBC=[], CLES=[])
+
     data_comp, wilcox = study2_analysis(data_df, data, nways)
 
     data_comp_df = pd.DataFrame.from_dict(data_comp)
 
+    save_path = 'D:/Lucha_Data/final_networks/output/'
+    data_comp_df.to_pickle(os.path.join(save_path, 'study2_wilcox_out.pkl'))
+
 # print(matplotlib.get_data_path())
 
+
 # ------------------------ STUDY 3 ------------------------
-# Data here is only used for follow up, not for friedmans
-data_s3 = dict(comparison=[], comp_1_label=[], comp_2_label=[], comp_1_scores=[], comp_2_scores=[], comp_diffs=[],
-            metric=[], nway=[], comp_1_mean=[], comp_1_mdn=[], comp_1_std=[], comp_2_mean=[],
-            comp_2_mdn=[],comp_2_std=[], mean_diff=[], mdn_diff=[], CI_diff=[], t=[], p=[], RBC=[], CLES=[])
+study3 = False
 
-orig_df = pd.read_pickle('D:/Lucha_Data/final_networks/output/full_data_study_2n3.pkl')
-study3_wilcox_out, study3_fried_out = study3_analysis(orig_df, data_s3, nways=nways)
+if study3:
+    # Data here is only used for follow up, not for friedmans
+    data_s3 = dict(comparison=[], comp_1_label=[], comp_2_label=[], comp_1_scores=[], comp_2_scores=[], comp_diffs=[],
+                metric=[], nway=[], comp_1_mean=[], comp_1_mdn=[], comp_1_std=[], comp_2_mean=[],
+                comp_2_mdn=[],comp_2_std=[], mean_diff=[], mdn_diff=[], CI_diff=[], t=[], p=[], RBC=[], CLES=[])
 
-study3_wilcox_out_df = pd.DataFrame.from_dict(study3_wilcox_out)
-study3_fried_out_df = pd.DataFrame.from_dict(study3_fried_out)
+    orig_df = pd.read_pickle('D:/Lucha_Data/final_networks/output/full_data_study_2n3.pkl')
+    study3_wilcox_out, study3_fried_out = study3_analysis(orig_df, data_s3, nways=nways)
 
-study3_wilcox_out_df.to_pickle(os.path.join(save_path, 'study3_wilcox_out.pkl'))
-study3_fried_out_df.to_pickle(os.path.join(save_path, 'study3_fried_out.pkl'))
-#TEST
-# df = pd.read_pickle('D:/Lucha_Data/final_networks/output/full_data_study_2n3.pkl')
+    study3_wilcox_out_df = pd.DataFrame.from_dict(study3_wilcox_out)
+    study3_fried_out_df = pd.DataFrame.from_dict(study3_fried_out)
+
+    study3_wilcox_out_df.to_pickle(os.path.join(save_path, 'study3_wilcox_out.pkl'))
+    study3_fried_out_df.to_pickle(os.path.join(save_path, 'study3_fried_out.pkl'))
+    #TEST
+    # df = pd.read_pickle('D:/Lucha_Data/final_networks/output/full_data_study_2n3.pkl')
+
+
+# ------------------------ SAVE ALL OUTPUTS AS CSVs ---------------------------
+save_path='D:/Lucha_Data/final_networks/output/'
+
+study1_out_df = pd.read_pickle(os.path.join(save_path, 'full_data_study_1.pkl'))
+study2_wilcox_out_df = pd.read_pickle(os.path.join(save_path, 'study2_wilcox_out.pkl'))
+study2n3_means_CIs_df = pd.read_pickle(os.path.join(save_path, 'full_data_study_2n3.pkl'))
+study3_fried_out_df = pd.read_pickle(os.path.join(save_path, 'study3_fried_out.pkl'))
+study3_wilcox_out_df = pd.read_pickle(os.path.join(save_path, 'study3_wilcox_out.pkl'))
+
+# Add 'Subject' 'n-way' prefix to all values for graphing
+study1_out_df['subject'] = 'Subject ' + study1_out_df['subject'].astype(str)
+study1_out_df['nway'] = study1_out_df['nway'].astype(str) + '-way'
+
+study2n3_means_CIs_df['nway'] = study2n3_means_CIs_df['nway'].astype(str) + '-way'
+# study2n3_means_CIs_df['nway'] = study2n3_means_CIs_df['nway'].astype(str) + '-way'
+
+with pd.ExcelWriter(os.path.join(save_path, 'all_studies_results.xlsx')) as writer:
+    study1_out_df.to_excel(writer, sheet_name='Study 1')
+    study2_wilcox_out_df.to_excel(writer, sheet_name='Study 2 Wilcox')
+    study2n3_means_CIs_df.to_excel(writer, sheet_name='Study 2n3 CIs')
+    study3_fried_out_df.to_excel(writer, sheet_name='Study 3 Friedmans')
+    study3_wilcox_out_df.to_excel(writer, sheet_name='Study 3 Wilcox')
+
+print(np.mean(study1_out_df['score'][0]))

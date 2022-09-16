@@ -153,8 +153,9 @@ def main():
         # if count == 1:
         #     break
 
-        # if count == 8:
-        #     # raise Exception('check masters')
+        # TODO: Remove
+        if count == 1:
+            raise Exception('check masters')
         #     break
 
     # Setup writers
@@ -215,6 +216,7 @@ def main():
 
 if __name__ == "__main__":
     # Main spits out the main dataframe with the scores
+    # TODO: run main first
     # df = main()
 
     save_dir = 'D:/Lucha_Data/final_networks/output/'
@@ -234,7 +236,7 @@ if __name__ == "__main__":
         copy = copy.assign(perm_score=df['score'])
 
         # set up p dictionary
-        values = dict(p_values=[], sig=[], mean_acc=[], std_acc=[], CI=[], CI_diffs=[])
+        values = dict(p_values=[], sig=[], mean_acc=[], std_acc=[], CI_LB=[], CI_UB=[], CI_diff_low=[], CI_diff_high=[])
 
         # Go through all study 1 experiments and get p value.
         for id, row in copy[copy['study']==1].iterrows():
@@ -243,9 +245,13 @@ if __name__ == "__main__":
             values['sig'].append(sig)
 
             # Calculate bootstrapped means
-            CI, CI_diffs = bootstrap_acc(row['score'], permutations=100, observations=500) # TODO: Check this
-            values['CI'].append(CI)
-            values['CI_diffs'].append(CI_diffs)
+            observations = len(row['score'])
+            # print(observations)
+            CI, CI_diffs = bootstrap_acc(row['score'], permutations=100, observations=observations) # TODO: 10k perms
+            values['CI_LB'].append(CI[0])
+            values['CI_UB'].append(CI[1])
+            values['CI_diff_low'].append(CI_diffs[0])
+            values['CI_diff_high'].append(CI_diffs[1])
 
             mean_acc = np.mean(row['score'])
             std_acc = np.std(row['score'])
@@ -255,7 +261,8 @@ if __name__ == "__main__":
         values_df = pd.DataFrame.from_dict(values)
 
         copy = copy.assign(p_value=values_df.p_values, significance=values_df.sig, mean_acc=values_df.mean_acc,
-                           std_acc=values_df.std_acc, CI=values_df.CI, CI_diffs=values_df.CI_diffs)
+                           std_acc=values_df.std_acc, CI_LB=values_df.CI_LB, CI_UB=values_df.CI_UB,
+                           CI_diff_low=values_df.CI_diff_low, CI_diff_high=values_df.CI_diff_high)
 
         copy = copy[copy['study']==1]
 
@@ -292,11 +299,32 @@ if __name__ == "__main__":
 
         for metric in metrics:
             for nway in nways:
+                # TODO: Remove
+                # metric = 'LPIPS'
+                # nway = 5
                 run_count += 1
+                # nway_label = '{}-way'.format(nway)
                 comp = grab_comp(full_df, study=1, nway=nway, metric=metric, subject=all_subs, roi=ROI, vox=vox_res)
                 # run_name last variable is IV
                 run_name = 'study{}_{}-way_{}_{}'.format(study, nway, metric, vox_res)
                 implode_comp = group_by(comp, run_name)
+
+                mean_acc = np.mean(implode_comp['score'][0])
+                std_acc = np.std(implode_comp['score'][0])
+                implode_comp['mean_acc'] = mean_acc
+
+                CI, CI_diffs = bootstrap_acc(implode_comp['score'][0], permutations=100, observations=872)  # TODO: Check this
+                implode_comp['CI_LB'] = CI[0]
+                implode_comp['CI_UP'] = CI[1]
+                implode_comp['CI_diff_low'] = CI_diffs[0]
+                implode_comp['CI_diff_high'] = CI_diffs[1]
+
+                # print(len(implode_comp['score'][0]))
+                # test = implode_comp['score']
+
+                implode_comp['std_acc'] = std_acc
+
+                # implode_comp['CI'] = 1.04
                 if run_count == 1:
                     data_df = implode_comp
                 else:
@@ -313,10 +341,28 @@ if __name__ == "__main__":
         for metric in metrics:
             for nway in nways:
                 run_count += 1
+                # nway_label = '{}-way'.format(nway)
                 comp = grab_comp(full_df, study=2, nway=nway, metric=metric, subject=all_subs, roi=ROI, vox=vox_res)
                 # run_name last variable is IV
                 run_name = 'study{}_{}-way_{}_{}'.format(study, nway, metric, vox_res)
                 implode_comp = group_by(comp, run_name)
+
+                mean_acc = np.mean(implode_comp['score'][0])
+                std_acc = np.std(implode_comp['score'][0])
+                implode_comp['mean_acc'] = mean_acc
+
+                CI, CI_diffs = bootstrap_acc(implode_comp['score'][0], permutations=100,
+                                             observations=872)  # TODO: Check this
+                implode_comp['CI_LB'] = CI[0]
+                implode_comp['CI_UP'] = CI[1]
+                implode_comp['CI_diff_low'] = CI_diffs[0]
+                implode_comp['CI_diff_high'] = CI_diffs[1]
+
+                # print(len(implode_comp['score'][0]))
+                # test = implode_comp['score']
+
+                implode_comp['std_acc'] = std_acc
+
                 if run_count == 1:
                     data_df = implode_comp
                 else:
@@ -334,23 +380,44 @@ if __name__ == "__main__":
             for metric in metrics:
                 for nway in nways:
                     run_count += 1
+                    # nway_label = '{}-way'.format(nway)
                     comp = grab_comp(full_df, study=study, nway=nway, metric=metric, subject=all_subs, roi=area, vox=vox_res)
                     # run_name last variable is IV
                     run_name = 'study{}_{}-way_{}_{}'.format(study, nway, metric, area)
                     implode_comp = group_by(comp, run_name)
+
+                    mean_acc = np.mean(implode_comp['score'][0])
+                    std_acc = np.std(implode_comp['score'][0])
+                    implode_comp['mean_acc'] = mean_acc
+
+                    CI, CI_diffs = bootstrap_acc(implode_comp['score'][0], permutations=100,
+                                                 observations=872)  # TODO: Check this
+                    implode_comp['CI_LB'] = CI[0]
+                    implode_comp['CI_UP'] = CI[1]
+                    implode_comp['CI_diff_low'] = CI_diffs[0]
+                    implode_comp['CI_diff_high'] = CI_diffs[1]
+
+                    # print(len(implode_comp['score'][0]))
+                    # test = implode_comp['score']
+
+                    implode_comp['std_acc'] = std_acc
+
                     if run_count == 1:
                         data_df = implode_comp
                     else:
                         data_df = pd.concat([data_df, implode_comp])
 
-        # TODO: Could add reset_index here.
-        data_df = data_df.reset_index()
+        data_df = data_df.reset_index(drop=True)
 
         data_df.to_pickle(os.path.join(save_dir, 'full_data_study_2n3.pkl'))
 
+        return data_df
+
+    data = study_2n3()
+
     # --------------------------------- END data for Study 2/3 --------------------------------- #
 
-
+    exit(0)
 
     # ------------ CALCULATE AND ADD CIs ------------ #
 

@@ -1,7 +1,7 @@
 import pickle
 import pandas as pd
 import numpy as np
-from bdpy import BData
+# from bdpy import BData
 import csv
 import os
 import torch
@@ -107,7 +107,7 @@ lpips = pd.read_csv(file_dir, index_col=0)
 lpips_np = lpips.to_numpy()
 
 nway = 5
-repeats = 100
+repeats = 1000
 
 results_net = []
 results_net_rank = []
@@ -146,6 +146,11 @@ for row in lpips_np:
 end = time.time()
 print('Time for {} ='.format(repeats), end - start)
 print('Overall accuracy is {}'.format(np.mean(results_net)))
+
+result_avg = sum(results_net)/len(results_net)
+print(result_avg)
+
+print(np.mean(results_net))
 
 
 
