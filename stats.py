@@ -288,6 +288,7 @@ if study3:
     #TEST
     # df = pd.read_pickle('D:/Lucha_Data/final_networks/output/full_data_study_2n3.pkl')
 
+# exit(69)
 
 # ------------------------ SAVE ALL OUTPUTS AS CSVs ---------------------------
 save_path='D:/Lucha_Data/final_networks/output/'
@@ -312,4 +313,24 @@ with pd.ExcelWriter(os.path.join(save_path, 'all_studies_results.xlsx')) as writ
     study3_fried_out_df.to_excel(writer, sheet_name='Study 3 Friedmans')
     study3_wilcox_out_df.to_excel(writer, sheet_name='Study 3 Wilcox')
 
-print(np.mean(study1_out_df['score'][0]))
+# print(np.mean(study1_out_df['score'][0]))
+
+
+exit(69)
+
+
+# Calculate bootstrapped means | perm
+observations = len(study1_out_df['perm_score'][3])
+_, _, bootstrap_perm = bootstrap_acc(study1_out_df['perm_score'][3], permutations=100, observations=observations) # TODO: 10k perms
+
+observations = len(study1_out_df['score'][3])
+_, _, bootstrap_real = bootstrap_acc(study1_out_df['score'][3], permutations=100, observations=observations) # TODO: 10k perms
+
+kwargs = dict(alpha=0.2, bins=50)
+
+plt.cla()
+
+plt.hist(bootstrap_perm, **kwargs, color='b', label='LPIPS')
+plt.hist(bootstrap_real, **kwargs, color='r', label='LPIPS')
+
+plt.show()

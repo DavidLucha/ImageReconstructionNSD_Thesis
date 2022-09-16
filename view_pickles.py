@@ -17,8 +17,122 @@ import training_config as cfg
 import random
 import statistics
 import time
+import shutil
+from random import choices
 
 from utils_2 import nway_comp, pairwise_comp
+from eval_utils import visualise_s2n3, visualise_s2, perm_test, grab_scores, non_param_paired_CI, bootstrap_acc, \
+    save_20images
+
+"""# TEST CHOICES
+list = np.arange(1,100,1)
+permutations = 100
+
+
+
+for i in range(permutations):
+    # TODO: Check how many the sample
+    # y = random.sample(boot_orig.tolist(), observations)
+    y = choices(list, k=99)
+    # avg = np.mean(y)
+    # bootstrapped_means.append(avg)
+"""
+
+
+
+# TESTING THE RECON GRAB
+root_dir = 'D:/Lucha_Data/final_networks/output/'
+recon_out_path = 'D:/Lucha_Data/final_networks/output/recons_out/'
+# root_dir = 'C:/Users/david/Documents/Thesis/final_networks/output/'  # FOR laptop
+networks = os.path.join(root_dir, 'all_eval/')
+save_path = root_dir
+count = 0
+
+
+
+
+
+for folder in os.listdir(networks):
+    start = time.time()
+    count += 1
+
+    # print(folder)
+    folder_dir = os.path.join(networks, folder)
+
+    real_path = os.path.join(folder_dir, 'images/real/')
+    recon_path = os.path.join(folder_dir, 'images/recon/')
+
+    save_20images(in_path=real_path, out_path=recon_out_path, run_name=folder, type='real')
+    save_20images(in_path=recon_path, out_path=recon_out_path, run_name=folder, type='recon')
+    # if count == 2:
+    #     break
+
+exit(69)
+
+
+
+
+
+
+
+
+# Testing plotting perm bootstrap against score bootstrap
+save_path='D:/Lucha_Data/final_networks/output/'
+
+study1_out_df = pd.read_pickle(os.path.join(save_path, 'full_data_study_1.pkl'))
+study2_wilcox_out_df = pd.read_pickle(os.path.join(save_path, 'study2_wilcox_out.pkl'))
+study2n3_means_CIs_df = pd.read_pickle(os.path.join(save_path, 'full_data_study_2n3.pkl'))
+study3_fried_out_df = pd.read_pickle(os.path.join(save_path, 'study3_fried_out.pkl'))
+study3_wilcox_out_df = pd.read_pickle(os.path.join(save_path, 'study3_wilcox_out.pkl'))
+
+# Add 'Subject' 'n-way' prefix to all values for graphing
+study1_out_df['subject'] = 'Subject ' + study1_out_df['subject'].astype(str)
+study1_out_df['nway'] = study1_out_df['nway'].astype(str) + '-way'
+
+study2n3_means_CIs_df['nway'] = study2n3_means_CIs_df['nway'].astype(str) + '-way'
+# study2n3_means_CIs_df['nway'] = study2n3_means_CIs_df['nway'].astype(str) + '-way'
+
+# Calculate bootstrapped means | perm
+observations = len(study2n3_means_CIs_df['score'][4])
+_, _, bootstrap_1 = bootstrap_acc(study1_out_df['score'][4], permutations=1000, observations=observations) # TODO: 10k perms
+
+observations = len(study2n3_means_CIs_df['score'][10])
+ci, ci_diff, bootstrap_2 = bootstrap_acc(study1_out_df['score'][10], permutations=1000, observations=observations) # TODO: 10k perms
+
+kwargs = dict(alpha=0.2, bins=50)
+
+plt.cla()
+
+plt.hist(bootstrap_1, **kwargs, color='b', label='LPIPS')
+plt.hist(bootstrap_2, **kwargs, color='r', label='LPIPS')
+# plt.xlim([0.0,1.0])
+
+plt.show()
+
+raise Exception('check')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 study = 'Study1'
 study = int(study.split('y', 1)[1])

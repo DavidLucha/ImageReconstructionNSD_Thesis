@@ -10,6 +10,8 @@ import scipy.stats as stats
 import numpy as np
 import operator
 import random
+from random import choices
+import shutil
 
 from scipy.stats import norm
 
@@ -46,30 +48,34 @@ def bootstrap_acc(scores, permutations=10000, observations=1000):
 
     for i in range(permutations):
         # TODO: Check how many the sample
-      y = random.sample(boot_orig.tolist(), observations)
-      avg = np.mean(y)
-      bootstrapped_means.append(avg)
+        # y = random.sample(boot_orig.tolist(), observations)
+        y = choices(boot_orig, k=observations)
+        avg = np.mean(y)
+        bootstrapped_means.append(avg)
 
-    bootstrapped_means_all = np.mean(bootstrapped_means)
+    # bootstrapped_means_all = np.mean(bootstrapped_means)
 
-    bootstrapped_means = np.array(bootstrapped_means)
+    bootstrapped_means_arr = np.array(bootstrapped_means)
 
-    lower_bound = np.percentile(bootstrapped_means, 2.5)
-    upper_bound = np.percentile(bootstrapped_means, 97.5)
+    lower_bound = np.percentile(bootstrapped_means_arr, 2.5)
+    upper_bound = np.percentile(bootstrapped_means_arr, 97.5)
     ci = [lower_bound, upper_bound]
 
     upper_diff = upper_bound - mean_orig
     lower_diff = mean_orig - lower_bound
     ci_diff = [lower_diff, upper_diff]
 
+    # raise Exception('hello')
+
     # plot_hist([bootstrapped_means], 'bootstrap dist', plot_ci=True, ci=ci)
 
     # z_lower = (ci[0]-bootstrapped_means_all)/np.std(bootstrapped_means)
     # p, sig = perm_test(bootstrapped_means, boot_orig)
-    return ci, ci_diff
+    return ci, ci_diff  # , bootstrapped_means_arr
 
 
 def permute(repeats=100):
+    print('Running permutation test.')
     # TODO: Change this for laptop
     root_dir = 'D:/Lucha_Data/final_networks/output/'
     # root_dir = 'C:/Users/david/Documents/Thesis/final_networks/output/'  # FOR laptop
@@ -383,6 +389,55 @@ def grab_scores(df, study, nway=2, metric='LPIPS', roi='VC', vox='1pt8mm'):
     scores = np.array(comp['score'][0])
 
     return scores
+
+
+def save_20images(in_path, out_path, run_name, type='real'):
+    # TODO: change this list. Something a little better.
+    ids = [
+        'shared_nsd10064.png', # new food one
+        'shared_nsd38853.png', #
+        'shared_nsd36731.png', #
+        'shared_nsd69214.png', #
+        'shared_nsd68814.png', #
+
+        'shared_nsd49234.png', #
+        'shared_nsd69007.png', #
+        'shared_nsd21601.png', #
+        'shared_nsd43619.png', #
+        'shared_nsd03171.png', #
+
+        'shared_nsd05301.png', #
+        'shared_nsd28024.png', #
+        'shared_nsd28595.png', #
+        'shared_nsd03449.png', #
+        'shared_nsd03951.png', #
+
+        'shared_nsd17374.png', #
+        'shared_nsd55107.png', #
+        'shared_nsd49731.png', #
+        'shared_nsd12487.png', #
+        'shared_nsd63081.png', #
+
+        'shared_nsd11844.png', #
+        'shared_nsd13138.png', #
+        'shared_nsd08109.png', #
+        'shared_nsd27580.png', #
+        'shared_nsd34126.png' #
+    ]
+    # print('hi')
+    if type=='real':
+        save_path = os.path.join(out_path, run_name, 'real/')
+    else:
+        save_path = os.path.join(out_path, run_name, 'recon/')
+
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+    for image in os.listdir(in_path):
+        if image in ids:
+            image_path = os.path.join(in_path, image)
+            shutil.copy(image_path, save_path)
+
 
 
 def group_by(df, run_name):

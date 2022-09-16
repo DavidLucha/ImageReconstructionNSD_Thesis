@@ -9,7 +9,8 @@ import time
 import matplotlib.pyplot as plt
 
 from utils_2 import nway_comp, pairwise_comp, permutation
-from eval_utils import permute, perm_test, grab_comp, group_by, visualise_s1, visualise_s2n3, bootstrap_acc
+from eval_utils import permute, perm_test, grab_comp, group_by, visualise_s1, visualise_s2n3, bootstrap_acc, \
+    save_20images
 
 # Walk through folders in all eval network folders
 # Get scores from each trained network into dataframe
@@ -19,6 +20,7 @@ def main():
     # root_dir = 'C:/Users/david/Documents/Thesis/final_networks/output/'  # FOR laptop
     networks = os.path.join(root_dir,'all_eval/')
     save_path = root_dir
+    recon_out_path = os.path.join(root_dir,'recons_out/')
 
     nway = True
     pairwise = False
@@ -59,6 +61,13 @@ def main():
 
         # print(folder)
         folder_dir = os.path.join(networks, folder)
+
+        # Save the selected images out
+        # real_path = os.path.join(folder_dir, 'images/real/')
+        # recon_path = os.path.join(folder_dir, 'images/recon/')
+
+        # save_20images(in_path=real_path, out_path=recon_out_path, run_name=folder, type='real')
+        # save_20images(in_path=recon_path, out_path=recon_out_path, run_name=folder, type='recon')
 
         # Get name of network
         sep = '_Stage3_'
@@ -154,8 +163,8 @@ def main():
         #     break
 
         # TODO: Remove
-        if count == 1:
-            raise Exception('check masters')
+        # if count == 1:
+        #     raise Exception('check masters')
         #     break
 
     # Setup writers
@@ -214,12 +223,38 @@ def main():
     return df
 
 
+def save_recons():
+    root_dir = 'D:/Lucha_Data/final_networks/output/'
+    recon_out_path = 'D:/Lucha_Data/final_networks/output/recons_out/'
+    networks = os.path.join(root_dir, 'all_eval/')
+    count = 0
+
+    for folder in os.listdir(networks):
+        start = time.time()
+        count += 1
+
+        # print(folder)
+        folder_dir = os.path.join(networks, folder)
+
+        real_path = os.path.join(folder_dir, 'images/real/')
+        recon_path = os.path.join(folder_dir, 'images/recon/')
+
+        save_20images(in_path=real_path, out_path=recon_out_path, run_name=folder, type='real')
+        save_20images(in_path=recon_path, out_path=recon_out_path, run_name=folder, type='recon')
+
+        # TODO: REMOVE THIS
+        if count == 2:
+            break
+
+
 if __name__ == "__main__":
     # Main spits out the main dataframe with the scores
-    # TODO: run main first
+    # TODO: run main first. DONE.
     # df = main()
 
-    save_dir = 'D:/Lucha_Data/final_networks/output/'
+    # exit(69)
+
+    save_dir = 'D:/Lucha_Data/final_networks/output/' # TODO: Change this.
     # df.to_pickle(os.path.join(save_dir, 'test_perm.pkl'))
 
     full_df = pd.read_pickle('D:/Lucha_Data/final_networks/output/full_dataset.pkl')
@@ -228,7 +263,7 @@ if __name__ == "__main__":
 
     def study_1():
         # Even with 500 with are getting stupid significant. Run 100k only if needed.
-        df = permute(100)  # TODO: RUN with 100k
+        df = permute(1000)  # TODO: RUN with 100k
 
         copy = full_df
 
@@ -247,7 +282,7 @@ if __name__ == "__main__":
             # Calculate bootstrapped means
             observations = len(row['score'])
             # print(observations)
-            CI, CI_diffs = bootstrap_acc(row['score'], permutations=100, observations=observations) # TODO: 10k perms
+            CI, CI_diffs = bootstrap_acc(row['score'], permutations=10000, observations=observations) # TODO: 10k perms
             values['CI_LB'].append(CI[0])
             values['CI_UB'].append(CI[1])
             values['CI_diff_low'].append(CI_diffs[0])
@@ -268,7 +303,11 @@ if __name__ == "__main__":
 
         copy.to_pickle(os.path.join(save_dir, 'full_data_study_1.pkl'))
 
-    study_1()
+        return copy
+
+    # study1_out = study_1()
+
+    # exit(69)
 
 
     # ------------- END ------------- #
@@ -313,7 +352,9 @@ if __name__ == "__main__":
                 std_acc = np.std(implode_comp['score'][0])
                 implode_comp['mean_acc'] = mean_acc
 
-                CI, CI_diffs = bootstrap_acc(implode_comp['score'][0], permutations=100, observations=872)  # TODO: Check this
+                observations = len(implode_comp['score'][0])
+
+                CI, CI_diffs = bootstrap_acc(implode_comp['score'][0], permutations=10000, observations=observations)  # TODO: Check this
                 implode_comp['CI_LB'] = CI[0]
                 implode_comp['CI_UP'] = CI[1]
                 implode_comp['CI_diff_low'] = CI_diffs[0]
@@ -351,8 +392,10 @@ if __name__ == "__main__":
                 std_acc = np.std(implode_comp['score'][0])
                 implode_comp['mean_acc'] = mean_acc
 
-                CI, CI_diffs = bootstrap_acc(implode_comp['score'][0], permutations=100,
-                                             observations=872)  # TODO: Check this
+                observations = len(implode_comp['score'][0])
+
+                CI, CI_diffs = bootstrap_acc(implode_comp['score'][0], permutations=10000,
+                                             observations=observations)  # TODO: Check this
                 implode_comp['CI_LB'] = CI[0]
                 implode_comp['CI_UP'] = CI[1]
                 implode_comp['CI_diff_low'] = CI_diffs[0]
@@ -390,8 +433,10 @@ if __name__ == "__main__":
                     std_acc = np.std(implode_comp['score'][0])
                     implode_comp['mean_acc'] = mean_acc
 
-                    CI, CI_diffs = bootstrap_acc(implode_comp['score'][0], permutations=100,
-                                                 observations=872)  # TODO: Check this
+                    observations = len(implode_comp['score'][0])
+
+                    CI, CI_diffs = bootstrap_acc(implode_comp['score'][0], permutations=10000,
+                                                 observations=observations)  # TODO: Check this
                     implode_comp['CI_LB'] = CI[0]
                     implode_comp['CI_UP'] = CI[1]
                     implode_comp['CI_diff_low'] = CI_diffs[0]
@@ -413,10 +458,10 @@ if __name__ == "__main__":
 
         return data_df
 
-    data = study_2n3()
+    study2_data = study_2n3()
 
     # --------------------------------- END data for Study 2/3 --------------------------------- #
-
+    # raise Exception('check')
     exit(0)
 
     # ------------ CALCULATE AND ADD CIs ------------ #
