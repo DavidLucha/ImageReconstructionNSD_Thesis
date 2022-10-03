@@ -3,7 +3,7 @@ h5py==2.10.0
 matplotlib==3.3.4
 nibabel==3.2.2
 nilearn==0.9.1
-numpy==1.19.2
+numpy==1.22.0
 pandas==1.1.5
 Pillow==9.2.0
 progressbar33==2.4
