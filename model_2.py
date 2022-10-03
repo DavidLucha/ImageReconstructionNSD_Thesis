@@ -418,9 +418,9 @@ class VaeGan(nn.Module):
         z_mean, z_sigma (encoder output) = mus, log_variances | CHECK
 
         # We have these, but might readjust how these come from the model
-        1_x_tilde, De_pro_tilde (hidden, final disc output for vis recon) = hid_dis_pred, fin_dis_pred
-        v_x_tilde, G_pro_logits (hidden, final disc output for cog recon) = hid_dis_cog, fin_dis_cog
-        1_x, D_pro_logits (hidden, final disc output for real image) = hid_dis_real, fin_dis_real
+        1_x_tilde, De_pro_tilde (unused, final disc output for vis recon) = hid_dis_pred, fin_dis_pred
+        v_x_tilde, G_pro_logits (unused, final disc output for cog recon) = hid_dis_cog, fin_dis_cog
+        1_x, D_pro_logits (unused, final disc output for real image) = hid_dis_real, fin_dis_real
 
         KL_Loss | CHECK
 
@@ -461,7 +461,7 @@ class VaeGan(nn.Module):
             dec_fake_pred_loss = BCE(fin_dis_pred,
                                      Variable((torch.ones_like(fin_dis_pred.data) - g_scale_factor).cuda()))
 
-            # Hidden vis recon vs hidden real
+            # Hidden vis recon vs unused real
             # NLL_out = NLLNormal(hid_dis_pred, hid_dis_real)
             # print("NLL output is:", NLL_out, NLL_out.size())
             # feature_loss_sum = torch.sum(NLL_out, [1, 2, 3])

@@ -7,65 +7,44 @@ Please email me at dlucha@uqconnect.edu.au if you have any questions.
 
 ## Training Instructions
 
-1. Download data and set training_config.data_root to directory
-2. To pretrain, run pretrain.py. This will train a vae-gan model on image-only dataset (ImageNet 2011 Validation Set - download here: [LINK])
-3. For each dataset (using arg --dataset) run train_stage1.py. 
-4. For each subject, load the trained model from Stage 1 (using arg --prev_stage_trained), and run train_stage2.py and train_stage3.py sequentially (per subject). Make sure you update the --prev_stage_trained argument for Stage 3 (i.e., loading model from stage 2).
+1. Set up data (see Data section below).
+2. Set training_config.data_root to directory of your data.
+3. To pretrain, run pretrain_WAE.py. This will train a wae-gan model on image-only dataset.
+4. Then for each participant's data, load the trained model from Stage 1 (using args to define run name), and run train_stage2.py and train_stage3.py sequentially (per subject). Make sure you update the --prev_stage_trained argument for Stage 3 (i.e., loading model from stage 2).
 
-Note: X_config.py are important for detailing the directories for inputs and outputs.
+Note: training_config.py and model_config.py are important for detailing the directories for inputs and outputs.
 
 
 ### Requirements
 As per requirements.txt, the following are needed to run the main training scripts:
-- bdpy==0.18
-- h5py==2.10.0
-- matplotlib==3.3.4
-- nibabel==3.2.2
-- nilearn==0.9.1
-- numpy==1.19.2
-- pandas==1.1.5
-- Pillow==9.2.0
-- progressbar33==2.4
-- pycocotools==2.0.4
-- pycocotools_windows==2.0.0.2
-- scikit_image==0.17.2
-- scikit_learn==1.1.1
-- scipy==1.5.2
-- skimage==0.0
-- tensorboardX==2.5.1
-- tensorflow==2.9.1
-- torch==1.10.2
-- torchvision==0.11.3
-
-Note: See /data/requirement_w_preprocess.txt for dependencies used in data preprocessing.
-
+* matplotlib~=3.5.2
+* numpy~=1.22.3
+* pandas~=1.4.3
+* Pillow~=9.0.1
+* scipy~=1.7.3
+* torchvision~=0.13.0
+* scikit-learn~=1.1.1
+* seaborn~=0.11.2
+* pingouin~=0.5.2
+* statsmodels~=0.13.2
+* lpips~=0.1.4
 
 ### Data
-The data for training needs to be in a specific format for the network to train properly. Data is structured as a list of dictionaries ({"fMRI":"normalized voxel activity","image":"/path/to/seen/image"}). Code used for processing the raw data can be found in /data/.
-#### Generic Object Decoding Dataset
-- The raw fMRI data can be downloaded: [Deep Image Reconstruction@OpenNeuro](https://openneuro.org/datasets/ds001506)
+The data for training needs to be in a specific format for the network to train properly. Data is structured as a list of dictionaries ({"fMRI":"normalized voxel activity","image":"/path/to/seen/image"}). Code used for processing the raw data can be found in NSD_preprocess.py and NSD_process_utils.py.
+
 #### Natural Scenes Dataset
-- Instructions to download raw data ...
-- Processed data can be downloaded here: 
-#### ImageNet 2011 Validation Set (For Pretraining)
-- The image set for pretrained network can be downloaded here:
+- To access the dataset please go to http://naturalscenesdataset.org/
 
+## References
+References to literature can be found in thesis. Link will be added soon.
 
-### Model
-
-- Trained models can be downloaded from here:
-   [d-vaegan-model](https://drive.google.com/file/...)
-
-
-### Results
-#### Study 1
-- The reconstructed images of Horikawa17 (GOD) dataset: 
- [Horikawa17](https://github.com/.../data4_imgs.pdf)
-- The reconstructed images of NSD dataset (Allen et al., 2021): 
- [Horikawa17](https://github.com/.../data4_imgs.pdf)
-- - The reconstructed images of non-pretrained NSD dataset (Allen et al., 2021): 
- [Horikawa17](https://github.com/.../data4_imgs.pdf)
-
+## Repositories 
+Maria Podguzova's d-WAE/GAN: [Link](https://github.com/MariaPdg/thesis-fmri-reconstruction)
+Gaziv et al., Encoder-Decoder model, inspired the n-way comparison code: [Link](https://github.com/WeizmannVision/SelfSuperReconst)
+VAE/GAN PyTorch: [Link](https://github.com/lucabergamini/VAEGAN-PYTORCH)
+Ren's d-VAE/GAN: [Link](https://github.com/ziqiren/dvaeganImageRecon)
+WAE Implementation: [Link](https://github.com/tolstikhin/wae)
+SSIM: [Link](https://github.com/pranjaldatta/SSIM-PyTorch/blob/master/SSIM_notebook.ipynb) (Not used in Thesis)
 
 
 

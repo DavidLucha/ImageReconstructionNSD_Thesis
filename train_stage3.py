@@ -119,7 +119,7 @@ def main():
             args = parser.parse_args()
 
         if not arguments:
-            from hidden import args
+            from unused import args
 
         """
         PATHS
