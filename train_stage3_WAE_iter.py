@@ -505,7 +505,7 @@ def main():
                                 loss_discriminator_fake.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
                                 loss_discriminator_real.backward(retain_graph=True, inputs=list(model.discriminator.parameters()))
                                 mean_mult = batch_size * args.lambda_GAN
-                            elif args.disc_loss == "Both":
+                            elif args.disc_loss == "Both": # We used this one
                                 # SINCE WE DON'T UPDATE THE ENCODER HERE, THIS HAS NO ROLE
                                 # IT TRAINS THE DISCRIMINATOR BUT THAT DOESN'T INFORM ANYTHING.
                                 # This will be as Maria's but with the discriminator fixed
@@ -582,7 +582,7 @@ def main():
                             x_recon = model.decoder(z_cog_enc)
                             logits_cog_enc = model.discriminator(z_cog_enc)
 
-                            if args.WAE_loss == "Maria":
+                            if args.WAE_loss == "Maria": # We used this one
                                 mse_loss = nn.MSELoss()
                                 loss_reconstruction = mse_loss(x_recon, x_image) * args.lambda_recon
                                 mean_mult = 1 * args.lambda_recon

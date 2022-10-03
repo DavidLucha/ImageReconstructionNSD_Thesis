@@ -38,6 +38,26 @@ for i in range(permutations):
     # bootstrapped_means.append(avg)
 """
 
+import nibabel as nib
+import csv
+
+img = nib.load('D:/NSD/inode/full_roi/subj_01/prf-visualrois.nii.gz')
+hdr = img.header
+print(hdr)
+
+data = img.get_fdata()
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # TESTING THE RECON GRAB

@@ -480,7 +480,7 @@ def main():
                                 loss_discriminator_fake.backward(retain_graph=True)
                                 loss_discriminator_real.backward(retain_graph=True)
                                 mean_mult = batch_size * args.lambda_GAN
-                            elif args.disc_loss == "Both":
+                            elif args.disc_loss == "Both": # We used this one
                                 # Using Maria's but with modern Pytorch BCE loss + addition of loss terms before back pass
                                 bce_loss = nn.BCEWithLogitsLoss(reduction='none').to(device)
 
@@ -546,7 +546,7 @@ def main():
                                 loss_penalty.backward(inputs=list(model.encoder.parameters()))
                                 mean_mult_pen = batch_size * args.lambda_GAN
                                 mean_mult_rec = batch_size
-                            elif args.WAE_loss == "Both":
+                            elif args.WAE_loss == "Both": # We used this one
                                 # As with Maria, but with BCELogits and feature loss (using vis recon as real)
                                 # But also Maria does a MSELoss in this stage and not the manual squared diff
                                 bce_loss = nn.BCEWithLogitsLoss(reduction='none').to(device)

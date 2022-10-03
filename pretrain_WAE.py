@@ -416,7 +416,7 @@ def main():
                         loss_discriminator_real.backward(retain_graph=True,
                                                          inputs=list(model.discriminator.parameters()))
                         mean_mult = batch_size
-                    elif args.disc_loss == "Both":
+                    elif args.disc_loss == "Both": # We used this one
                         # Using Maria's but with modern Pytorch BCE loss + addition of loss terms before back pass
                         bce_loss = nn.BCEWithLogitsLoss(reduction='none')
 
@@ -473,7 +473,7 @@ def main():
                         loss_reconstruction.backward(retain_graph=True, inputs=encdec_params)
                         loss_penalty.backward(inputs=encdec_params)
                         mean_mult = batch_size
-                    elif args.WAE_loss == "Both":
+                    elif args.WAE_loss == "Both": # We used this one
                         bce_loss = nn.BCEWithLogitsLoss(reduction='none')
                         # Like Maria's but with MSE and BCE from pytorch
                         # label for non-saturating loss

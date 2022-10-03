@@ -290,6 +290,7 @@ if study3:
 
 # exit(69)
 
+
 # ------------------------ SAVE ALL OUTPUTS AS CSVs ---------------------------
 save_path='D:/Lucha_Data/final_networks/output/'
 
@@ -305,6 +306,66 @@ study1_out_df['nway'] = study1_out_df['nway'].astype(str) + '-way'
 
 study2n3_means_CIs_df['nway'] = study2n3_means_CIs_df['nway'].astype(str) + '-way'
 # study2n3_means_CIs_df['nway'] = study2n3_means_CIs_df['nway'].astype(str) + '-way'
+
+# ------------------------ Assumption Checks ------------------------
+
+assumption_checks = True
+
+if assumption_checks:
+    from scipy.stats import skew, kurtosis, shapiro, kstest
+    import scipy.stats as stats
+    import statsmodels.api as sm
+    import statsmodels.stats as sm_stats
+    # Get the shapiro-wilks p-value for each raw scores
+    test_data = study2n3_means_CIs_df.iloc[0]['score']
+    print(skew(test_data, bias=True))
+    print(kurtosis(test_data, bias=True))
+    print(shapiro(test_data))
+    print(kstest(test_data, stats.norm.cdf))
+    print(sm_stats.diagnostic.lilliefors(test_data))
+    test_np = np.asarray(test_data)
+    fig = sm.qqplot(test_np, line='45')
+    plt.show()
+
+    test_df = pd.DataFrame(test_data)
+
+    file_out = os.path.join(save_path, 'normal_test_data.csv')
+
+    test_df.to_csv(file_out, index=False)
+
+    # Get all values for raw accuracy scores
+    for id, row in study2n3_means_CIs_df.iterrows():
+        data = row['score']
+        print(row['run_name'])
+        print('skew test result: ', skew(data, bias=True))
+        print('kurtosis test result: ', kurtosis(data, bias=True))
+        print('shapiro-wilks test result: ', shapiro(data))
+        print('kolmogorov-smirnov with lilliefors result:', sm_stats.diagnostic.lilliefors(data))
+
+    skew_list = []
+    # Get the skewness for differences scores study 2
+    for id, row in study2_wilcox_out_df.iterrows():
+        plt.cla()
+        data = row['comp_diffs']
+        print('Stats for voxel resolution diff scores on {}-way using {}'.format(row['nway'], row['metric']))
+        print('skew test result: ', skew(data, bias=True))
+        skew_list.append(skew(data, bias=True))
+        g = plt.hist(data, color='b', label='diff dist', bins=50)
+        plt.show()
+
+    # Get the skewness for differences scores study 3
+    for id, row in study3_wilcox_out_df.iterrows():
+        plt.cla()
+        data = row['comp_diffs']
+        print('Stats for diff between {} and {} on {}-way using {}'.format(row['comp_1_label'], row['comp_2_label'], row['nway'], row['metric']))
+        print('skew test result: ', skew(data, bias=True))
+        skew_list.append(skew(data, bias=True))
+        g = plt.hist(data, color='b', label='diff dist', bins=50)
+        plt.show()
+
+    print(max(skew_list))
+    print(min(skew_list))
+
 
 with pd.ExcelWriter(os.path.join(save_path, 'all_studies_results.xlsx')) as writer:
     study1_out_df.to_excel(writer, sheet_name='Study 1')
