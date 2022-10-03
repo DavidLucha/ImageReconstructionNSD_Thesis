@@ -39,6 +39,23 @@ The data for training needs to be in a specific format for the network to train 
 #### Natural Scenes Dataset
 - To access the dataset please go to http://naturalscenesdataset.org/
 
+## Evaluation
+Evaluation code can be found in the following.
+
+#### net_evaluation_tabular.py
+Loads each trained network and calculates the metrics between each reconstruction and each ground truth image in the test set. The result of this is used with all_net_eval.py below.
+
+#### all_net_eval.py
+main(): runs the n-way comparisons for each networks test reconstructions
+study_1(): runs the permutation test for each participant on 1.8mm data. Calculates 95% CIs.
+study_2n3(): for each study it combines the accuracy scores across all participants (pooled; N = 6,976) and calculates bootstrapped 95% CIs.
+
+#### stats.py 
+Runs the statistics for Study 2 and Study 2 (Wilcoxon and Friedman Tests)
+
+## Models
+Model details can be found in model_2.py and model_config_2.py.
+
 ## References
 References to literature can be found in thesis. Link will be added soon.
 
