@@ -1,2 +1,0 @@
-# Note about /individual_train_scripts
-This is the (mostly) functioning scripts for each stage of the dvaegan + pretrain. These can be used if you want to train each stage separately. However, in order to streamline the process, we converted these scripts to a function which allows rapid, consecutive training passes for each subject's data.
