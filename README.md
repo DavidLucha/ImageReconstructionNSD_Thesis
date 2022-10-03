@@ -1,7 +1,11 @@
-# Reconstructing Seen Images From Natural Scenes Dataset Using Deep Learning
+# Reconstructing Seen Images from fMRI Using Machine Learning
+This is the official repository for my  thesis project.
+## Abstract
 
-This is the repository for my Psychology honours thesis. This involves a rough technical replication of Ren et al.'s (2019) d-VAE/GAN using two datasets: the Generic Object Decoding (DOG) Dataset and the Natural Scenes Dataset (NSD). We look at whether ultra-high field fMRI can improve the capabilities of neural networks for natural image reconstruction. I also investigate the extent to which voxel resolution and training set size contribute to reconstruction quality. Finally, I demonstrate the relative importance of ROIs for reconstruction using the NSD. 
+Deep learning approaches have been increasingly successful in reconstructing seen images from brain data measured using functional magnetic resonance imaging (fMRI). This brain decoding research has been vital in understanding the how visual information is encoded in low- and high-order visual areas. However, much of the existing work is limited due to the lack of high-quality, large scale neuroimaging datasets. The Natural Scenes Dataset (NSD) was developed to address this limitation and is the most comprehensive fMRI dataset of its kind, providing greater spatial resolution (i.e., voxel resolution) than previous datasets. However, there is currently no available research investigating the viability of the dataset for image reconstruction tasks. This thesis aimed to evaluate whether machine learning approaches could successfully use the NSD to generate high fidelity reconstructions from fMRI. Additionally, the thesis aimed to explore the role of voxel resolution on the quality of reconstructions, and to use the NSD to explore the supplementary role of high-order visual areas in perception. Across three studies, a series of artificial neural networks were trained to reconstruct seen images from novel human brain data provided by the NSD. Reconstruction quality was assessed using three metrics of identification accuracy computed using two leading image similarity measures. In study one, it was found that neural networks generated reconstructions of the seen image with above chance accuracy. In study two, finer voxel resolutions resulted in higher quality reconstructions than coarser voxel resolutions. Finally, study three revealed that alone, low-order visual areas were most important for reconstructing seen images. However, high-order visual areas provided a significant boost to reconstruction quality. These findings suggest that the NSD is a promising tool for brain decoding research and sheds new light on how high-order visual areas provide contextual and semantic information required for visual perception.
 
+
+### Contact
 Please email me at dlucha@uqconnect.edu.au if you have any questions.
 
 
@@ -39,12 +43,12 @@ The data for training needs to be in a specific format for the network to train 
 References to literature can be found in thesis. Link will be added soon.
 
 ## Repositories 
-Maria Podguzova's d-WAE/GAN: [Link](https://github.com/MariaPdg/thesis-fmri-reconstruction)
-Gaziv et al., Encoder-Decoder model, inspired the n-way comparison code: [Link](https://github.com/WeizmannVision/SelfSuperReconst)
-VAE/GAN PyTorch: [Link](https://github.com/lucabergamini/VAEGAN-PYTORCH)
-Ren's d-VAE/GAN: [Link](https://github.com/ziqiren/dvaeganImageRecon)
-WAE Implementation: [Link](https://github.com/tolstikhin/wae)
-SSIM: [Link](https://github.com/pranjaldatta/SSIM-PyTorch/blob/master/SSIM_notebook.ipynb) (Not used in Thesis)
+* Maria Podguzova's d-WAE/GAN: [Link](https://github.com/MariaPdg/thesis-fmri-reconstruction)
+* Gaziv et al., Encoder-Decoder model, inspired the n-way comparison code: [Link](https://github.com/WeizmannVision/SelfSuperReconst)
+* VAE/GAN PyTorch: [Link](https://github.com/lucabergamini/VAEGAN-PYTORCH)
+* Ren's d-VAE/GAN: [Link](https://github.com/ziqiren/dvaeganImageRecon)
+* WAE Implementation: [Link](https://github.com/tolstikhin/wae)
+* SSIM: [Link](https://github.com/pranjaldatta/SSIM-PyTorch/blob/master/SSIM_notebook.ipynb) (Not used in Thesis)
 
 
 
