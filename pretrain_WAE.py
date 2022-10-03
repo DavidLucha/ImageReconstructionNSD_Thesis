@@ -1,5 +1,4 @@
 import os
-import random
 import time
 import numpy
 import torch
@@ -11,19 +10,18 @@ import json
 import random
 import sys
 
-import torchvision
 from torch import nn
 from torchvision import transforms
 from torch.autograd import Variable
 from torchvision.utils import make_grid
-from torch.utils.data import DataLoader, ConcatDataset
+from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from torch.optim.lr_scheduler import ExponentialLR, StepLR
+from torch.optim.lr_scheduler import StepLR
 
 import training_config
 from model_2 import WaeGan
 from utils_2 import ImageNetDataloader, GreyToColor, evaluate, PearsonCorrelation, \
-    StructuralSimilarity, objective_assessment, parse_args, NLLNormal, potentiation, FmriDataloader
+    StructuralSimilarity, potentiation, FmriDataloader
 
 def free_params(module: nn.Module):
     for p in module.parameters():
@@ -105,7 +103,7 @@ def main():
             args = parser.parse_args()
 
         if not arguments:
-            import args
+            from hidden import args
 
         """
         PATHS

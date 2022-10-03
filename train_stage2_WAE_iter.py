@@ -10,21 +10,19 @@ import argparse
 import pandas as pd
 import matplotlib.pyplot as plt
 import random
-import math
 
-import torchvision
 from torch import nn, no_grad
 from torchvision import transforms
 from torch.autograd import Variable
 from torchvision.utils import make_grid
-from torch.utils.data import DataLoader, ConcatDataset
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ExponentialLR, StepLR
 
 import training_config
-from model_2 import VaeGan, Encoder, Decoder, VaeGanCognitive, Discriminator, CognitiveEncoder, WaeGan, WaeGanCognitive
-from utils_2 import GreyToColor, evaluate, PearsonCorrelation, \
-    StructuralSimilarity, objective_assessment, parse_args, FmriDataloader, potentiation
+from model_2 import CognitiveEncoder, WaeGan, WaeGanCognitive
+from utils_2 import GreyToColor, PearsonCorrelation, \
+    StructuralSimilarity, FmriDataloader
+
 
 def free_params(module: nn.Module):
     for p in module.parameters():
@@ -118,7 +116,7 @@ def main():
             args = parser.parse_args()
 
         if not arguments:
-            import args
+            from hidden import args
 
         """
         PATHS
@@ -243,7 +241,7 @@ def main():
 
         # Load data
         training_data = FmriDataloader(dataset=train_data, root_path=root_path, standardizer=args.standardize,
-                                           transform=transforms.Compose([transforms.Resize((training_config.image_size,
+                                       transform=transforms.Compose([transforms.Resize((training_config.image_size,
                                                                                             training_config.image_size)),
                                                                          transforms.CenterCrop(
                                                                              (training_config.image_size,
@@ -257,7 +255,7 @@ def main():
                                                                          ]))
 
         validation_data = FmriDataloader(dataset=valid_data, root_path=root_path, standardizer=args.standardize,
-                                           transform=transforms.Compose([transforms.Resize((training_config.image_size,
+                                         transform=transforms.Compose([transforms.Resize((training_config.image_size,
                                                                                             training_config.image_size)),
                                                                          transforms.CenterCrop(
                                                                              (training_config.image_size,

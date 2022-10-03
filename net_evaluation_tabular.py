@@ -13,11 +13,11 @@ import random
 from torchvision import transforms
 from torch.autograd import Variable
 from torchvision.utils import make_grid
-from torch.utils.data import DataLoader, ConcatDataset
+from torch.utils.data import DataLoader
 
 import training_config
-from model_2 import VaeGan, Encoder, Decoder, VaeGanCognitive, Discriminator, CognitiveEncoder, WaeGan, WaeGanCognitive
-from utils_2 import GreyToColor, evaluate, PearsonCorrelation, objective_assessment_table, \
+from model_2 import Decoder, CognitiveEncoder, WaeGanCognitive
+from utils_2 import GreyToColor, objective_assessment_table, \
     objective_assessment_table_batch,  FmriDataloader, save_network_out
 
 
@@ -83,7 +83,7 @@ def main():
         args = parser.parse_args()
 
     if not arguments:
-        import args
+        from hidden import args
 
     """
     PATHS
@@ -175,7 +175,7 @@ def main():
 
     # Load data
     validation_data = FmriDataloader(dataset=valid_data, root_path=root_path, standardizer=args.standardize,
-                                       transform=transforms.Compose([transforms.Resize((training_config.image_size,
+                                     transform=transforms.Compose([transforms.Resize((training_config.image_size,
                                                                                         training_config.image_size)),
                                                                      transforms.CenterCrop(
                                                                          (training_config.image_size,
@@ -213,7 +213,7 @@ def main():
     cognitive_encoder = CognitiveEncoder(input_size=NUM_VOXELS, z_size=args.latent_dims, lin_size=args.lin_size,
                                          lin_layers=args.lin_layers).to(device)
     model = WaeGanCognitive(device=device, encoder=cognitive_encoder, decoder=decoder,
-                                    z_size=args.latent_dims).to(device)
+                            z_size=args.latent_dims).to(device)
 
     model.load_state_dict(torch.load(model_dir, map_location=device))
 
